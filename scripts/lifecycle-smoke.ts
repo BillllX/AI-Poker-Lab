@@ -1,9 +1,10 @@
 import { strict as assert } from "node:assert";
 import type { AgentDecisionRequest, AgentDecisionResponse } from "../src/lib/poker/types";
 import { enqueueDecision, submitDecision, subscribePendingDecision } from "../src/lib/server/decisionBroker";
-import { clearAgents, registerAgent, subscribeAgentRegistry } from "../src/lib/server/agentRegistry";
+import { clearAgents, listAgents, registerAgent, subscribeAgentRegistry } from "../src/lib/server/agentRegistry";
 import { GameSimulator } from "../src/lib/server/simulator";
 import type { GameBuyIn, GameSettlement } from "../src/lib/server/userRegistry";
+import { initialStack } from "../src/lib/poker/gameEngine";
 
 const agents = [
   {
@@ -32,6 +33,7 @@ async function main() {
   await assertMidDecisionResetSettlesOnce();
   await assertAutoStartWaitsForPollingAgents();
   await assertNewPollingAgentJoinsNextHand();
+  await assertBustedRealAgentSettlesAndLeaves();
   await assertDecisionSubscribersReceivePendingAndClear();
   await assertAgentRegistrySubscribersObserveSessionClear();
   console.log("Lifecycle smoke tests passed.");
@@ -109,6 +111,75 @@ async function assertNewPollingAgentJoinsNextHand() {
 
   assert.ok(harness.reserveCalls.length >= 2, "new polling Agent should get a separate buy-in reserve call");
   assert.equal(harness.reserveCalls.at(-1)?.[0]?.agentId, thirdAgent.id, "new polling Agent should join on a hand boundary");
+}
+
+async function assertBustedRealAgentSettlesAndLeaves() {
+  clearAgents();
+  const bustedAgent = {
+    id: "bust-smoke-agent-a",
+    name: "Bust Smoke Agent A",
+    ownerUserId: "user-bust-a",
+    modelName: "test-model",
+    kind: "external" as const,
+    registeredAt: new Date().toISOString(),
+    assignmentStatus: "playing" as const,
+  };
+  const survivingAgent = {
+    id: "bust-smoke-agent-b",
+    name: "Bust Smoke Agent B",
+    ownerUserId: "user-bust-b",
+    modelName: "test-model",
+    kind: "external" as const,
+    registeredAt: new Date().toISOString(),
+    assignmentStatus: "playing" as const,
+  };
+  const harness = createHarness({ decisionMode: "pending", agents: [bustedAgent, survivingAgent] });
+  const simulator = new GameSimulator("http://localhost:3000", harness.deps);
+  const internals = simulator as unknown as SimulatorInternals;
+
+  registerAgent(bustedAgent);
+  internals.activeBuyIns = [
+    {
+      agentId: bustedAgent.id,
+      amount: initialStack,
+      gameSessionId: "bust-smoke-session",
+      ownerUserId: bustedAgent.ownerUserId,
+    },
+    {
+      agentId: survivingAgent.id,
+      amount: initialStack,
+      gameSessionId: "bust-smoke-session",
+      ownerUserId: survivingAgent.ownerUserId,
+    },
+  ];
+
+  const player = internals.engine.players.find((item) => item.id === bustedAgent.id);
+  assert.ok(player, "busted Agent should be seated in the engine");
+  player.stack = 0;
+
+  await simulator.settleAndRemoveAgent(bustedAgent.id, "busted", true);
+
+  assert.equal(harness.settleCalls.length, 1, "busted Agent should trigger a single-player settlement");
+  assert.deepEqual(
+    harness.settleCalls[0],
+    [
+      {
+        agentId: bustedAgent.id,
+        amount: initialStack,
+        finalStack: 0,
+        gameSessionId: "bust-smoke-session",
+        ownerUserId: bustedAgent.ownerUserId,
+      },
+    ],
+    "busted Agent settlement should release the buy-in with zero payout",
+  );
+  assert.ok(
+    !internals.engine.snapshot().players.some((item) => item.id === bustedAgent.id),
+    "busted Agent should be removed from the table engine",
+  );
+  assert.ok(listAgents().every((agent) => agent.id !== bustedAgent.id), "busted real Agent registration should be removed");
+  assert.equal(internals.activeBuyIns.length, 1, "surviving Agent buy-in should remain active");
+  clearAgents();
 }
 
 async function assertDecisionSubscribersReceivePendingAndClear() {
@@ -232,6 +303,14 @@ function createHarness(options: { decisionMode: "auto-fold" | "pending"; agents?
     settleCalls,
   };
 }
+
+type SimulatorInternals = {
+  activeBuyIns: GameBuyIn[];
+  engine: {
+    players: Array<{ id: string; stack: number }>;
+    snapshot: () => { players: Array<{ id: string }> };
+  };
+};
 
 async function waitFor(predicate: () => boolean) {
   const deadline = Date.now() + 1_000;
