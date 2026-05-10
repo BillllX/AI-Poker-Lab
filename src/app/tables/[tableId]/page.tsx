@@ -61,7 +61,7 @@ const initialStack = 1_000;
 
 export default function TableDetailPage({ params }: { params: Promise<{ tableId: string }> }) {
   const { tableId } = use(params);
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const t = copy[language];
   const [state, setState] = useState<GameSnapshot>();
   const players = state?.players ?? [];
@@ -91,14 +91,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
           </p>
         </div>
         <div className={styles.controls}>
-          <div aria-label="Language" className={styles.languageTabs}>
-            <button className={language === "zh" ? styles.activeLanguage : ""} type="button" onClick={() => setLanguage("zh")}>
-              中文
-            </button>
-            <button className={language === "en" ? styles.activeLanguage : ""} type="button" onClick={() => setLanguage("en")}>
-              EN
-            </button>
-          </div>
           <Link className="secondary" href="/">{t.home}</Link>
           <Link className="secondary" href="/tables">{t.backLobby}</Link>
         </div>

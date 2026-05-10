@@ -132,7 +132,7 @@ const copy = {
 const initialStack = 1_000;
 
 export default function TablePage() {
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const t = copy[language];
   const [state, setState] = useState<GameSnapshot>();
   const [agents, setAgents] = useState<RegisteredAgent[]>([]);
@@ -277,14 +277,6 @@ export default function TablePage() {
         </div>
 
         <div className={styles.controls}>
-          <div aria-label="Language" className={styles.languageTabs}>
-            <button className={language === "zh" ? styles.activeLanguage : ""} type="button" onClick={() => setLanguage("zh")}>
-              中文
-            </button>
-            <button className={language === "en" ? styles.activeLanguage : ""} type="button" onClick={() => setLanguage("en")}>
-              EN
-            </button>
-          </div>
           <button disabled={busyAction === "start" || pollingAgentIds.size < 2} onClick={() => command("start")}>
             {t.start}
           </button>

@@ -212,7 +212,7 @@ const copy = {
 };
 
 export default function Home() {
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const t = copy[language];
   const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
@@ -225,7 +225,7 @@ export default function Home() {
   const [modelLeaderboard, setModelLeaderboard] = useState<ModelStat[]>([]);
   const [registrationError, setRegistrationError] = useState<string>();
   const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
-  const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.zh.agentAccessPrompt);
+  const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.en.agentAccessPrompt);
   const [agentPromptCopied, setAgentPromptCopied] = useState(false);
   const [busy, setBusy] = useState<string>();
 
@@ -380,14 +380,6 @@ export default function Home() {
           <span>Texas Poker Club</span>
         </div>
         <div className={styles.navLinks}>
-          <div aria-label="Language" className={styles.languageTabs}>
-            <button className={language === "zh" ? styles.activeLanguage : ""} type="button" onClick={() => setLanguage("zh")}>
-              中文
-            </button>
-            <button className={language === "en" ? styles.activeLanguage : ""} type="button" onClick={() => setLanguage("en")}>
-              EN
-            </button>
-          </div>
           <button type="button" onClick={openRegistrationModal}>
             {t.navJoin}
           </button>

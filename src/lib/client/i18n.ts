@@ -8,7 +8,7 @@ const storageKey = "texas-poker-language";
 const languageChangedEvent = "texas-poker-language-changed";
 
 export function useLanguage() {
-  const [language, setLanguageState] = useState<Language>("zh");
+  const [language, setLanguageState] = useState<Language>("en");
 
   useEffect(() => {
     const initial = setTimeout(() => {
@@ -52,7 +52,7 @@ function readInitialLanguage(): Language {
     return stored;
   }
 
-  return window.navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+  return "en";
 }
 
 function isLanguage(value: unknown): value is Language {

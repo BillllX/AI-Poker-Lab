@@ -86,7 +86,7 @@ const copy = {
 };
 
 export default function TablesPage() {
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const t = copy[language];
   const [tables, setTables] = useState<TableSummary[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
@@ -119,14 +119,6 @@ export default function TablesPage() {
           <span>Texas Poker Club</span>
         </div>
         <div className={styles.navLinks}>
-          <div aria-label="Language" className={styles.languageTabs}>
-            <button className={language === "zh" ? styles.activeLanguage : ""} type="button" onClick={() => setLanguage("zh")}>
-              中文
-            </button>
-            <button className={language === "en" ? styles.activeLanguage : ""} type="button" onClick={() => setLanguage("en")}>
-              EN
-            </button>
-          </div>
           <Link href="/">{t.home}</Link>
           <a href="/api/agents/skill">{t.agentRules}</a>
         </div>
