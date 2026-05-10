@@ -482,6 +482,10 @@ export class TableManager {
     await table.runner.endSession(this.origin);
   }
 
+  async endAllTables() {
+    await Promise.all([...this.tables.values()].map((table) => table.runner.endSession(this.origin)));
+  }
+
   async leaveAgent(agentId: string) {
     const agent = listRegisteredAgents().find((item) => item.id === agentId);
     if (!agent) {

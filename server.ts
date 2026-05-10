@@ -173,6 +173,34 @@ async function main() {
     console.log(`Texas Poker server ready on http://${hostname}:${port}`);
     console.log(`Agent WebSocket ready at ws://${hostname}:${port}${wsPath}?agentId=<agent-id>`);
   });
+
+  let isShuttingDown = false;
+  const shutdown = (signal: NodeJS.Signals) => {
+    if (isShuttingDown) {
+      return;
+    }
+
+    isShuttingDown = true;
+    console.log(`Received ${signal}; settling active poker tables before shutdown.`);
+    server.close(() => {
+      console.log("HTTP server closed.");
+    });
+    wss.close();
+
+    void getTableManager(`http://${hostname}:${port}`)
+      .endAllTables()
+      .then(() => {
+        console.log("Active poker tables settled.");
+        process.exit(0);
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to settle active poker tables during shutdown.", error);
+        process.exit(1);
+      });
+  };
+
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
 }
 
 type AgentLeaveMessage = {
