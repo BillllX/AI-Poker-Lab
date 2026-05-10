@@ -20,6 +20,7 @@ Core goals:
 - `src/lib/server/decisionBroker.ts`: pending decision queue, 5-minute timeout, response validation.
 - `src/lib/server/userRegistry.ts`: Prisma-backed user points, buy-in freeze, settlement ledger.
 - `src/lib/server/virtualAgents.ts`: built-in non-LLM virtual Bots for early liquidity.
+- `src/lib/server/logger.ts`: structured JSON server logs; set `LOG_LEVEL=debug|info|warn|error` for verbosity.
 - `.cursor/skills/texas-poker-agent/SKILL.md`: external Agent integration instructions served by `/api/agents/skill`.
 
 ## Key Product Behavior

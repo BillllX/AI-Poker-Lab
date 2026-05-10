@@ -1,4 +1,5 @@
 import { listAgents, normalizeAgentId } from "@/lib/server/agentRegistry";
+import { logger } from "@/lib/server/logger";
 import { getTableManager } from "@/lib/server/simulator";
 import { verifyUserToken } from "@/lib/server/userRegistry";
 
@@ -19,9 +20,12 @@ export async function POST(request: Request) {
 
     await verifyUserToken(agent.ownerUserId, input.userToken);
 
+    logger.info("agent.leave_api_requested", { agentId, ownerUserId: agent.ownerUserId, tableId: agent.tableId });
     const result = await getTableManager(origin).leaveAgent(agentId);
+    logger.info("agent.leave_api_completed", { agentId, ...result });
     return Response.json({ ...result, agentId, agents: listAgents(), tables: getTableManager(origin).summaries() });
   } catch (error) {
+    logger.warn("agent.leave_api_failed", { error });
     return Response.json({ error: error instanceof Error ? error.message : "Unable to leave game." }, { status: 400 });
   }
 }

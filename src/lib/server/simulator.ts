@@ -21,6 +21,7 @@ import {
   type GameBuyIn,
   type GameSettlement,
 } from "./userRegistry";
+import { logger } from "./logger";
 
 type ActiveBuyIn = GameBuyIn;
 type SimulatorDependencies = {
@@ -87,6 +88,7 @@ export class GameSimulator {
 
   async start() {
     if (!this.startPromise) {
+      logger.info("table.start_requested", { tableId: this.tableId, agentCount: this.deps.listAgents().length });
       this.startPromise = this.startInternal().finally(() => {
         this.startPromise = undefined;
       });
@@ -124,6 +126,11 @@ export class GameSimulator {
       for (const agent of this.deps.listAgents()) {
         assignAgentToTable(agent.id, this.tableId, "playing");
       }
+      logger.info("table.session_started", {
+        tableId: this.tableId,
+        gameSessionId: this.gameSessionId,
+        players: this.deps.listAgents().map((agent) => ({ id: agent.id, kind: agent.kind, modelName: agent.modelName })),
+      });
     }
 
     this.engine.setRunning(true);
@@ -142,6 +149,7 @@ export class GameSimulator {
   }
 
   stop() {
+    logger.info("table.stop_requested", { tableId: this.tableId, running: this.engine.isRunning() });
     this.engine.setRunning(false);
     this.deps.clearPendingDecisions("Game was stopped or reconfigured.");
     this.inFlight = false;
@@ -153,6 +161,7 @@ export class GameSimulator {
   }
 
   async settleAndRemoveAgent(agentId: string, reason: "busted" | "left", removeRegistration = false) {
+    logger.info("agent.settle_remove_started", { tableId: this.tableId, agentId, reason, removeRegistration });
     this.deps.clearPendingDecisions(`Agent ${agentId} ${reason === "busted" ? "was busted" : "left the table"}.`, agentId);
     const player = this.engine.snapshot().players.find((item) => item.id === agentId);
     const settlement = this.engine.settlePlayer(agentId, reason) ?? (player ? { finalStack: Math.max(0, player.stack), player } : undefined);
@@ -170,6 +179,14 @@ export class GameSimulator {
       removeAgentFromRegistry(agentId);
     }
 
+    logger.info("agent.settle_remove_completed", {
+      tableId: this.tableId,
+      agentId,
+      reason,
+      finalStack: settlement?.finalStack ?? 0,
+      pendingRemoval: this.playersPendingRemoval.has(agentId),
+    });
+
     if (this.engine.snapshot().players.every((player) => player.kind === "virtual")) {
       this.stop();
       this.deps.clearAgents();
@@ -177,6 +194,7 @@ export class GameSimulator {
   }
 
   async reset(origin: string) {
+    logger.warn("table.reset_requested", { tableId: this.tableId });
     this.stop();
     await this.settleCurrentSession();
     this.origin = origin;
@@ -185,6 +203,7 @@ export class GameSimulator {
   }
 
   async endSession(origin: string) {
+    logger.warn("table.end_session_requested", { tableId: this.tableId });
     this.stop();
     await this.settleCurrentSession();
     this.deps.clearAgents();
@@ -208,6 +227,7 @@ export class GameSimulator {
       await this.addNewPollingAgents();
       const played = await this.engine.playOneHand((request) => this.decide(request));
       if (!played) {
+        logger.info("table.no_hand_played", { tableId: this.tableId });
         await this.settleCurrentSession();
         this.deps.clearAgents();
         this.stopTimer();
@@ -217,7 +237,7 @@ export class GameSimulator {
       await this.settleBustedPlayers();
       await this.addNewPollingAgents();
     } catch (error) {
-      console.error("Poker hand failed; stopping simulator to avoid a runaway loop.", error);
+      logger.error("table.hand_failed", { tableId: this.tableId, error });
       this.engine.setRunning(false);
       this.deps.clearPendingDecisions("Game stopped after an internal hand error.");
       await this.settleCurrentSession();
@@ -242,7 +262,14 @@ export class GameSimulator {
   private async decide(request: AgentDecisionRequest) {
     const agent = this.deps.listAgents().find((item) => item.id === request.playerId);
     if (isVirtualAgent(agent)) {
-      await sleep(randomBetween(virtualBotDecisionDelayMinMs, virtualBotDecisionDelayMaxMs));
+      const delayMs = randomBetween(virtualBotDecisionDelayMinMs, virtualBotDecisionDelayMaxMs);
+      logger.info("virtual_agent.thinking_started", {
+        tableId: request.tableId,
+        agentId: agent.id,
+        handId: request.handId,
+        delayMs,
+      });
+      await sleep(delayMs);
       return decideForVirtualAgent(agent, request);
     }
 
@@ -267,6 +294,9 @@ export class GameSimulator {
     await this.deps.reserveGameBuyIns(buyIns);
     const addedAgentIds = this.engine.addPlayers(newAgents);
     this.activeBuyIns = [...this.activeBuyIns, ...buyIns.filter((buyIn) => addedAgentIds.includes(buyIn.agentId))];
+    if (addedAgentIds.length > 0) {
+      logger.info("table.players_added", { tableId: this.tableId, addedAgentIds, buyInCount: buyIns.length });
+    }
     this.rosterVersion = this.currentRosterVersion();
   }
 
@@ -279,6 +309,7 @@ export class GameSimulator {
     const buyIns = this.deps.listAgents().filter((agent) => !isVirtualAgent(agent)).map((agent) => agentToBuyIn(agent, sessionId));
     await this.deps.reserveGameBuyIns(buyIns);
     this.activeBuyIns = buyIns;
+    logger.info("table.buy_ins_reserved", { tableId: this.tableId, gameSessionId: sessionId, buyInCount: buyIns.length });
   }
 
   private async settleCurrentSession() {
@@ -303,6 +334,7 @@ export class GameSimulator {
 
     await this.deps.settleGameBuyIns([{ ...buyIn, finalStack: Math.max(0, finalStack) }]);
     this.activeBuyIns = this.activeBuyIns.filter((item) => item.agentId !== agentId);
+    logger.info("table.buy_in_settled", { tableId: this.tableId, agentId, finalStack: Math.max(0, finalStack) });
     if (this.activeBuyIns.length === 0) {
       this.gameSessionId = undefined;
     }
@@ -328,12 +360,16 @@ export class GameSimulator {
   private async settleCurrentSessionInternal() {
     this.engine.refundUnsettledPot();
     const players = this.engine.snapshot().players;
-    await this.deps.settleGameBuyIns(
-      this.activeBuyIns.map((buyIn) => ({
+    const settlements = this.activeBuyIns.map((buyIn) => ({
         ...buyIn,
         finalStack: Math.max(0, players.find((player) => player.id === buyIn.agentId)?.stack ?? 0),
-      })),
-    );
+      }));
+    await this.deps.settleGameBuyIns(settlements);
+    logger.info("table.session_settled", {
+      tableId: this.tableId,
+      gameSessionId: this.gameSessionId,
+      settlementCount: settlements.length,
+    });
     this.activeBuyIns = [];
     this.gameSessionId = undefined;
   }
@@ -445,6 +481,7 @@ export class TableManager {
 
   async handleAgentOnline(agentId: string) {
     queueAgent(agentId);
+    logger.info("agent.online_seen", { agentId });
     await this.allocateQueuedAgents();
   }
 
@@ -454,6 +491,7 @@ export class TableManager {
     for (const agent of listQueuedAgents()) {
       const table = this.findTableForAgent() ?? this.createTable();
       assignAgentToTable(agent.id, table.id);
+      logger.info("agent.assigned_to_table", { agentId: agent.id, tableId: table.id });
       this.fillTableWithVirtualAgents(table.id);
       await table.runner.maybeAutoStart();
     }
@@ -470,6 +508,7 @@ export class TableManager {
       throw new Error(`Table ${tableId} does not exist.`);
     }
 
+    logger.warn("table.manager_reset_requested", { tableId });
     await table.runner.reset(this.origin);
   }
 
@@ -479,16 +518,19 @@ export class TableManager {
       throw new Error(`Table ${tableId} does not exist.`);
     }
 
+    logger.warn("table.manager_end_requested", { tableId });
     await table.runner.endSession(this.origin);
   }
 
   async endAllTables() {
+    logger.warn("table.manager_end_all_requested", { tableCount: this.tables.size });
     await Promise.all([...this.tables.values()].map((table) => table.runner.endSession(this.origin)));
   }
 
   async leaveAgent(agentId: string) {
     const agent = listRegisteredAgents().find((item) => item.id === agentId);
     if (!agent) {
+      logger.warn("agent.leave_missing", { agentId });
       return { removed: false, tableEnded: false };
     }
 
@@ -502,6 +544,7 @@ export class TableManager {
 
     const removed = removeAgentFromRegistry(agentId);
     await this.allocateQueuedAgents();
+    logger.info("agent.leave_manager_completed", { agentId, tableId, removed });
     return { removed, tableEnded: Boolean(tableId) };
   }
 
@@ -522,7 +565,11 @@ export class TableManager {
     }
 
     const seatsToFill = Math.min(maxPlayersPerTable, virtualBotTargetPlayers) - tableAgents.length;
-    return assignVirtualAgentsToTable(tableId, seatsToFill);
+    const assigned = assignVirtualAgentsToTable(tableId, seatsToFill);
+    if (assigned.length > 0) {
+      logger.info("virtual_agents.assigned", { tableId, agentIds: assigned.map((agent) => agent.id) });
+    }
+    return assigned;
   }
 
   private createTable() {
@@ -553,6 +600,7 @@ export class TableManager {
       createdAt: new Date().toISOString(),
     };
     this.tables.set(id, record);
+    logger.info("table.created", { tableId: id, name });
     return record;
   }
 }

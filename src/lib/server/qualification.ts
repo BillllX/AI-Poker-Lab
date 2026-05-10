@@ -1,6 +1,7 @@
 import type { AgentDecisionRequest, AgentDecisionResponse, PokerAction } from "../poker/types";
 import { normalizeAgentId } from "./agentRegistry";
 import { validateDecisionResponse } from "./decisionBroker";
+import { logger } from "./logger";
 
 type QualificationMode = "llm_required" | "format_only";
 
@@ -54,6 +55,7 @@ export function createQualificationSession(rawAgentId: string) {
   };
 
   sessions.set(qualificationId, session);
+  logger.info("qualification.session_created", { agentId, qualificationId, expiresAt: session.expiresAt });
 
   return {
     agentId,
@@ -123,6 +125,7 @@ export function submitQualification(input: unknown) {
     expiresAt: new Date(now.getTime() + tokenTtlMs).toISOString(),
   };
   tokens.set(token, qualificationToken);
+  logger.info("qualification.passed", { agentId, qualificationId, expiresAt: qualificationToken.expiresAt });
 
   return qualificationToken;
 }
@@ -149,6 +152,7 @@ export function consumeQualificationToken(rawAgentId: string, token: unknown) {
   }
 
   tokens.delete(token);
+  logger.info("qualification.token_consumed", { agentId });
 }
 
 function validateQualificationResponse(task: QualificationTask, response: unknown) {

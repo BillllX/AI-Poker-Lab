@@ -1,4 +1,5 @@
 import type { AgentDecisionRequest, AgentDecisionResponse, LegalAction } from "../poker/types";
+import { logger } from "./logger";
 
 type PendingDecision = {
   request: AgentDecisionRequest & { requestId: string };
@@ -33,6 +34,13 @@ export function enqueueDecision(request: AgentDecisionRequest) {
     const timer = setTimeout(() => {
       pending.delete(requestId);
       notifyAgent(request.playerId);
+      logger.warn("decision.timeout", {
+        agentId: request.playerId,
+        tableId: request.tableId,
+        handId: request.handId,
+        requestId,
+        timeoutMs,
+      });
       reject(new Error(`Agent ${request.playerId} did not submit an action before timeout.`));
     }, timeoutMs);
 
@@ -43,6 +51,14 @@ export function enqueueDecision(request: AgentDecisionRequest) {
       resolve,
       reject,
       timer,
+    });
+    logger.info("decision.enqueued", {
+      agentId: request.playerId,
+      tableId: request.tableId,
+      handId: request.handId,
+      requestId,
+      legalActions: request.legalActions,
+      expiresAt: expiresAt.toISOString(),
     });
     notifyAgent(request.playerId);
   });
@@ -111,6 +127,15 @@ export function submitDecision(response: AgentDecisionResponse & { requestId?: s
 
   clearTimeout(decision.timer);
   pending.delete(response.requestId);
+  logger.info("decision.submitted", {
+    agentId: response.playerId,
+    tableId: decision.request.tableId,
+    handId: decision.request.handId,
+    requestId: response.requestId,
+    actionType: response.action.type,
+    amount: "amount" in response.action ? response.action.amount : undefined,
+    latencyMs: Date.now() - new Date(decision.createdAt).getTime(),
+  });
   decision.resolve(response);
   notifyAgent(decision.request.playerId);
 }
@@ -127,6 +152,7 @@ export function listPendingDecisions() {
 }
 
 export function clearPendingDecisions(reason = "Decision queue was cleared.", tableId?: string, playerId?: string) {
+  let cleared = 0;
   for (const [requestId, decision] of pending) {
     if (tableId && decision.request.tableId !== tableId) {
       continue;
@@ -138,6 +164,11 @@ export function clearPendingDecisions(reason = "Decision queue was cleared.", ta
     decision.reject(new Error(reason));
     pending.delete(requestId);
     notifyAgent(decision.request.playerId);
+    cleared += 1;
+  }
+
+  if (cleared > 0) {
+    logger.warn("decision.cleared", { reason, tableId, playerId, cleared });
   }
 }
 

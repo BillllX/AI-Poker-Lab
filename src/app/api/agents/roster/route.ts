@@ -4,6 +4,7 @@ import { consumeQualificationToken } from "@/lib/server/qualification";
 import { getTableManager } from "@/lib/server/simulator";
 import { verifyUserToken } from "@/lib/server/userRegistry";
 import { isReservedVirtualAgentId } from "@/lib/server/virtualAgents";
+import { logger } from "@/lib/server/logger";
 
 export async function GET() {
   return Response.json({
@@ -53,9 +54,18 @@ export async function POST(request: Request) {
     const agent = registerAgent(input);
 
     await tableManager.allocateQueuedAgents();
+    logger.info("agent.registered", {
+      agentId: agent.id,
+      ownerUserId: agent.ownerUserId,
+      modelName: agent.modelName,
+      assignmentStatus: agent.assignmentStatus,
+      tableId: agent.tableId,
+      existing: Boolean(existingAgent),
+    });
 
     return Response.json({ agent, agents: listAgents(), pollingAgents: listPollingAgents(), tables: tableManager.summaries() });
   } catch (error) {
+    logger.warn("agent.registration_failed", { error });
     return Response.json({ error: error instanceof Error ? error.message : "Invalid Agent registration." }, { status: 400 });
   }
 }
@@ -75,6 +85,7 @@ export async function DELETE(request: Request) {
 
   const removed = removeAgent(id);
   const tableManager = getTableManager(origin);
+  logger.info("agent.deleted", { agentId: id, removed });
 
   return Response.json({ removed, agents: listAgents(), tables: tableManager.summaries() });
 }

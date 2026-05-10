@@ -5,6 +5,7 @@ import { listAgents, markAgentDisconnected, markAgentSeen, subscribeAgentRegistr
 import { getPendingDecision, submitDecision, subscribePendingDecision } from "./src/lib/server/decisionBroker";
 import { addRuntimeFeedback, getRuntimeInstructions } from "./src/lib/server/runtimeInstructions";
 import { getTableManager } from "./src/lib/server/simulator";
+import { logger } from "./src/lib/server/logger";
 import type { AgentDecisionResponse } from "./src/lib/poker/types";
 
 const { hostname, port } = parseArgs(process.argv.slice(2));
@@ -41,12 +42,14 @@ async function main() {
     const origin = originFor(request);
 
     if (!agentId) {
+      logger.warn("ws.connection_rejected", { reason: "missing_agent_id", remoteAddress: request.socket.remoteAddress });
       send(ws, { type: "agent_stop", shouldStop: true, reason: "agentId is required." });
       ws.close(1008, "agentId is required");
       return;
     }
 
     if (!listAgents().some((agent) => agent.id === agentId)) {
+      logger.warn("ws.connection_rejected", { agentId, reason: "agent_not_registered", remoteAddress: request.socket.remoteAddress });
       send(ws, {
         type: "agent_stop",
         agentId,
@@ -58,6 +61,7 @@ async function main() {
     }
 
     markAgentSeen(agentId);
+    logger.info("ws.connected", { agentId, origin, remoteAddress: request.socket.remoteAddress });
     void getTableManager(origin).handleAgentOnline(agentId).then(() => {
       sendAssignmentState(ws, agentId, undefined, origin);
     });
@@ -76,6 +80,7 @@ async function main() {
         shouldStop: true,
         reason: "Agent is no longer registered. Stop this WebSocket worker.",
       });
+      logger.info("ws.agent_removed_stop", { agentId });
       ws.close(1000, "Agent is no longer registered");
       return true;
     };
@@ -91,8 +96,10 @@ async function main() {
             previousTableUrl: tableUrlFor(origin, lastAssignment.tableId),
             shouldStop: false,
           });
+          logger.info("table.settled_notice_sent", { agentId, previousTableId: lastAssignment.tableId });
         }
         lastAssignment = nextAssignment;
+        logger.info("agent.assignment_changed", { agentId, assignment: nextAssignment });
         sendAssignmentState(ws, agentId, undefined, origin);
       }
     });
@@ -125,9 +132,11 @@ async function main() {
             throw new Error("agent_leave agentId does not match this WebSocket connection.");
           }
 
+          logger.info("agent.leave_requested", { agentId });
           void getTableManager(origin)
             .leaveAgent(agentId)
             .then((result) => {
+              logger.info("agent.leave_completed", { agentId, ...result });
               send(ws, {
                 type: "agent_stop",
                 agentId,
@@ -139,15 +148,24 @@ async function main() {
               ws.close(1000, "Agent requested to leave");
             })
             .catch((error: unknown) => {
+              logger.error("agent.leave_failed", { agentId, error });
               send(ws, { type: "action_error", ok: false, error: error instanceof Error ? error.message : "Unable to leave game." });
             });
           return;
         }
 
         submitDecision(payload);
+        logger.info("decision.response_acknowledged", {
+          agentId,
+          requestId: payload.requestId,
+          tableId: payload.tableId,
+          actionType: payload.action?.type,
+          amount: actionAmount(payload.action),
+        });
         send(ws, { type: "action_ack", requestId: payload.requestId, ok: true });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Invalid WebSocket action response.";
+        logger.warn("decision.response_rejected", { agentId, error: message });
         try {
           addRuntimeFeedback(
             agentId,
@@ -166,12 +184,16 @@ async function main() {
       unsubscribeRegistry();
       unsubscribeAssignment();
       markAgentDisconnected(agentId);
+      logger.info("ws.closed", { agentId });
     });
   });
 
   server.listen(port, hostname, () => {
-    console.log(`Texas Poker server ready on http://${hostname}:${port}`);
-    console.log(`Agent WebSocket ready at ws://${hostname}:${port}${wsPath}?agentId=<agent-id>`);
+    logger.info("server.ready", {
+      url: `http://${hostname}:${port}`,
+      wsUrl: `ws://${hostname}:${port}${wsPath}?agentId=<agent-id>`,
+      nodeEnv: process.env.NODE_ENV ?? "development",
+    });
   });
 
   let isShuttingDown = false;
@@ -181,20 +203,20 @@ async function main() {
     }
 
     isShuttingDown = true;
-    console.log(`Received ${signal}; settling active poker tables before shutdown.`);
+    logger.warn("server.shutdown_started", { signal });
     server.close(() => {
-      console.log("HTTP server closed.");
+      logger.info("server.http_closed");
     });
     wss.close();
 
     void getTableManager(`http://${hostname}:${port}`)
       .endAllTables()
       .then(() => {
-        console.log("Active poker tables settled.");
+        logger.info("server.shutdown_tables_settled");
         process.exit(0);
       })
       .catch((error: unknown) => {
-        console.error("Failed to settle active poker tables during shutdown.", error);
+        logger.error("server.shutdown_settlement_failed", { error });
         process.exit(1);
       });
   };
@@ -215,6 +237,18 @@ function sendAgentState(ws: WebSocket, agentId: string, type: "decision_task" | 
 
   const agent = listAgents().find((item) => item.id === agentId);
   const tableUrl = agent?.tableId ? tableUrlFor(origin, agent.tableId) : undefined;
+  const task = getPendingDecision(agentId, agent?.tableId) ?? null;
+  if (type === "decision_task" && task) {
+    logger.info("decision.task_sent", {
+      agentId,
+      tableId: task.request.tableId,
+      handId: task.request.handId,
+      requestId: task.request.requestId,
+      legalActions: task.request.legalActions,
+      expiresAt: task.expiresAt,
+    });
+  }
+
   send(ws, {
     type,
     agentId,
@@ -222,7 +256,7 @@ function sendAgentState(ws: WebSocket, agentId: string, type: "decision_task" | 
     tableId: agent?.tableId,
     tableUrl,
     runtimeInstructions: getRuntimeInstructions(agentId),
-    task: getPendingDecision(agentId, agent?.tableId) ?? null,
+    task,
   });
 }
 
@@ -234,6 +268,12 @@ function sendAssignmentState(ws: WebSocket, agentId: string, preferredType?: "qu
   }
 
   const type = preferredType ?? (agent.tableId ? "table_assigned" : "queue_status");
+  logger.debug("agent.assignment_state_sent", {
+    agentId,
+    type,
+    assignmentStatus: agent.assignmentStatus,
+    tableId: agent.tableId,
+  });
   send(ws, {
     type,
     agentId,
@@ -270,6 +310,10 @@ function send(ws: WebSocket, payload: unknown) {
 
 function isAgentLeaveMessage(payload: unknown): payload is AgentLeaveMessage {
   return typeof payload === "object" && payload !== null && "type" in payload && payload.type === "agent_leave";
+}
+
+function actionAmount(action: AgentDecisionResponse["action"] | undefined) {
+  return action && "amount" in action ? action.amount : undefined;
 }
 
 function originFor(request: { headers: { host?: string | string[] } }) {

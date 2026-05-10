@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
+import { logger } from "./logger";
 
 export type ClubUser = {
   id: string;
@@ -60,6 +61,8 @@ export async function createUser(input: CreateUserInput) {
     throw error;
   });
 
+  logger.info("user.created", { ownerUserId: storedUser.id, name: storedUser.name });
+
   return {
     user: publicUser(storedUser, 0),
     userToken,
@@ -94,6 +97,12 @@ export type GameSettlement = GameBuyIn & {
 export async function reserveGameBuyIns(buyIns: GameBuyIn[]) {
   const totals = totalsByOwner(buyIns, "amount");
   const sessionId = commonSessionId(buyIns);
+  logger.info("points.reserve_started", {
+    gameSessionId: sessionId,
+    buyInCount: buyIns.length,
+    ownerCount: totals.size,
+    totalAmount: sumValues(totals),
+  });
 
   await prisma.$transaction(async (tx) => {
     for (const [ownerUserId, amount] of totals) {
@@ -128,6 +137,12 @@ export async function reserveGameBuyIns(buyIns: GameBuyIn[]) {
       });
     }
   });
+  logger.info("points.reserve_completed", {
+    gameSessionId: sessionId,
+    buyInCount: buyIns.length,
+    ownerCount: totals.size,
+    totalAmount: sumValues(totals),
+  });
 }
 
 export async function settleGameBuyIns(settlements: GameSettlement[]) {
@@ -135,6 +150,13 @@ export async function settleGameBuyIns(settlements: GameSettlement[]) {
   const payouts = totalsByOwner(settlements, "finalStack");
   const sessionId = commonSessionId(settlements);
   const today = currentClubDay();
+  logger.info("points.settle_started", {
+    gameSessionId: sessionId,
+    settlementCount: settlements.length,
+    ownerCount: frozenReleases.size,
+    frozenRelease: sumValues(frozenReleases),
+    payout: sumValues(payouts),
+  });
 
   await prisma.$transaction(async (tx) => {
     for (const [ownerUserId, frozenRelease] of frozenReleases) {
@@ -170,6 +192,14 @@ export async function settleGameBuyIns(settlements: GameSettlement[]) {
         },
       });
     }
+  });
+  logger.info("points.settle_completed", {
+    gameSessionId: sessionId,
+    settlementCount: settlements.length,
+    ownerCount: frozenReleases.size,
+    frozenRelease: sumValues(frozenReleases),
+    payout: sumValues(payouts),
+    dayKey: today,
   });
 }
 
@@ -208,6 +238,10 @@ function totalsByOwner<T extends { ownerUserId: string }>(items: T[], key: keyof
 function commonSessionId(items: Array<{ gameSessionId?: string }>) {
   const sessionIds = [...new Set(items.map((item) => item.gameSessionId).filter((value): value is string => Boolean(value)))];
   return sessionIds.length === 1 ? sessionIds[0] : undefined;
+}
+
+function sumValues(values: Map<string, number>) {
+  return [...values.values()].reduce((sum, value) => sum + value, 0);
 }
 
 async function dailyProfitsForToday(userIds?: string[]) {
