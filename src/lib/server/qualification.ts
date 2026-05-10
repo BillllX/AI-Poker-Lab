@@ -306,6 +306,7 @@ function createTask({
         {
           id: agentId,
           name: "Qualification Agent",
+          kind: "external",
           stack,
           currentBet: 0,
           totalCommitted: 0,
@@ -314,14 +315,13 @@ function createTask({
         {
           id: "opponent-agent",
           name: "Opponent Agent",
+          kind: "external",
           stack: 880,
           currentBet: toCall,
           totalCommitted: toCall,
           status: "active",
         },
       ],
-      stats: [],
-      modelStats: [],
     },
     actionHistory: [
       {

@@ -134,8 +134,6 @@ async function assertDecisionSubscribersReceivePendingAndClear() {
       minRaise: 10,
       communityCards: [],
       players: [],
-      stats: [],
-      modelStats: [],
     },
     actionHistory: [],
     legalActions: ["check"],

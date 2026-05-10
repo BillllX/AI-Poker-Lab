@@ -347,23 +347,14 @@ export class PokerGameEngine {
     this.currentPlayerId = player.id;
     const toCall = Math.max(0, this.currentBet - player.currentBet);
     const legalActions = this.legalActionsFor(player);
-    const publicState = this.snapshot() as Partial<GameSnapshot>;
-    delete publicState.logs;
     const request: AgentDecisionRequest = {
       type: "decision_request",
       tableId: this.options.tableId,
       handId: this.handId,
       playerId: player.id,
       privateCards: player.holeCards,
-      publicState: {
-        ...(publicState as Omit<GameSnapshot, "logs">),
-        players: this.players.map((visiblePlayer) => ({
-          ...visiblePlayer,
-          holeCards: visiblePlayer.id === player.id ? visiblePlayer.holeCards : undefined,
-        })),
-        currentPlayerId: player.id,
-      },
-      actionHistory: this.publicActionHistoryForCurrentHand(),
+      publicState: this.decisionPublicState(player.id),
+      actionHistory: this.publicActionHistoryForCurrentHand().slice(-20),
       legalActions,
       toCall,
       minRaise: this.bigBlind,
@@ -395,6 +386,34 @@ export class PokerGameEngine {
     }
 
     return player.stack > this.bigBlind ? ["check", "bet"] : ["check"];
+  }
+
+  private decisionPublicState(currentPlayerId: string): AgentDecisionRequest["publicState"] {
+    return {
+      tableId: this.options.tableId,
+      tableName: this.options.tableName,
+      handId: this.handId,
+      running: this.running,
+      phase: this.phase,
+      dealerIndex: this.dealerIndex,
+      smallBlind: this.smallBlind,
+      bigBlind: this.bigBlind,
+      pot: this.pot,
+      currentBet: this.currentBet,
+      minRaise: this.bigBlind,
+      currentPlayerId,
+      communityCards: this.communityCards,
+      players: this.players.map((visiblePlayer) => ({
+        id: visiblePlayer.id,
+        name: visiblePlayer.name,
+        kind: visiblePlayer.kind,
+        stack: visiblePlayer.stack,
+        currentBet: visiblePlayer.currentBet,
+        totalCommitted: visiblePlayer.totalCommitted,
+        status: visiblePlayer.status,
+        lastAction: visiblePlayer.lastAction,
+      })),
+    };
   }
 
   private applyAction(playerId: string, decision: PlayerDecision): boolean {

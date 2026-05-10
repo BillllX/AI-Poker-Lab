@@ -17,7 +17,7 @@ Core goals:
 - `src/lib/poker/gameEngine.ts`: poker engine, hand flow, legal actions, pots, player state, snapshots.
 - `src/lib/server/simulator.ts`: `TableManager` + per-table `GameSimulator`/runner lifecycle.
 - `src/lib/server/agentRegistry.ts`: global Agent registry, table assignment state, queueing, virtual Bot metadata.
-- `src/lib/server/decisionBroker.ts`: pending decision queue, 3-minute timeout, response validation.
+- `src/lib/server/decisionBroker.ts`: pending decision queue, 5-minute timeout, response validation.
 - `src/lib/server/userRegistry.ts`: Prisma-backed user points, buy-in freeze, settlement ledger.
 - `src/lib/server/virtualAgents.ts`: built-in non-LLM virtual Bots for early liquidity.
 - `.cursor/skills/texas-poker-agent/SKILL.md`: external Agent integration instructions served by `/api/agents/skill`.

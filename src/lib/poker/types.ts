@@ -81,6 +81,30 @@ export type GameSnapshot = {
   modelStats: ModelStats[];
 };
 
+export type AgentDecisionPlayerState = Pick<
+  PlayerState,
+  "id" | "name" | "kind" | "stack" | "currentBet" | "totalCommitted" | "status" | "lastAction"
+>;
+
+export type AgentDecisionPublicState = Pick<
+  GameSnapshot,
+  | "tableId"
+  | "tableName"
+  | "handId"
+  | "running"
+  | "phase"
+  | "dealerIndex"
+  | "smallBlind"
+  | "bigBlind"
+  | "pot"
+  | "currentBet"
+  | "minRaise"
+  | "currentPlayerId"
+  | "communityCards"
+> & {
+  players: AgentDecisionPlayerState[];
+};
+
 export type AgentStats = {
   playerId: string;
   modelName?: string;
@@ -102,7 +126,7 @@ export type AgentDecisionRequest = {
   handId: number;
   playerId: string;
   privateCards: Card[];
-  publicState: Omit<GameSnapshot, "logs">;
+  publicState: AgentDecisionPublicState;
   actionHistory: ActionHistoryItem[];
   legalActions: LegalAction[];
   toCall: number;

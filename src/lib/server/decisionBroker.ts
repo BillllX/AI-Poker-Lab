@@ -22,7 +22,7 @@ const globalForDecisions = globalThis as typeof globalThis & {
 
 const pending = (globalForDecisions.__texasPokerPendingDecisions ??= new Map<string, PendingDecision>());
 const subscribers = (globalForDecisions.__texasPokerDecisionSubscribers ??= new Map<string, Set<DecisionSubscriber>>());
-const timeoutMs = 180_000;
+const timeoutMs = 300_000;
 
 export function enqueueDecision(request: AgentDecisionRequest) {
   const requestId = `${request.tableId ?? "table"}-${request.handId}-${request.playerId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;

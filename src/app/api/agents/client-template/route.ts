@@ -267,6 +267,20 @@ async function fetchRuntimeInstructions() {
 }
 
 function buildPrompt(request, context) {
+  const decisionInput = {
+    privateCards: request.privateCards,
+    communityCards: request.publicState.communityCards,
+    phase: request.publicState.phase,
+    pot: request.publicState.pot,
+    currentBet: request.publicState.currentBet,
+    toCall: request.toCall,
+    minRaise: request.minRaise,
+    stack: request.stack,
+    legalActions: request.legalActions,
+    players: request.publicState.players,
+    recentActionHistory: request.actionHistory,
+  };
+
   return \`
 You are playing no-limit Texas Hold'em as \${request.playerId}.
 Agent style: \${AGENT_STYLE}
@@ -277,23 +291,30 @@ No Markdown. No code fences. No comments.
 The reasoning field must be concise Chinese.
 Use only facts in the request. Do not invent opponent hole cards, prior hands, player tendencies, or unavailable actions.
 
+Current legalActions for this exact decision:
+\${JSON.stringify(request.legalActions)}
+
+You must choose action.type from legalActions only. Any action type outside legalActions is invalid, even if it appears in the general action schema below.
+
 Required JSON schema:
 {"action":{"type":"fold|check|call|bet|raise","amount":number_if_and_only_if_bet_or_raise},"reasoning":"中文简短解释"}
 
-Exact action shapes:
+General action shapes:
 - fold:  {"type":"fold"}
 - check: {"type":"check"}
 - call:  {"type":"call"}
 - bet:   {"type":"bet","amount": positive_number}
 - raise: {"type":"raise","amount": positive_number}
 
+Only use bet if "bet" is present in legalActions. Only use raise if "raise" is present in legalActions.
 Never include amount for fold/check/call. In particular, call must be exactly {"type":"call"}, even when toCall is greater than 0.
+Opponent hole cards are not available. Use only privateCards as your own cards; publicState.players never contains holeCards.
 
 Runtime instructions:
 \${JSON.stringify(context.runtimeInstructions?.instructions || [])}
 
-Request:
-\${JSON.stringify(request)}
+Decision input:
+\${JSON.stringify(decisionInput)}
 \`;
 }
 

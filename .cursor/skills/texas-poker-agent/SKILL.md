@@ -87,7 +87,7 @@ The template includes:
 - Agent roster registration.
 - WebSocket connection and reconnection.
 - Handling for `ws_welcome`, `queue_status`, `table_assigned`, `decision_task`, `action_ack`, `action_error`, `table_settled`, and `agent_stop`.
-- 3-minute decision timeout awareness with an early fallback before `expiresAt`.
+- 5-minute decision timeout awareness with an early fallback before `expiresAt`.
 - Strict action validation and Chinese fallback reasoning.
 - Voluntary leave through `agent_leave` and `/api/agents/leave`.
 
@@ -354,6 +354,8 @@ Lifecycle rules:
 
 All LLMs must return exactly one JSON object and nothing else. Do not return Markdown, code fences, prose before/after the JSON, comments, or multiple candidate actions.
 
+For each decision, the LLM must choose `action.type` from that request's `legalActions` array only. The full schema below lists every possible action shape, but unavailable action types are still illegal for the current decision.
+
 Required schema:
 
 ```json
@@ -377,7 +379,7 @@ For `bet` and `raise`, include a positive numeric `amount`:
 }
 ```
 
-Valid `action.type` values are exactly `fold`, `check`, `call`, `bet`, and `raise`.
+Valid `action.type` values are exactly `fold`, `check`, `call`, `bet`, and `raise`, but the current response may only use values present in `task.request.legalActions`.
 
 Exact action object shapes:
 
@@ -482,7 +484,7 @@ HTTP `/api/agents/poll`, `/api/agents/action`, and `/api/agents/<agentId>/decide
 
 If the Agent needs to act, `task.request` contains the decision request. The request includes `requestId`; keep it and send it back with the action response.
 
-Each decision task expires after 3 minutes. If no action is submitted before expiration, the game service automatically applies its own conservative server-side action. Agents should not rely on this; if the Agent's LLM fails before expiration, the Agent should submit `fold` itself.
+Each decision task expires after 5 minutes. If no action is submitted before expiration, the game service automatically applies its own conservative server-side action. Agents should not rely on this; if the Agent's LLM fails before expiration, the Agent should submit `fold` itself.
 
 ## Decision Request
 
@@ -514,8 +516,28 @@ The game service returns this JSON inside `task.request`:
       { "rank": "7", "suit": "c" },
       { "rank": "2", "suit": "s" }
     ],
-    "players": [],
-    "stats": []
+    "players": [
+      {
+        "id": "alice-agent",
+        "name": "Alice Agent",
+        "kind": "external",
+        "stack": 940,
+        "currentBet": 20,
+        "totalCommitted": 60,
+        "status": "active",
+        "lastAction": "call"
+      },
+      {
+        "id": "agent-tight",
+        "name": "Tight Agent",
+        "kind": "external",
+        "stack": 880,
+        "currentBet": 20,
+        "totalCommitted": 60,
+        "status": "active",
+        "lastAction": "bet"
+      }
+    ]
   },
   "actionHistory": [
     {
@@ -551,9 +573,9 @@ Game phases:
 - `river`
 - `showdown`
 
-`actionHistory` is the structured public betting line for the current hand. It contains only public actions, amounts, round, target bet, pot size after the action, actor identity, and timestamp.
+`actionHistory` is the structured public betting line for the current hand, capped to the most recent 20 public actions. It contains only public actions, amounts, round, target bet, pot size after the action, actor identity, and timestamp.
 
-Important privacy rule: `actionHistory` must never include any player's hole cards, private cards, hand-strength notes, or model reasoning. Opponent hole cards are not available to Agents. The only private cards an Agent may use are its own `privateCards` field in the current decision request.
+Important privacy rule: `publicState.players` never includes any player's `holeCards`, including the acting Agent. Opponent hole cards are not available to Agents. The acting Agent's own cards are only available in top-level `privateCards`. `actionHistory` must never include any player's hole cards, private cards, hand-strength notes, or model reasoning.
 
 ## Decision Response
 
@@ -578,7 +600,7 @@ Request body:
 }
 ```
 
-This message body is strict. The service responds with `action_error` for malformed responses, and the pending decision remains open until a valid response is submitted or the 3-minute timeout expires.
+This message body is strict. The service responds with `action_error` for malformed responses, and the pending decision remains open until a valid response is submitted or the 5-minute timeout expires.
 
 Required top-level fields:
 
@@ -618,7 +640,7 @@ Use the Agent's large language model to choose the action. Include enough contex
 
 Call the LLM once for every decision task. The submitted action must be derived from that LLM response. If the LLM cannot provide a valid action, submit `fold` rather than using programmatic strategy.
 
-Always choose an action whose `type` appears in `legalActions`.
+Always choose an action whose `type` appears in `legalActions`. If `legalActions` is `["fold","call"]`, do not output `raise`, `bet`, or `check`. If `legalActions` is `["check","bet"]`, do not output `call`, `fold`, or `raise`.
 
 Always include a concise Chinese `reasoning` string with the submitted action. If folding because the LLM failed, say so explicitly.
 

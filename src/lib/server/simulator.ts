@@ -45,6 +45,8 @@ export const maxPlayersPerTable = 6;
 export const minPlayersToStart = 2;
 const virtualBotJoinThreshold = 3;
 const virtualBotTargetPlayers = 4;
+const virtualBotDecisionDelayMinMs = 5_000;
+const virtualBotDecisionDelayMaxMs = 20_000;
 
 export class GameSimulator {
   private engine: PokerGameEngine;
@@ -237,10 +239,11 @@ export class GameSimulator {
     return JSON.stringify(this.deps.listAgents().map((agent) => [agent.id, agent.name, agent.ownerUserId, agent.modelName, agent.kind, agent.strategy]));
   }
 
-  private decide(request: AgentDecisionRequest) {
+  private async decide(request: AgentDecisionRequest) {
     const agent = this.deps.listAgents().find((item) => item.id === request.playerId);
     if (isVirtualAgent(agent)) {
-      return Promise.resolve(decideForVirtualAgent(agent, request));
+      await sleep(randomBetween(virtualBotDecisionDelayMinMs, virtualBotDecisionDelayMaxMs));
+      return decideForVirtualAgent(agent, request);
     }
 
     return this.deps.enqueueDecision(request);
@@ -372,6 +375,14 @@ function agentToBuyIn(agent: RegisteredAgent, gameSessionId: string): ActiveBuyI
 
 function createGameSessionId() {
   return `game_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+}
+
+function randomBetween(min: number, max: number) {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 type TableRecord = {

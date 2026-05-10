@@ -144,6 +144,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                   <div className={`${styles.chipDelta} ${deltaClass(player.stack - initialStack)}`}>
                     {t.profit} {formatDelta(player.stack - initialStack)}
                   </div>
+                  <div className={styles.holeCards}>
+                    {player.holeCards?.map((card, cardIndex) => (
+                      <PlayingCard card={card} key={`${player.id}-${card.rank}${card.suit}-${cardIndex}`} small />
+                    ))}
+                  </div>
                   <p>{t.action}: {player.lastAction ?? t.waiting}</p>
                 </article>
               ) : (
@@ -206,10 +211,10 @@ function seatStyle(index: number, totalSeats: number) {
   };
 }
 
-function PlayingCard({ card }: { card: Card }) {
+function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {
   const red = card.suit === "h" || card.suit === "d";
   const suit = { s: "♠", h: "♥", d: "♦", c: "♣" }[card.suit];
-  return <span className={`${styles.playingCard} ${red ? styles.redCard : ""}`}>{`${card.rank}${suit}`}</span>;
+  return <span className={`${styles.playingCard} ${small ? styles.smallCard : ""} ${red ? styles.redCard : ""}`}>{`${card.rank}${suit}`}</span>;
 }
 
 function formatDelta(delta: number) {
