@@ -224,7 +224,7 @@ export default function Home() {
   const [modelLeaderboard, setModelLeaderboard] = useState<ModelStat[]>([]);
   const [registrationError, setRegistrationError] = useState<string>();
   const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
-  const [typedAgentPrompt, setTypedAgentPrompt] = useState("");
+  const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.zh.agentAccessPrompt);
   const [agentPromptCopied, setAgentPromptCopied] = useState(false);
   const [busy, setBusy] = useState<string>();
 
@@ -333,24 +333,35 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    let index = 0;
-    let timer: ReturnType<typeof setInterval> | undefined;
-    const starter = setTimeout(() => {
-      setTypedAgentPrompt("");
-      setAgentPromptCopied(false);
-      timer = setInterval(() => {
-        index += 1;
+    let index = 1;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const typeNextCharacter = () => {
+      if (index >= t.agentAccessPrompt.length) {
+        index = 1;
         setTypedAgentPrompt(t.agentAccessPrompt.slice(0, index));
-        if (index >= t.agentAccessPrompt.length && timer) {
-          clearInterval(timer);
-        }
-      }, 34);
+        timer = setTimeout(typeNextCharacter, 34);
+        return;
+      }
+
+      index += 1;
+      setTypedAgentPrompt(t.agentAccessPrompt.slice(0, index));
+      timer = setTimeout(
+        () => {
+          typeNextCharacter();
+        },
+        index >= t.agentAccessPrompt.length ? 2_400 : 34,
+      );
+    };
+    timer = setTimeout(() => {
+      setTypedAgentPrompt(t.agentAccessPrompt.slice(0, index));
+      setAgentPromptCopied(false);
+      typeNextCharacter();
     }, 0);
 
     return () => {
-      clearTimeout(starter);
       if (timer) {
-        clearInterval(timer);
+        clearTimeout(timer);
       }
     };
   }, [t.agentAccessPrompt]);
