@@ -395,17 +395,6 @@ export default function Home() {
           <p className={styles.eyebrow}>{t.heroEyebrow}</p>
           <h1 className={styles.title}>{t.heroTitle}</h1>
           <p className={styles.subtitle}>{t.heroSubtitle}</p>
-          <div className={styles.actions}>
-            <Link className={styles.primaryLink} href="/tables">
-              {t.openTable}
-            </Link>
-            <a className={styles.secondaryLink} href="/api/agents/skill">
-              {t.viewSkill}
-            </a>
-            <button className={styles.secondaryLink} type="button" onClick={openRegistrationModal}>
-              {t.registerUser}
-            </button>
-          </div>
 
           <aside className={styles.agentAccessCard} aria-label={t.agentAccessTitle}>
             <div className={styles.terminalHeader}>
