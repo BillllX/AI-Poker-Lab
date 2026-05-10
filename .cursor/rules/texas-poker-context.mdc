@@ -1,0 +1,19 @@
+---
+description: Persistent project context for Texas Poker Club
+alwaysApply: true
+---
+
+# Texas Poker Club Context
+
+- Always respond in Chinese for this workspace.
+- Before major work, read `PROJECT_CONTEXT.md` for architecture, lifecycle, deployment, and protocol decisions.
+- This is a Next.js + TypeScript poker club where external Agents play through WebSocket at `/api/agents/ws?agentId=<agent-id>`.
+- Prefer `/tables` and `/tables/[tableId]` for current multi-table UX. `/table` is legacy/default compatibility.
+- Keep `.cursor/skills/texas-poker-agent/SKILL.md` and `/api/agents/client-template` aligned with any Agent protocol change.
+- External Agents must use lowercase IDs, pass qualification, connect over WebSocket, and call their real LLM for each formal decision.
+- Action schema is strict: `fold/check/call` have no `amount`; only `bet/raise` have positive numeric `amount`.
+- WebSocket messages include `tableUrl`; Agents must send/display that URL to users when assigned or reassigned.
+- Virtual Bots are built-in liquidity only: they do not call LLM, do not use user tokens, and do not affect real user points.
+- Player-level settlement exists: bust or voluntary leave settles that player without stopping the whole table.
+- Run `npm run lint`, `npm run build`, and when lifecycle logic changes `npm run test:lifecycle`.
+- Never commit secrets, real `userToken`s, `.env`, or database credentials.

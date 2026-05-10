@@ -1,0 +1,277 @@
+import { createServer } from "node:http";
+import next from "next";
+import WebSocket, { WebSocketServer } from "ws";
+import { listAgents, markAgentDisconnected, markAgentSeen, subscribeAgentRegistry } from "./src/lib/server/agentRegistry";
+import { getPendingDecision, submitDecision, subscribePendingDecision } from "./src/lib/server/decisionBroker";
+import { addRuntimeFeedback, getRuntimeInstructions } from "./src/lib/server/runtimeInstructions";
+import { getTableManager } from "./src/lib/server/simulator";
+import type { AgentDecisionResponse } from "./src/lib/poker/types";
+
+const { hostname, port } = parseArgs(process.argv.slice(2));
+const app = next({ dev: process.env.NODE_ENV !== "production", hostname, port });
+const handle = app.getRequestHandler();
+const wsPath = "/api/agents/ws";
+
+void main();
+
+async function main() {
+  await app.prepare();
+
+  const server = createServer((request, response) => {
+    void handle(request, response);
+  });
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (request, socket, head) => {
+    const url = new URL(request.url ?? "/", originFor(request));
+
+    if (url.pathname !== wsPath) {
+      socket.destroy();
+      return;
+    }
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request);
+    });
+  });
+
+  wss.on("connection", (ws, request) => {
+    const url = new URL(request.url ?? "/", originFor(request));
+    const agentId = url.searchParams.get("agentId")?.trim();
+    const origin = originFor(request);
+
+    if (!agentId) {
+      send(ws, { type: "agent_stop", shouldStop: true, reason: "agentId is required." });
+      ws.close(1008, "agentId is required");
+      return;
+    }
+
+    if (!listAgents().some((agent) => agent.id === agentId)) {
+      send(ws, {
+        type: "agent_stop",
+        agentId,
+        shouldStop: true,
+        reason: "Agent is not registered. Register again before opening WebSocket.",
+      });
+      ws.close(1008, "Agent is not registered");
+      return;
+    }
+
+    markAgentSeen(agentId);
+    void getTableManager(origin).handleAgentOnline(agentId).then(() => {
+      sendAssignmentState(ws, agentId, undefined, origin);
+    });
+    sendAgentState(ws, agentId, "ws_welcome", origin);
+    sendAssignmentState(ws, agentId, "queue_status", origin);
+    let lastAssignment = currentAssignment(agentId);
+
+    const stopIfAgentRemoved = () => {
+      if (listAgents().some((agent) => agent.id === agentId)) {
+        return false;
+      }
+
+      send(ws, {
+        type: "agent_stop",
+        agentId,
+        shouldStop: true,
+        reason: "Agent is no longer registered. Stop this WebSocket worker.",
+      });
+      ws.close(1000, "Agent is no longer registered");
+      return true;
+    };
+    const unsubscribeRegistry = subscribeAgentRegistry(stopIfAgentRemoved);
+    const unsubscribeAssignment = subscribeAgentRegistry(() => {
+      const nextAssignment = currentAssignment(agentId);
+      if (assignmentKey(nextAssignment) !== assignmentKey(lastAssignment)) {
+        if (lastAssignment?.tableId && nextAssignment?.assignmentStatus === "queued") {
+          send(ws, {
+            type: "table_settled",
+            agentId,
+            previousTableId: lastAssignment.tableId,
+            previousTableUrl: tableUrlFor(origin, lastAssignment.tableId),
+            shouldStop: false,
+          });
+        }
+        lastAssignment = nextAssignment;
+        sendAssignmentState(ws, agentId, undefined, origin);
+      }
+    });
+    const unsubscribe = subscribePendingDecision(agentId, (decision) => {
+      if (decision) {
+        sendAgentState(ws, agentId, "decision_task", origin);
+      }
+    });
+    const heartbeat = setInterval(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      if (stopIfAgentRemoved()) {
+        return;
+      }
+
+      markAgentSeen(agentId);
+      send(ws, { type: "heartbeat", agentId, shouldStop: false, at: new Date().toISOString() });
+    }, 5_000);
+
+    ws.on("message", (raw) => {
+      markAgentSeen(agentId);
+      void getTableManager(origin).handleAgentOnline(agentId);
+
+      try {
+        const payload = JSON.parse(raw.toString()) as (AgentDecisionResponse & { requestId?: string }) | AgentLeaveMessage;
+        if (isAgentLeaveMessage(payload)) {
+          if (payload.agentId && payload.agentId !== agentId) {
+            throw new Error("agent_leave agentId does not match this WebSocket connection.");
+          }
+
+          void getTableManager(origin)
+            .leaveAgent(agentId)
+            .then((result) => {
+              send(ws, {
+                type: "agent_stop",
+                agentId,
+                ok: true,
+                removed: result.removed,
+                shouldStop: true,
+                reason: "Agent requested to leave the game.",
+              });
+              ws.close(1000, "Agent requested to leave");
+            })
+            .catch((error: unknown) => {
+              send(ws, { type: "action_error", ok: false, error: error instanceof Error ? error.message : "Unable to leave game." });
+            });
+          return;
+        }
+
+        submitDecision(payload);
+        send(ws, { type: "action_ack", requestId: payload.requestId, ok: true });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid WebSocket action response.";
+        try {
+          addRuntimeFeedback(
+            agentId,
+            `上次 WebSocket 提交动作失败：${message}。请严格按动作格式输出：fold/check/call 只能是 {"type":"call"} 这类对象，不能带 amount；只有 bet/raise 可以带正数 amount。`,
+          );
+        } catch {
+          // Keep the original protocol error visible even if feedback storage fails.
+        }
+        send(ws, { type: "action_error", ok: false, error: message });
+      }
+    });
+
+    ws.on("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+      unsubscribeRegistry();
+      unsubscribeAssignment();
+      markAgentDisconnected(agentId);
+    });
+  });
+
+  server.listen(port, hostname, () => {
+    console.log(`Texas Poker server ready on http://${hostname}:${port}`);
+    console.log(`Agent WebSocket ready at ws://${hostname}:${port}${wsPath}?agentId=<agent-id>`);
+  });
+}
+
+type AgentLeaveMessage = {
+  type: "agent_leave";
+  agentId?: string;
+};
+
+function sendAgentState(ws: WebSocket, agentId: string, type: "decision_task" | "ws_welcome", origin: string) {
+  if (ws.readyState !== WebSocket.OPEN) {
+    return;
+  }
+
+  const agent = listAgents().find((item) => item.id === agentId);
+  const tableUrl = agent?.tableId ? tableUrlFor(origin, agent.tableId) : undefined;
+  send(ws, {
+    type,
+    agentId,
+    shouldStop: false,
+    tableId: agent?.tableId,
+    tableUrl,
+    runtimeInstructions: getRuntimeInstructions(agentId),
+    task: getPendingDecision(agentId, agent?.tableId) ?? null,
+  });
+}
+
+function sendAssignmentState(ws: WebSocket, agentId: string, preferredType?: "queue_status", origin = `http://${hostname}:${port}`) {
+  const agent = listAgents().find((item) => item.id === agentId);
+
+  if (!agent) {
+    return;
+  }
+
+  const type = preferredType ?? (agent.tableId ? "table_assigned" : "queue_status");
+  send(ws, {
+    type,
+    agentId,
+    assignmentStatus: agent.assignmentStatus,
+    queueEnteredAt: agent.queueEnteredAt,
+    shouldStop: false,
+    tableId: agent.tableId,
+    tableUrl: agent.tableId ? tableUrlFor(origin, agent.tableId) : undefined,
+  });
+}
+
+function currentAssignment(agentId: string) {
+  const agent = listAgents().find((item) => item.id === agentId);
+  if (!agent) {
+    return undefined;
+  }
+
+  return {
+    assignmentStatus: agent.assignmentStatus,
+    queueEnteredAt: agent.queueEnteredAt,
+    tableId: agent.tableId,
+  };
+}
+
+function assignmentKey(assignment: ReturnType<typeof currentAssignment>) {
+  return `${assignment?.assignmentStatus ?? "missing"}:${assignment?.tableId ?? ""}:${assignment?.queueEnteredAt ?? ""}`;
+}
+
+function send(ws: WebSocket, payload: unknown) {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(payload));
+  }
+}
+
+function isAgentLeaveMessage(payload: unknown): payload is AgentLeaveMessage {
+  return typeof payload === "object" && payload !== null && "type" in payload && payload.type === "agent_leave";
+}
+
+function originFor(request: { headers: { host?: string | string[] } }) {
+  const host = Array.isArray(request.headers.host) ? request.headers.host[0] : request.headers.host;
+  return `http://${host ?? `${hostname}:${port}`}`;
+}
+
+function tableUrlFor(origin: string, tableId: string) {
+  return `${origin}/tables/${encodeURIComponent(tableId)}`;
+}
+
+function parseArgs(args: string[]) {
+  let hostname = "0.0.0.0";
+  let port = Number(process.env.PORT ?? 3000);
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    const nextArg = args[index + 1];
+
+    if ((arg === "--hostname" || arg === "-H") && nextArg) {
+      hostname = nextArg;
+      index += 1;
+      continue;
+    }
+
+    if ((arg === "--port" || arg === "-p") && nextArg) {
+      port = Number(nextArg);
+      index += 1;
+    }
+  }
+
+  return { hostname, port };
+}

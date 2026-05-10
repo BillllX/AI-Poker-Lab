@@ -1,0 +1,561 @@
+.page {
+  min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+.page::before {
+  background:
+    radial-gradient(circle at 16% 14%, rgba(110, 231, 168, 0.18), transparent 30rem),
+    radial-gradient(circle at 86% 18%, rgba(250, 204, 21, 0.12), transparent 24rem),
+    radial-gradient(circle at 50% 100%, rgba(20, 115, 63, 0.28), transparent 34rem);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.nav {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: 1360px;
+  padding: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.chip {
+  align-items: center;
+  background: linear-gradient(145deg, #f8fafc, #dbeafe);
+  border: 6px dashed #0f5132;
+  border-radius: 999px;
+  color: #0b2f1e;
+  display: inline-flex;
+  font-size: 14px;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+.navLinks {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.navLinks a {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-weight: 800;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.languageTabs {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+}
+
+.languageTabs button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  padding: 7px 10px;
+}
+
+.languageTabs .activeLanguage {
+  background: var(--accent);
+  color: #052014;
+}
+
+.hero,
+.tablesSection,
+.rosterGrid {
+  margin: 0 auto;
+  max-width: 1360px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero {
+  align-items: end;
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.72fr);
+  padding: 46px 24px 24px;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  font-size: clamp(52px, 8vw, 96px);
+  letter-spacing: -0.07em;
+  line-height: 0.94;
+  margin: 0;
+}
+
+.hero p:not(.eyebrow) {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.75;
+  margin: 24px 0 0;
+  max-width: 760px;
+}
+
+.statsGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.statsGrid article {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(110, 231, 168, 0.13), transparent 10rem),
+    rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.18);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.statsGrid span,
+.statsGrid small,
+.tableCardHeader small,
+.tableCardFooter small,
+.rosterRow small {
+  color: var(--muted);
+}
+
+.statsGrid strong {
+  color: var(--accent);
+  font-size: clamp(34px, 4vw, 54px);
+  line-height: 0.9;
+}
+
+.tablesSection {
+  padding: 24px;
+}
+
+.sectionTitle {
+  align-items: end;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.sectionTitle h2 {
+  font-size: clamp(28px, 3vw, 42px);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.sectionTitle > span {
+  background: rgba(110, 231, 168, 0.1);
+  border: 1px solid rgba(110, 231, 168, 0.22);
+  border-radius: 999px;
+  color: var(--accent);
+  font-weight: 900;
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+
+.tableGrid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tableCard {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(110, 231, 168, 0.16), transparent 17rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 30px;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.24);
+  color: var(--text);
+  display: grid;
+  gap: 18px;
+  min-height: 360px;
+  overflow: hidden;
+  padding: 20px;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.tableCard:hover {
+  border-color: rgba(110, 231, 168, 0.36);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.32);
+  transform: translateY(-3px);
+}
+
+.tableCardHeader,
+.tableCardFooter {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.liveBadge,
+.waitingBadge {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  padding: 8px 10px;
+}
+
+.liveBadge {
+  background: rgba(110, 231, 168, 0.14);
+  border: 1px solid rgba(110, 231, 168, 0.3);
+  color: var(--accent);
+}
+
+.waitingBadge {
+  background: rgba(250, 204, 21, 0.13);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  color: var(--warning);
+}
+
+.feltTable {
+  align-self: center;
+  aspect-ratio: 1.45;
+  background:
+    radial-gradient(ellipse at center, rgba(110, 231, 168, 0.24), transparent 22%),
+    radial-gradient(ellipse at center, #14804a 0%, #0b5b36 50%, #06321f 72%);
+  border: 14px solid #684126;
+  border-radius: 48% / 52%;
+  box-shadow:
+    inset 0 0 0 7px rgba(250, 204, 21, 0.11),
+    inset 0 0 58px rgba(0, 0, 0, 0.4),
+    0 24px 70px rgba(0, 0, 0, 0.38);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.feltTable > div {
+  align-items: center;
+  background: rgba(2, 18, 12, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 22px;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 16px 18px;
+}
+
+.feltTable strong {
+  color: var(--accent);
+  font-size: 28px;
+}
+
+.feltTable small {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.tableSeat {
+  background: rgba(3, 18, 12, 0.9);
+  border: 1px solid rgba(110, 231, 168, 0.16);
+  border-radius: 999px;
+  height: 28px;
+  position: absolute;
+  width: 74px;
+}
+
+.tableSeat:nth-child(1) {
+  left: 50%;
+  top: 9%;
+  transform: translateX(-50%);
+}
+
+.tableSeat:nth-child(2) {
+  right: 6%;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
+}
+
+.tableSeat:nth-child(3) {
+  bottom: 9%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tableCardFooter strong,
+.tableCardFooter small {
+  display: block;
+}
+
+.tableCardFooter strong {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.tableCardFooter > span {
+  background: var(--accent);
+  border-radius: 999px;
+  color: #052014;
+  flex: 0 0 auto;
+  font-weight: 900;
+  padding: 10px 12px;
+}
+
+.emptyState {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035));
+  border: 1px dashed rgba(110, 231, 168, 0.28);
+  border-radius: 30px;
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  justify-items: center;
+  min-height: 260px;
+  padding: 32px;
+  text-align: center;
+}
+
+.emptyState strong {
+  font-size: 26px;
+}
+
+.emptyState p,
+.emptyStateCompact {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.rosterGrid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0 24px 76px;
+}
+
+.rosterCard {
+  background: linear-gradient(180deg, var(--panel-strong), var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.rosterCard header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+.rosterCard h2 {
+  font-size: 28px;
+  margin: 0;
+}
+
+.rosterCard header > span {
+  align-items: center;
+  background: rgba(250, 204, 21, 0.13);
+  border-radius: 999px;
+  color: var(--warning);
+  display: inline-flex;
+  font-weight: 900;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+.rosterList {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.rosterRow {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  padding: 14px;
+}
+
+.rosterRow > span {
+  align-items: center;
+  background: rgba(110, 231, 168, 0.1);
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-flex;
+  font-weight: 900;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.rosterRow strong,
+.rosterRow small {
+  display: block;
+}
+
+.rosterRow strong {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rosterRow strong b {
+  background: rgba(250, 204, 21, 0.14);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: 999px;
+  color: var(--warning);
+  font-size: 11px;
+  padding: 3px 7px;
+}
+
+.rosterRow small {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.rosterRow em {
+  color: var(--accent);
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+@media (max-width: 1060px) {
+  .hero,
+  .tableGrid,
+  .rosterGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .nav {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px 16px;
+  }
+
+  .navLinks {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .navLinks a {
+    flex: 1 1 calc(50% - 10px);
+    text-align: center;
+  }
+
+  .languageTabs {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .hero,
+  .tablesSection,
+  .rosterGrid {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .hero {
+    padding-top: 28px;
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 16vw, 58px);
+  }
+
+  .hero p:not(.eyebrow) {
+    font-size: 16px;
+    line-height: 1.65;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .sectionTitle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sectionTitle > span {
+    white-space: normal;
+  }
+
+  .tableCard {
+    border-radius: 24px;
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .tableCardFooter {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .feltTable {
+    border-width: 10px;
+  }
+
+  .rosterRow {
+    grid-template-columns: 1fr;
+  }
+
+  .rosterRow > span {
+    height: 38px;
+    width: 38px;
+  }
+
+  .rosterRow em {
+    white-space: normal;
+  }
+}

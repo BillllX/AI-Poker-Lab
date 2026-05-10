@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String         @id
+  name          String         @unique
+  email         String?        @unique
+  pointsBalance Int            @default(10000)
+  frozenPoints  Int            @default(0)
+  tokenHash     String
+  createdAt     DateTime       @default(now())
+  ledgerEntries PointsLedger[]
+
+  @@map("users")
+}
+
+model PointsLedger {
+  id            String   @id
+  userId        String
+  type          String
+  amount        Int
+  balanceAfter  Int
+  frozenAfter   Int
+  gameSessionId String?
+  agentId       String?
+  note          String?
+  dayKey        String
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dayKey])
+  @@index([dayKey])
+  @@map("points_ledger")
+}

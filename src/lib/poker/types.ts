@@ -1,0 +1,137 @@
+export type Suit = "s" | "h" | "d" | "c";
+export type Rank = "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "T" | "J" | "Q" | "K" | "A";
+
+export type Card = {
+  rank: Rank;
+  suit: Suit;
+};
+
+export type BettingRound = "preflop" | "flop" | "turn" | "river" | "showdown";
+export type PlayerStatus = "active" | "folded" | "all-in" | "out";
+export type AgentStyle = "random" | "tight" | "aggressive" | "caller";
+
+export type PokerAction =
+  | { type: "fold" }
+  | { type: "check" }
+  | { type: "call" }
+  | { type: "bet"; amount: number }
+  | { type: "raise"; amount: number };
+
+export type LegalAction = PokerAction["type"];
+
+export type PlayerState = {
+  id: string;
+  name: string;
+  ownerUserId?: string;
+  modelName?: string;
+  kind?: "external" | "virtual";
+  strategy?: AgentStyle;
+  endpoint?: string;
+  stack: number;
+  holeCards: Card[];
+  currentBet: number;
+  totalCommitted: number;
+  status: PlayerStatus;
+  lastAction?: string;
+  lastReasoning?: string;
+};
+
+export type PublicPlayerState = Omit<PlayerState, "holeCards"> & {
+  holeCards?: Card[];
+};
+
+export type ActionLog = {
+  id: string;
+  handId: number;
+  actor: string;
+  message: string;
+  createdAt: string;
+};
+
+export type ActionHistoryItem = {
+  id: string;
+  handId: number;
+  round: BettingRound;
+  playerId: string;
+  playerName: string;
+  action: LegalAction | "post-blind" | "deal" | "win";
+  amount?: number;
+  targetBet?: number;
+  potAfter: number;
+  createdAt: string;
+};
+
+export type GameSnapshot = {
+  tableId?: string;
+  tableName?: string;
+  handId: number;
+  running: boolean;
+  phase: BettingRound;
+  dealerIndex: number;
+  smallBlind: number;
+  bigBlind: number;
+  pot: number;
+  currentBet: number;
+  minRaise: number;
+  currentPlayerId?: string;
+  communityCards: Card[];
+  players: PublicPlayerState[];
+  logs: ActionLog[];
+  stats: AgentStats[];
+  modelStats: ModelStats[];
+};
+
+export type AgentStats = {
+  playerId: string;
+  modelName?: string;
+  handsWon: number;
+  handsPlayed: number;
+  profit: number;
+};
+
+export type ModelStats = {
+  modelName: string;
+  handsPlayed: number;
+  agents: number;
+};
+
+export type AgentDecisionRequest = {
+  type: "decision_request";
+  requestId?: string;
+  tableId?: string;
+  handId: number;
+  playerId: string;
+  privateCards: Card[];
+  publicState: Omit<GameSnapshot, "logs">;
+  actionHistory: ActionHistoryItem[];
+  legalActions: LegalAction[];
+  toCall: number;
+  minRaise: number;
+  stack: number;
+};
+
+export type AgentDecisionResponse = {
+  type: "action_response";
+  requestId?: string;
+  tableId?: string;
+  playerId: string;
+  action: PokerAction;
+  reasoning?: string;
+};
+
+export type HandRank =
+  | "high-card"
+  | "pair"
+  | "two-pair"
+  | "three-kind"
+  | "straight"
+  | "flush"
+  | "full-house"
+  | "four-kind"
+  | "straight-flush";
+
+export type EvaluatedHand = {
+  rank: HandRank;
+  score: number[];
+  cards: Card[];
+};
