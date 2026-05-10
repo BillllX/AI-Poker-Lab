@@ -9,6 +9,7 @@ export type ClubUser = {
   pointsBalance: number;
   frozenPoints: number;
   dailyProfitToday: number;
+  dailySettlementsToday: number;
   createdAt: string;
 };
 
@@ -20,8 +21,11 @@ export type CreateUserInput = {
 const initialPointsBalance = 10_000;
 
 export async function listUsers() {
-  const [users, dailyProfits] = await Promise.all([prisma.user.findMany({ orderBy: { createdAt: "asc" } }), dailyProfitsForToday()]);
-  return users.map((user) => publicUser(user, dailyProfits.get(user.id) ?? 0));
+  const [users, dailyProfits] = await Promise.all([prisma.user.findMany({ orderBy: { createdAt: "asc" } }), dailyProfitStatsForToday()]);
+  return users.map((user) => {
+    const profit = dailyProfits.get(user.id);
+    return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
+  });
 }
 
 export async function isUserNameAvailable(name: string) {
@@ -32,8 +36,9 @@ export async function isUserNameAvailable(name: string) {
 
 export async function getUser(userId: string) {
   const user = await findStoredUser(userId);
-  const dailyProfits = await dailyProfitsForToday([userId]);
-  return publicUser(user, dailyProfits.get(user.id) ?? 0);
+  const dailyProfits = await dailyProfitStatsForToday([userId]);
+  const profit = dailyProfits.get(user.id);
+  return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
 }
 
 export async function createUser(input: CreateUserInput) {
@@ -64,7 +69,7 @@ export async function createUser(input: CreateUserInput) {
   logger.info("user.created", { ownerUserId: storedUser.id, name: storedUser.name });
 
   return {
-    user: publicUser(storedUser, 0),
+    user: publicUser(storedUser, 0, 0),
     userToken,
   };
 }
@@ -79,8 +84,9 @@ export async function verifyUserToken(userId: string, token: unknown) {
     throw new Error("userToken is invalid for this ownerUserId.");
   }
 
-  const dailyProfits = await dailyProfitsForToday([userId]);
-  return publicUser(user, dailyProfits.get(user.id) ?? 0);
+  const dailyProfits = await dailyProfitStatsForToday([userId]);
+  const profit = dailyProfits.get(user.id);
+  return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
 }
 
 export type GameBuyIn = {
@@ -203,13 +209,18 @@ export async function settleGameBuyIns(settlements: GameSettlement[]) {
   });
 }
 
-function publicUser(user: { id: string; name: string; pointsBalance: number; frozenPoints: number; createdAt: Date }, dailyProfitToday: number): ClubUser {
+function publicUser(
+  user: { id: string; name: string; pointsBalance: number; frozenPoints: number; createdAt: Date },
+  dailyProfitToday: number,
+  dailySettlementsToday: number,
+): ClubUser {
   return {
     id: user.id,
     name: user.name,
     pointsBalance: user.pointsBalance,
     frozenPoints: user.frozenPoints ?? 0,
     dailyProfitToday,
+    dailySettlementsToday,
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -244,9 +255,10 @@ function sumValues(values: Map<string, number>) {
   return [...values.values()].reduce((sum, value) => sum + value, 0);
 }
 
-async function dailyProfitsForToday(userIds?: string[]) {
+async function dailyProfitStatsForToday(userIds?: string[]) {
   const rows = await prisma.pointsLedger.groupBy({
     _sum: { amount: true },
+    _count: { _all: true },
     by: ["userId"],
     where: {
       dayKey: currentClubDay(),
@@ -255,7 +267,7 @@ async function dailyProfitsForToday(userIds?: string[]) {
     },
   });
 
-  return new Map(rows.map((row) => [row.userId, row._sum.amount ?? 0]));
+  return new Map(rows.map((row) => [row.userId, { amount: row._sum.amount ?? 0, settlements: row._count._all }]));
 }
 
 async function assertUserCanReserve(tx: Prisma.TransactionClient, ownerUserId: string, amount: number) {

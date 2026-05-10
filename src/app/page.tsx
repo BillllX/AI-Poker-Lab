@@ -18,6 +18,7 @@ type CreatedUser = {
     pointsBalance: number;
     frozenPoints: number;
     dailyProfitToday: number;
+    dailySettlementsToday: number;
     createdAt: string;
   };
   userToken: string;
@@ -244,7 +245,12 @@ export default function Home() {
     const users = Array.isArray(payload.users) ? (payload.users as ClubUser[]) : [];
     const modelStats = Array.isArray(tablesPayload.modelStats) ? (tablesPayload.modelStats as ModelStat[]) : [];
     setLeaderboard([...users].sort((left, right) => right.pointsBalance - left.pointsBalance).slice(0, 8));
-    setDailyProfitLeaderboard([...users].sort((left, right) => right.dailyProfitToday - left.dailyProfitToday).slice(0, 8));
+    setDailyProfitLeaderboard(
+      [...users]
+        .filter((user) => user.dailySettlementsToday > 0)
+        .sort((left, right) => right.dailyProfitToday - left.dailyProfitToday)
+        .slice(0, 8),
+    );
     setModelLeaderboard([...modelStats].sort((left, right) => right.handsPlayed - left.handsPlayed).slice(0, 8));
   }
 
