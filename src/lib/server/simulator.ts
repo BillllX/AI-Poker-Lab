@@ -46,8 +46,7 @@ export const maxPlayersPerTable = 6;
 export const minPlayersToStart = 2;
 const virtualBotJoinThreshold = 3;
 const virtualBotTargetPlayers = 4;
-const virtualBotDecisionDelayMinMs = 5_000;
-const virtualBotDecisionDelayMaxMs = 20_000;
+const virtualBotDecisionDelayMs = 3_000;
 
 export class GameSimulator {
   private engine: PokerGameEngine;
@@ -262,7 +261,7 @@ export class GameSimulator {
   private async decide(request: AgentDecisionRequest) {
     const agent = this.deps.listAgents().find((item) => item.id === request.playerId);
     if (isVirtualAgent(agent)) {
-      const delayMs = randomBetween(virtualBotDecisionDelayMinMs, virtualBotDecisionDelayMaxMs);
+      const delayMs = virtualBotDecisionDelayMs;
       logger.info("virtual_agent.thinking_started", {
         tableId: request.tableId,
         agentId: agent.id,
@@ -411,10 +410,6 @@ function agentToBuyIn(agent: RegisteredAgent, gameSessionId: string): ActiveBuyI
 
 function createGameSessionId() {
   return `game_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-}
-
-function randomBetween(min: number, max: number) {
-  return Math.floor(min + Math.random() * (max - min + 1));
 }
 
 function sleep(ms: number) {
