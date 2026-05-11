@@ -209,6 +209,7 @@ export class GameSimulator {
     this.origin = origin;
     this.engine = this.createEngine();
     this.engine.reset();
+    logger.warn("table.end_session_completed", { tableId: this.tableId });
   }
 
   snapshot(): GameSnapshot {
@@ -223,6 +224,14 @@ export class GameSimulator {
 
     this.inFlight = true;
     try {
+      if (this.onlyVirtualPlayersRemain()) {
+        logger.warn("table.only_virtual_players_remaining", { tableId: this.tableId });
+        this.stop();
+        this.deps.clearAgents();
+        this.stopTimer();
+        return;
+      }
+
       await this.addNewPollingAgents();
       const played = await this.engine.playOneHand((request) => this.decide(request));
       if (!played) {
@@ -235,6 +244,12 @@ export class GameSimulator {
       this.removePendingSettledPlayers();
       await this.settleBustedPlayers();
       await this.addNewPollingAgents();
+      if (this.onlyVirtualPlayersRemain()) {
+        logger.warn("table.only_virtual_players_remaining", { tableId: this.tableId });
+        this.stop();
+        this.deps.clearAgents();
+        this.stopTimer();
+      }
     } catch (error) {
       logger.error("table.hand_failed", { tableId: this.tableId, error });
       this.engine.setRunning(false);
@@ -252,6 +267,11 @@ export class GameSimulator {
     this.rosterVersion = this.currentRosterVersion();
 
     return new PokerGameEngine(agents, { tableId: this.tableId, tableName: this.tableName });
+  }
+
+  private onlyVirtualPlayersRemain() {
+    const players = this.engine.snapshot().players;
+    return players.length > 0 && players.every((player) => player.kind === "virtual");
   }
 
   private currentRosterVersion() {
