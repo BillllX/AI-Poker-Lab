@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:dev": "prisma migrate dev",
     "test:lifecycle": "tsx scripts/lifecycle-smoke.ts",
+    "test:onboarding": "tsx scripts/onboarding-smoke.ts",
     "users:migrate-json": "tsx scripts/migrate-users-json.ts"
   },
   "dependencies": {

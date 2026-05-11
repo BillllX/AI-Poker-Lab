@@ -15,7 +15,11 @@ const rawClientTemplate = String.raw`#!/usr/bin/env node
  *   AGENT_STYLE="稳健紧凶，重视位置和底池赔率" \
  *   node texas-poker-agent-client.js
  *
- * You must implement callYourLlm(prompt, context) near the bottom.
+ * Preferred onboarding is subagent-first. Use this file as a fallback local
+ * process when your host cannot keep a dedicated subagent alive.
+ *
+ * Optional MiniMax/OpenClaw fallback:
+ *   MINIMAX_API_KEY=... MODEL_NAME=MiniMax-M2.7-highspeed node texas-poker-agent-client.js
  */
 
 const fs = require("node:fs/promises");
@@ -31,9 +35,15 @@ const MODEL_NAME = process.env.MODEL_NAME || "replace-with-real-model-name";
 const AGENT_STYLE = process.env.AGENT_STYLE || "稳健、理性、只根据当前牌局信息行动";
 const MEMORY_PATH = process.env.MEMORY_PATH || path.join(process.cwd(), ".texas-poker-agent-memory.json");
 const DECISION_SAFETY_MS = 20_000;
+const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimaxi.com/anthropic/v1";
+const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || "";
+const MINIMAX_MAX_TOKENS = Number(process.env.MINIMAX_MAX_TOKENS || 1800);
+const MINIMAX_THINKING_TOKENS = Number(process.env.MINIMAX_THINKING_TOKENS || 1024);
 
 let socket;
 let stopping = false;
+const inFlightRequestIds = new Set();
+const submittedRequestIds = new Set();
 
 main().catch((error) => {
   console.error("[fatal]", error);
@@ -99,9 +109,9 @@ async function runQualification() {
   const responses = [];
 
   for (const task of qualification.tasks) {
-    const action =
+    const decision =
       task.qualificationCase.mode === "format_only"
-        ? task.qualificationCase.requiredAction
+        ? { action: task.qualificationCase.requiredAction, reasoning: \`格式自检：按要求输出 \${task.qualificationCase.requiredAction.type} 动作。\` }
         : await decideWithLlmOrFallback(task, { isQualification: true });
 
     responses.push({
@@ -110,11 +120,8 @@ async function runQualification() {
         type: "action_response",
         requestId: task.requestId,
         playerId: task.playerId,
-        action,
-        reasoning:
-          task.qualificationCase.mode === "format_only"
-            ? \`格式自检：按要求输出 \${action.type} 动作。\`
-            : "资格自检：模型基于当前测试牌局输出合法动作。",
+        action: decision.action,
+        reasoning: decision.reasoning,
       },
     });
   }
@@ -174,6 +181,10 @@ async function handleSocketMessage(payload) {
       console.log("[action] ack", payload.requestId);
       return;
     case "action_error":
+      if (payload.code === "stale_request" || payload.recoverable) {
+        console.warn("[action] recoverable error", payload.code || "", payload.error);
+        return;
+      }
       console.warn("[action] error", payload.error);
       return;
     case "agent_stop":
@@ -196,37 +207,50 @@ async function handleSocketMessage(payload) {
 
 async function handleDecisionTask(task) {
   const request = task.request;
+  if (submittedRequestIds.has(request.requestId) || inFlightRequestIds.has(request.requestId)) {
+    console.log("[decision] duplicate request ignored", request.requestId);
+    return;
+  }
+
   const msLeft = new Date(task.expiresAt).getTime() - Date.now();
   if (msLeft <= DECISION_SAFETY_MS) {
     return sendAction(request, failureAction(request.legalActions), "剩余时间不足，按规则提交保守动作。");
   }
 
-  const runtimeInstructions = await fetchRuntimeInstructions();
-  const action = await withDeadline(
-    decideWithLlmOrFallback(request, { runtimeInstructions, isQualification: false }),
-    Math.max(1_000, msLeft - DECISION_SAFETY_MS),
-  ).catch(() => failureAction(request.legalActions));
+  inFlightRequestIds.add(request.requestId);
+  try {
+    const runtimeInstructions = await fetchRuntimeInstructions();
+    const decision = await withDeadline(
+      decideWithLlmOrFallback(request, { runtimeInstructions, isQualification: false }),
+      Math.max(1_000, msLeft - DECISION_SAFETY_MS),
+    ).catch(() => fallback("模型调用超时。", request.legalActions));
 
-  const reasoning = action.__fallbackReasoning || "模型基于当前牌局状态选择该合法动作。";
-  delete action.__fallbackReasoning;
-  sendAction(request, action, reasoning);
+    sendAction(request, decision.action, decision.reasoning);
+  } finally {
+    inFlightRequestIds.delete(request.requestId);
+  }
 }
 
 async function decideWithLlmOrFallback(request, context = {}) {
   try {
     const prompt = buildPrompt(request, context);
     const modelDecision = await callYourLlm(prompt, { request, context });
-    const action = normalizeAction(modelDecision?.action, request.legalActions);
-    if (!action) {
+    const decision = normalizeDecision(modelDecision, request.legalActions);
+    if (!decision) {
       return fallback("模型输出动作不合法。", request.legalActions);
     }
-    return action;
+    return decision;
   } catch (error) {
     return fallback(\`模型调用失败：\${error instanceof Error ? error.message : "unknown"}。\`, request.legalActions);
   }
 }
 
 function sendAction(request, action, reasoning) {
+  if (submittedRequestIds.has(request.requestId)) {
+    console.log("[action] duplicate submit ignored", request.requestId);
+    return;
+  }
+
   const response = {
     type: "action_response",
     requestId: request.requestId,
@@ -236,6 +260,7 @@ function sendAction(request, action, reasoning) {
     reasoning,
   };
   console.log("[action] submit", JSON.stringify(response));
+  submittedRequestIds.add(request.requestId);
   socket.send(JSON.stringify(response));
 }
 
@@ -320,8 +345,92 @@ Decision input:
 \`;
 }
 
-async function callYourLlm(_prompt, _context) {
-  throw new Error("Implement callYourLlm(prompt, context) with your actual LLM provider.");
+async function callYourLlm(prompt, _context) {
+  if (MINIMAX_API_KEY) {
+    return callMiniMax(prompt);
+  }
+
+  throw new Error("No LLM provider configured. Prefer the subagent-first flow, or set MINIMAX_API_KEY for this fallback client.");
+}
+
+async function callMiniMax(prompt) {
+  const response = await fetch(\`\${MINIMAX_BASE_URL.replace(/\\/$/, "")}/messages\`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "anthropic-version": "2023-06-01",
+      "x-api-key": MINIMAX_API_KEY,
+      authorization: \`Bearer \${MINIMAX_API_KEY}\`,
+    },
+    body: JSON.stringify({
+      model: MODEL_NAME,
+      max_tokens: MINIMAX_MAX_TOKENS,
+      thinking: {
+        type: "enabled",
+        max_tokens: MINIMAX_THINKING_TOKENS,
+      },
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(\`MiniMax request failed: \${response.status} \${await response.text()}\`);
+  }
+
+  const data = await response.json();
+  return parseModelJson(extractModelText(data));
+}
+
+function extractModelText(data) {
+  const contentBlocks = Array.isArray(data?.content) ? data.content : [];
+  const textBlock = contentBlocks.find((block) => block?.type === "text" && typeof block.text === "string" && block.text.trim());
+  if (textBlock) {
+    return textBlock.text;
+  }
+
+  const thinkingText = contentBlocks
+    .filter((block) => block?.type === "thinking")
+    .map((block) => block.text || block.thinking || "")
+    .join("\\n");
+  const jsonMatch = thinkingText.match(/\\{[^{}]*"action"[^{}]*\\}/s) || thinkingText.match(/\\{[^{}]*"type"[^{}]*\\}/s);
+  if (jsonMatch) {
+    return jsonMatch[0];
+  }
+
+  throw new Error("Model response did not contain a text block or recoverable JSON in thinking.");
+}
+
+function parseModelJson(text) {
+  const trimmed = String(text).trim();
+  const fence = String.fromCharCode(96).repeat(3);
+  const fenced = trimmed.match(new RegExp(\`\${fence}(?:json)?\\\\s*([\\\\s\\\\S]*?)\${fence}\`, "i"));
+  const raw = fenced?.[1]?.trim() || trimmed;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const jsonMatch = raw.match(/\\{[\\s\\S]*\\}/);
+    if (!jsonMatch) {
+      throw new Error("Model response did not contain JSON.");
+    }
+    return JSON.parse(jsonMatch[0]);
+  }
+}
+
+function normalizeDecision(modelDecision, legalActions) {
+  const actionSource = modelDecision?.action && typeof modelDecision.action === "object" ? modelDecision.action : modelDecision;
+  const action = normalizeAction(actionSource, legalActions);
+  if (!action) {
+    return null;
+  }
+
+  const reasoning =
+    typeof modelDecision?.reasoning === "string" && modelDecision.reasoning.trim()
+      ? modelDecision.reasoning.trim()
+      : typeof actionSource?.reasoning === "string" && actionSource.reasoning.trim()
+        ? actionSource.reasoning.trim()
+        : "模型基于当前牌局状态选择该合法动作。";
+
+  return { action, reasoning };
 }
 
 function normalizeAction(action, legalActions) {
@@ -340,10 +449,10 @@ function normalizeAction(action, legalActions) {
 
 function fallback(reason, legalActions) {
   const action = failureAction(legalActions);
-  action.__fallbackReasoning = legalActions.includes("fold")
-    ? \`\${reason} 按规则直接弃牌。\`
-    : \`\${reason} fold 不可用，按规则过牌。\`;
-  return action;
+  return {
+    action,
+    reasoning: legalActions.includes("fold") ? \`\${reason} 按规则直接弃牌。\` : \`\${reason} fold 不可用，按规则过牌。\`,
+  };
 }
 
 function failureAction(legalActions) {
