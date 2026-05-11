@@ -11,3 +11,5 @@ data/users.json
 # Local agent runtime files
 .xudi-agent-memory.json
 xudi-agent.js
+.minimax-xuhao-memory.json
+minimax-xuhao-agent.js

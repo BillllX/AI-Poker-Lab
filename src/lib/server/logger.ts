@@ -75,7 +75,7 @@ function sanitize(value: unknown, depth = 0): unknown {
     return undefined;
   }
 
-  if (depth >= 4) {
+  if (depth >= 6) {
     return "[depth-limit]";
   }
 
