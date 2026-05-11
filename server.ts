@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import next from "next";
 import WebSocket, { WebSocketServer } from "ws";
 import { listAgents, markAgentDisconnected, markAgentSeen, subscribeAgentRegistry } from "./src/lib/server/agentRegistry";
-import { getPendingDecision, submitDecision, subscribePendingDecision } from "./src/lib/server/decisionBroker";
+import { getPendingDecision, StaleDecisionRequestError, submitDecision, subscribePendingDecision } from "./src/lib/server/decisionBroker";
 import { addRuntimeFeedback, getRuntimeInstructions } from "./src/lib/server/runtimeInstructions";
 import { getTableManager } from "./src/lib/server/simulator";
 import { logger } from "./src/lib/server/logger";
@@ -165,6 +165,18 @@ async function main() {
         send(ws, { type: "action_ack", requestId: payload.requestId, ok: true });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Invalid WebSocket action response.";
+        if (error instanceof StaleDecisionRequestError) {
+          logger.warn("decision.response_stale", { agentId, error: message });
+          send(ws, {
+            type: "action_error",
+            ok: false,
+            code: error.code,
+            recoverable: error.recoverable,
+            error: message,
+          });
+          return;
+        }
+
         logger.warn("decision.response_rejected", { agentId, error: message });
         try {
           addRuntimeFeedback(
@@ -237,7 +249,7 @@ function sendAgentState(ws: WebSocket, agentId: string, type: "decision_task" | 
 
   const agent = listAgents().find((item) => item.id === agentId);
   const tableUrl = agent?.tableId ? tableUrlFor(origin, agent.tableId) : undefined;
-  const task = getPendingDecision(agentId, agent?.tableId) ?? null;
+  const task = type === "decision_task" ? (getPendingDecision(agentId, agent?.tableId) ?? null) : null;
   if (type === "decision_task" && task) {
     logger.info("decision.task_sent", {
       agentId,

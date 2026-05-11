@@ -7,3 +7,7 @@ coverage
 .DS_Store
 *.log
 data/users.json
+
+# Local agent runtime files
+.xudi-agent-memory.json
+xudi-agent.js

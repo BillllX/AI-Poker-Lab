@@ -16,6 +16,16 @@ type PublicPendingDecision = {
 };
 type DecisionSubscriber = (decision: PublicPendingDecision | null) => void;
 
+export class StaleDecisionRequestError extends Error {
+  readonly code = "stale_request";
+  readonly recoverable = true;
+
+  constructor(message = "Decision request was not found or has expired.") {
+    super(message);
+    this.name = "StaleDecisionRequestError";
+  }
+}
+
 const globalForDecisions = globalThis as typeof globalThis & {
   __texasPokerPendingDecisions?: Map<string, PendingDecision>;
   __texasPokerDecisionSubscribers?: Map<string, Set<DecisionSubscriber>>;
@@ -112,7 +122,7 @@ export function submitDecision(response: AgentDecisionResponse & { requestId?: s
 
   const decision = pending.get(response.requestId);
   if (!decision) {
-    throw new Error("Decision request was not found or has expired.");
+    throw new StaleDecisionRequestError();
   }
 
   if (decision.request.playerId !== response.playerId) {
