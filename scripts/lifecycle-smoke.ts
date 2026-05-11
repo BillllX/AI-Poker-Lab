@@ -1,10 +1,10 @@
 import { strict as assert } from "node:assert";
 import type { AgentDecisionRequest, AgentDecisionResponse } from "../src/lib/poker/types";
 import { enqueueDecision, submitDecision, subscribePendingDecision } from "../src/lib/server/decisionBroker";
-import { clearAgents, listAgents, registerAgent, subscribeAgentRegistry } from "../src/lib/server/agentRegistry";
-import { GameSimulator } from "../src/lib/server/simulator";
+import { clearAgents, listAgents, registerAgent, subscribeAgentRegistry, type RegisteredAgent } from "../src/lib/server/agentRegistry";
+import { GameSimulator, TableManager } from "../src/lib/server/simulator";
 import type { GameBuyIn, GameSettlement } from "../src/lib/server/userRegistry";
-import { initialStack } from "../src/lib/poker/gameEngine";
+import { initialStack, PokerGameEngine } from "../src/lib/poker/gameEngine";
 
 const agents = [
   {
@@ -34,6 +34,8 @@ async function main() {
   await assertAutoStartWaitsForPollingAgents();
   await assertNewPollingAgentJoinsNextHand();
   await assertBustedRealAgentSettlesAndLeaves();
+  await assertDisconnectedLeaveRemovesEngineSeat();
+  await assertMinimumRaiseTracksPreviousRaiseSize();
   await assertDecisionSubscribersReceivePendingAndClear();
   await assertAgentRegistrySubscribersObserveSessionClear();
   console.log("Lifecycle smoke tests passed.");
@@ -182,6 +184,126 @@ async function assertBustedRealAgentSettlesAndLeaves() {
   clearAgents();
 }
 
+async function assertDisconnectedLeaveRemovesEngineSeat() {
+  clearAgents();
+  const leavingAgent = {
+    id: "ghost-leave-agent-a",
+    name: "Ghost Leave Agent A",
+    ownerUserId: "user-ghost-a",
+    modelName: "test-model",
+    kind: "external" as const,
+    registeredAt: new Date().toISOString(),
+    assignmentStatus: "registered" as const,
+  };
+  const survivingAgent = {
+    id: "ghost-leave-agent-b",
+    name: "Ghost Leave Agent B",
+    ownerUserId: "user-ghost-b",
+    modelName: "test-model",
+    kind: "external" as const,
+    registeredAt: new Date().toISOString(),
+    assignmentStatus: "playing" as const,
+  };
+  const harness = createHarness({ decisionMode: "pending", agents: [leavingAgent, survivingAgent] });
+  const simulator = new GameSimulator("http://localhost:3000", harness.deps, "ghost-table", "Ghost Table");
+  const simulatorInternals = simulator as unknown as SimulatorInternals;
+  const manager = new TableManager("http://localhost:3000");
+  const managerInternals = manager as unknown as TableManagerInternals;
+
+  registerAgent(leavingAgent);
+  harness.agents.splice(0, harness.agents.length, survivingAgent);
+  simulatorInternals.activeBuyIns = [
+    {
+      agentId: leavingAgent.id,
+      amount: initialStack,
+      gameSessionId: "ghost-leave-session",
+      ownerUserId: leavingAgent.ownerUserId,
+    },
+    {
+      agentId: survivingAgent.id,
+      amount: initialStack,
+      gameSessionId: "ghost-leave-session",
+      ownerUserId: survivingAgent.ownerUserId,
+    },
+  ];
+  managerInternals.tables.set("ghost-table", {
+    id: "ghost-table",
+    name: "Ghost Table",
+    createdAt: new Date().toISOString(),
+    runner: simulator,
+  });
+
+  const result = await manager.leaveAgent(leavingAgent.id);
+
+  assert.deepEqual(result, { removed: true, tableEnded: true }, "leave should find and clear an engine seat even when registry tableId is missing");
+  assert.equal(harness.settleCalls.length, 1, "ghost leave should settle the leaving Agent");
+  assert.equal(harness.settleCalls[0][0].agentId, leavingAgent.id, "settlement should target the leaving Agent");
+  assert.ok(
+    !simulatorInternals.engine.snapshot().players.some((player) => player.id === leavingAgent.id),
+    "leaving Agent should be removed from the engine snapshot",
+  );
+  assert.ok(listAgents().every((agent) => agent.id !== leavingAgent.id), "leaving Agent registration should be removed");
+  clearAgents();
+}
+
+async function assertMinimumRaiseTracksPreviousRaiseSize() {
+  const engine = new PokerGameEngine([
+    { id: "raise-smoke-a", name: "Raise Smoke A", modelName: "test-model" },
+    { id: "raise-smoke-b", name: "Raise Smoke B", modelName: "test-model" },
+    { id: "raise-smoke-c", name: "Raise Smoke C", modelName: "test-model" },
+  ]);
+  const requests: AgentDecisionRequest[] = [];
+
+  engine.setRunning(true);
+  await engine.playOneHand(async (request) => {
+    requests.push(request);
+
+    if (request.playerId === "raise-smoke-a" && request.toCall === 10) {
+      return {
+        type: "action_response",
+        playerId: request.playerId,
+        action: { type: "raise", amount: 50 },
+        reasoning: "测试第一次完整加注到 50。",
+      };
+    }
+
+    if (request.playerId === "raise-smoke-b") {
+      assert.equal(request.minRaise, 40, "minimum raise should equal the previous full raise increment");
+      return {
+        type: "action_response",
+        playerId: request.playerId,
+        action: { type: "raise", amount: 60 },
+        reasoning: "测试低于最小加注的输入会被校正。",
+      };
+    }
+
+    if (request.playerId === "raise-smoke-c") {
+      assert.equal(request.toCall, 80, "second raise should be coerced to a 90 target bet");
+      assert.equal(request.minRaise, 40, "coerced raise should preserve the 40 raise increment");
+      return {
+        type: "action_response",
+        playerId: request.playerId,
+        action: { type: "fold" },
+        reasoning: "测试结束行动。",
+      };
+    }
+
+    return {
+      type: "action_response",
+      playerId: request.playerId,
+      action: request.toCall > 0 ? { type: "fold" } : { type: "check" },
+      reasoning: "测试结束行动。",
+    };
+  });
+
+  const firstRaise = engine.snapshot().logs.find((log) => log.actor === "raise-smoke-a" && log.message.includes("加注到 50"));
+  const coercedRaise = engine.snapshot().logs.find((log) => log.actor === "raise-smoke-b" && log.message.includes("加注到 90"));
+
+  assert.ok(firstRaise, "first raise should be applied at the requested 50 target");
+  assert.ok(coercedRaise, "undersized second raise should be coerced to 90");
+  assert.ok(requests.some((request) => request.minRaise === 40), "decision requests should expose the dynamic minRaise");
+}
+
 async function assertDecisionSubscribersReceivePendingAndClear() {
   const playerId = `ws-smoke-${Date.now()}`;
   const observed: Array<string | null> = [];
@@ -241,7 +363,7 @@ async function assertAgentRegistrySubscribersObserveSessionClear() {
   assert.ok(notifications >= 2, "registry subscribers should observe agent registration and session clear");
 }
 
-function createHarness(options: { decisionMode: "auto-fold" | "pending"; agents?: typeof agents }) {
+function createHarness(options: { decisionMode: "auto-fold" | "pending"; agents?: RegisteredAgent[] }) {
   const activeAgents = options.agents ?? agents;
   const reserveCalls: GameBuyIn[][] = [];
   const settleCalls: GameSettlement[][] = [];
@@ -310,6 +432,10 @@ type SimulatorInternals = {
     players: Array<{ id: string; stack: number }>;
     snapshot: () => { players: Array<{ id: string }> };
   };
+};
+
+type TableManagerInternals = {
+  tables: Map<string, { id: string; name: string; createdAt: string; runner: GameSimulator }>;
 };
 
 async function waitFor(predicate: () => boolean) {

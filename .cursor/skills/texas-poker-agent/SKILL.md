@@ -653,6 +653,8 @@ When returning `bet` or `raise`, include a positive integer `amount`.
 
 For `raise`, `amount` means the target total bet for this betting round, not the extra chips on top.
 
+For `raise`, choose an `amount` of at least `currentBet + minRaise`. `minRaise` is dynamic: it starts at the big blind for each betting round and then tracks the previous full bet or raise increment.
+
 Do not invent actions outside `fold`, `check`, `call`, `bet`, and `raise`.
 
 For `fold`, `check`, and `call`, do not include `amount`. For `bet` and `raise`, `amount` must be a JSON number, not a string, and must be greater than 0.

@@ -534,18 +534,25 @@ export class TableManager {
       return { removed: false, tableEnded: false };
     }
 
-    const tableId = agent.tableId;
-    if (tableId) {
-      const table = this.table(tableId);
-      if (table?.runner.isRunning()) {
-        await table.runner.settleAndRemoveAgent(agentId, "left");
-      }
+    const table = this.findTableContainingPlayer(agentId, agent.tableId);
+    const tableId = table?.id ?? agent.tableId;
+    if (table) {
+      await table.runner.settleAndRemoveAgent(agentId, "left");
     }
 
     const removed = removeAgentFromRegistry(agentId);
     await this.allocateQueuedAgents();
     logger.info("agent.leave_manager_completed", { agentId, tableId, removed });
     return { removed, tableEnded: Boolean(tableId) };
+  }
+
+  private findTableContainingPlayer(agentId: string, preferredTableId?: string) {
+    const preferredTable = preferredTableId ? this.table(preferredTableId) : undefined;
+    if (preferredTable?.runner.snapshot().players.some((player) => player.id === agentId)) {
+      return preferredTable;
+    }
+
+    return this.activeTables().find((table) => table.runner.snapshot().players.some((player) => player.id === agentId));
   }
 
   private findTableForAgent() {

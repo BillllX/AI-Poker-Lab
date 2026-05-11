@@ -54,6 +54,7 @@ export class PokerGameEngine {
 
   readonly smallBlind = 5;
   readonly bigBlind = 10;
+  private minRaise = this.bigBlind;
 
   constructor(
     players: PlayerConfig[],
@@ -133,6 +134,7 @@ export class PokerGameEngine {
     this.pot = 0;
     this.phase = "preflop";
     this.currentBet = 0;
+    this.minRaise = this.bigBlind;
     this.currentPlayerId = undefined;
     this.running = false;
     this.players = this.players.map((player) => ({
@@ -193,7 +195,7 @@ export class PokerGameEngine {
       bigBlind: this.bigBlind,
       pot: this.pot,
       currentBet: this.currentBet,
-      minRaise: this.bigBlind,
+      minRaise: this.minRaise,
       currentPlayerId: this.currentPlayerId,
       communityCards: this.communityCards,
       players: this.players.map((player) => ({ ...player })),
@@ -217,6 +219,7 @@ export class PokerGameEngine {
       status: player.status === "all-in" ? "active" : player.status,
     }));
     this.currentBet = 0;
+    this.minRaise = this.bigBlind;
     this.pot = 0;
     this.log("system", `牌局中止，未结算底池 ${refundedPot} 已按本手投入退回各 Agent。`);
     this.updateProfitStats();
@@ -287,6 +290,7 @@ export class PokerGameEngine {
     this.actionHistory = [];
     this.pot = 0;
     this.currentBet = this.bigBlind;
+    this.minRaise = this.bigBlind;
     this.currentPlayerId = undefined;
     this.phase = "preflop";
 
@@ -313,6 +317,7 @@ export class PokerGameEngine {
 
     if (round !== "preflop") {
       this.currentBet = 0;
+      this.minRaise = this.bigBlind;
       this.players = this.players.map((player) => ({ ...player, currentBet: 0 }));
     }
 
@@ -357,7 +362,7 @@ export class PokerGameEngine {
       actionHistory: this.publicActionHistoryForCurrentHand().slice(-20),
       legalActions,
       toCall,
-      minRaise: this.bigBlind,
+      minRaise: this.minRaise,
       stack: player.stack,
     };
 
@@ -400,7 +405,7 @@ export class PokerGameEngine {
       bigBlind: this.bigBlind,
       pot: this.pot,
       currentBet: this.currentBet,
-      minRaise: this.bigBlind,
+      minRaise: this.minRaise,
       currentPlayerId,
       communityCards: this.communityCards,
       players: this.players.map((visiblePlayer) => ({
@@ -428,6 +433,7 @@ export class PokerGameEngine {
       return false;
     }
     const beforeBet = this.currentBet;
+    const minRaiseBeforeAction = this.minRaise;
     const toCall = Math.max(0, this.currentBet - player.currentBet);
 
     if (action.type === "fold") {
@@ -457,6 +463,11 @@ export class PokerGameEngine {
     this.commitChips(index, Math.max(0, targetBet - player.currentBet));
     const updated = this.players[index];
     this.currentBet = Math.max(this.currentBet, updated.currentBet);
+    const raiseIncrement = this.currentBet - beforeBet;
+    const isFullBetOrRaise = raiseIncrement >= minRaiseBeforeAction;
+    if (isFullBetOrRaise) {
+      this.minRaise = raiseIncrement;
+    }
     this.players[index] = { ...updated, lastReasoning: reasoning };
     this.recordAction(player, action.type, {
       amount: updated.currentBet - player.currentBet,
@@ -464,7 +475,7 @@ export class PokerGameEngine {
     });
     this.log(player.id, withReasoning(`${player.name} ${beforeBet === 0 ? "下注" : "加注到"} ${updated.currentBet}。`, reasoning));
 
-    return this.currentBet > beforeBet;
+    return this.currentBet > beforeBet && isFullBetOrRaise;
   }
 
   private targetBetFor(action: PokerAction) {
@@ -473,7 +484,7 @@ export class PokerGameEngine {
     }
 
     if (action.type === "raise") {
-      return Math.max(this.currentBet + this.bigBlind, safeAmount(action.amount, this.currentBet + this.bigBlind));
+      return Math.max(this.currentBet + this.minRaise, safeAmount(action.amount, this.currentBet + this.minRaise));
     }
 
     return this.currentBet;

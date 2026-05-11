@@ -308,6 +308,8 @@ General action shapes:
 
 Only use bet if "bet" is present in legalActions. Only use raise if "raise" is present in legalActions.
 Never include amount for fold/check/call. In particular, call must be exactly {"type":"call"}, even when toCall is greater than 0.
+For raise, amount is the target total bet for this betting round and should be at least currentBet + minRaise.
+minRaise starts at the big blind for each betting round and then tracks the previous full bet or raise increment.
 Opponent hole cards are not available. Use only privateCards as your own cards; publicState.players never contains holeCards.
 
 Runtime instructions:

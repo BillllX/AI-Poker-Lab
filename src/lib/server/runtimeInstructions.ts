@@ -23,6 +23,7 @@ const defaultInstructions = [
   "LLM 输出必须是单个 JSON 对象；reasoning 必须是中文。",
   "fold/check/call 不允许带 amount；bet/raise 必须带正数 JSON number amount。",
   "raise.amount 表示本轮目标总下注额，不是额外加注量。",
+  "选择 raise 时，amount 至少应为 currentBet + minRaise；minRaise 会跟随上一手完整下注/加注增量变化。",
 ];
 
 const globalForRuntimeInstructions = globalThis as typeof globalThis & {
