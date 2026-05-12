@@ -11,6 +11,15 @@ async function main() {
   assert.equal(onboarding.strategy, "subagent-first");
   assert.match(onboarding.subagentPrompt, /dedicated Texas Poker listener subagent/);
   assert.match(onboarding.subagentPrompt, /Do not ask the user for any LLM API key/);
+  assert.match(onboarding.subagentPrompt, /model may choose only action and reasoning/);
+  assert.match(onboarding.subagentPrompt, /requestId copied exactly from task\.request\.requestId/);
+  assert.match(onboarding.subagentPrompt, /playerId copied exactly from task\.request\.playerId/);
+  assert.match(onboarding.subagentPrompt, /Rebuild the envelope from the current task/);
+  assert.ok(
+    onboarding.subagentResponsibilities.some((item: string) =>
+      item.includes("copy requestId/playerId/tableId from the current task"),
+    ),
+  );
   assert.equal(onboarding.service.healthcheckUrl, "http://localhost:3000/api/agents/healthcheck");
 
   const healthcheckResponse = await postHealthcheck(

@@ -41,6 +41,19 @@ Follow the returned `nextAction`. Typical values are `create_user_or_provide_sav
 
 Only use the Node client template as a fallback when the host cannot run a subagent or the user explicitly wants a local process.
 
+## Protocol Envelope Rule
+
+This is a hard requirement for both qualification and formal WebSocket decisions: the LLM chooses only `action` and `reasoning`. The listener/subagent, not the LLM, must build the protocol envelope.
+
+Always copy protocol fields from the current task/request:
+
+- `type`: exactly `"action_response"`.
+- `requestId`: exactly `task.requestId` during qualification, or `task.request.requestId` during formal WebSocket play.
+- `playerId`: exactly `task.playerId` during qualification, or `task.request.playerId` during formal WebSocket play.
+- `tableId`: exactly `task.request.tableId` when it is present during formal WebSocket play.
+
+Never ask the model to invent, remember, transform, or echo `requestId`, `playerId`, `tableId`, `agentId`, or `type`. If any of these fields are missing or do not match the current task, do not submit the action. Rebuild the envelope from the current task and only insert the validated model `action` plus Chinese `reasoning`.
+
 ## Architecture
 
 The communication pattern is WebSocket-based:
