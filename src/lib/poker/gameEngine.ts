@@ -1,5 +1,6 @@
 import { createDeck, formatCard, shuffle } from "./cards";
 import { compareHands, evaluateTexasHand } from "./handEvaluator";
+import { logger } from "../server/logger";
 import type {
   ActionHistoryItem,
   ActionLog,
@@ -515,6 +516,26 @@ export class PokerGameEngine {
       this.payWinner(contenders[0].id, wonAmount);
       handWinners.add(contenders[0].id);
       this.log(contenders[0].id, `${contenders[0].name} 赢得底池 ${wonAmount}。`);
+      logger.info("poker.pot_awarded", {
+        tableId: this.options.tableId,
+        handId: this.handId,
+        communityCards: this.communityCards.map(formatCard),
+        pots: [
+          {
+            label: "底池",
+            amount: wonAmount,
+            winners: [{ playerId: contenders[0].id, name: contenders[0].name, amount: wonAmount }],
+          },
+        ],
+        players: this.players.map((player) => ({
+          id: player.id,
+          name: player.name,
+          status: player.status,
+          stack: player.stack,
+          totalCommitted: player.totalCommitted,
+          holeCards: player.holeCards.map(formatCard),
+        })),
+      });
       this.recordHandWins(handWinners);
       this.updateProfitStats();
       this.pot = 0;
@@ -526,7 +547,25 @@ export class PokerGameEngine {
       hand: evaluateTexasHand([...player.holeCards, ...this.communityCards]),
     }));
 
-    for (const pot of buildPots(this.players)) {
+    const pots = buildPots(this.players);
+    const potBreakdowns: Array<{
+      amount: number;
+      contributors: string[];
+      eligible: string[];
+      label: string;
+      winners: Array<{ amount: number; handRank: string; name: string; playerId: string }>;
+    }> = [];
+    this.log(
+      "system",
+      `摊牌分池：公共牌 ${this.communityCards.map(formatCard).join(" ")}；${pots
+        .map(
+          (pot) =>
+            `${pot.label} ${pot.amount}，贡献者 ${this.playerLabels(pot.contributorPlayerIds).join("、")}，可争夺 ${this.playerLabels(pot.eligiblePlayerIds).join("、")}`,
+        )
+        .join("；")}。`,
+    );
+
+    for (const pot of pots) {
       const eligible = evaluated.filter((entry) => pot.eligiblePlayerIds.includes(entry.player.id));
       const best = eligible.sort((left, right) => compareHands(left.hand, right.hand)).at(-1);
 
@@ -537,10 +576,26 @@ export class PokerGameEngine {
       const winners = eligible.filter((entry) => compareHands(entry.hand, best.hand) === 0);
       const share = Math.floor(pot.amount / winners.length);
       let remainder = pot.amount % winners.length;
-
-      for (const winner of winners) {
+      const awards = winners.map((winner) => {
         const wonAmount = share + (remainder > 0 ? 1 : 0);
         remainder = Math.max(0, remainder - 1);
+        return { winner, wonAmount };
+      });
+
+      potBreakdowns.push({
+        amount: pot.amount,
+        contributors: pot.contributorPlayerIds,
+        eligible: pot.eligiblePlayerIds,
+        label: pot.label,
+        winners: awards.map(({ winner, wonAmount }) => ({
+          amount: wonAmount,
+          handRank: winner.hand.rank,
+          name: winner.player.name,
+          playerId: winner.player.id,
+        })),
+      });
+
+      for (const { winner, wonAmount } of awards) {
         this.payWinner(winner.player.id, wonAmount);
         handWinners.add(winner.player.id);
         this.log(
@@ -549,6 +604,21 @@ export class PokerGameEngine {
         );
       }
     }
+
+    logger.info("poker.pot_awarded", {
+      tableId: this.options.tableId,
+      handId: this.handId,
+      communityCards: this.communityCards.map(formatCard),
+      pots: potBreakdowns,
+      players: this.players.map((player) => ({
+        id: player.id,
+        name: player.name,
+        status: player.status,
+        stack: player.stack,
+        totalCommitted: player.totalCommitted,
+        holeCards: player.holeCards.map(formatCard),
+      })),
+    });
 
     this.recordHandWins(handWinners);
     this.updateProfitStats();
@@ -579,6 +649,13 @@ export class PokerGameEngine {
         playerStat.profit = player.stack - initialStack;
       }
     }
+  }
+
+  private playerLabels(playerIds: string[]) {
+    return playerIds.map((playerId) => {
+      const player = this.players.find((item) => item.id === playerId);
+      return player ? `${player.name}(${player.totalCommitted})` : playerId;
+    });
   }
 
   private modelStats() {
@@ -746,7 +823,7 @@ function buildPots(players: PlayerState[]) {
   const levels = [...new Set(players.map((player) => player.totalCommitted).filter((amount) => amount > 0))].sort(
     (left, right) => left - right,
   );
-  const pots: Array<{ amount: number; eligiblePlayerIds: string[]; label: string }> = [];
+  const pots: Array<{ amount: number; contributorPlayerIds: string[]; eligiblePlayerIds: string[]; label: string }> = [];
   let previousLevel = 0;
 
   for (const level of levels) {
@@ -759,6 +836,7 @@ function buildPots(players: PlayerState[]) {
     if (amount > 0 && eligiblePlayerIds.length > 0) {
       pots.push({
         amount,
+        contributorPlayerIds: contributors.map((player) => player.id),
         eligiblePlayerIds,
         label: pots.length === 0 ? "主池" : `边池 ${pots.length}`,
       });

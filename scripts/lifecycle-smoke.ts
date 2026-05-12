@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import type { AgentDecisionRequest, AgentDecisionResponse } from "../src/lib/poker/types";
+import type { AgentDecisionRequest, AgentDecisionResponse, Card, PlayerState } from "../src/lib/poker/types";
 import { enqueueDecision, submitDecision, subscribePendingDecision } from "../src/lib/server/decisionBroker";
 import { clearAgents, listAgents, registerAgent, subscribeAgentRegistry, type RegisteredAgent } from "../src/lib/server/agentRegistry";
 import { GameSimulator, TableManager } from "../src/lib/server/simulator";
@@ -36,6 +36,7 @@ async function main() {
   await assertBustedRealAgentSettlesAndLeaves();
   await assertDisconnectedLeaveRemovesEngineSeat();
   await assertMinimumRaiseTracksPreviousRaiseSize();
+  await assertSidePotSplitMainPotOnly();
   await assertDecisionSubscribersReceivePendingAndClear();
   await assertAgentRegistrySubscribersObserveSessionClear();
   console.log("Lifecycle smoke tests passed.");
@@ -302,6 +303,78 @@ async function assertMinimumRaiseTracksPreviousRaiseSize() {
   assert.ok(firstRaise, "first raise should be applied at the requested 50 target");
   assert.ok(coercedRaise, "undersized second raise should be coerced to 90");
   assert.ok(requests.some((request) => request.minRaise === 40), "decision requests should expose the dynamic minRaise");
+}
+
+async function assertSidePotSplitMainPotOnly() {
+  const engine = new PokerGameEngine([
+    { id: "side-pot-a", name: "Side Pot A", modelName: "test-model" },
+    { id: "side-pot-b", name: "Side Pot B", modelName: "test-model" },
+    { id: "side-pot-c", name: "Side Pot C", modelName: "test-model" },
+  ]);
+  const internals = engine as unknown as {
+    awardPot: () => void;
+    communityCards: Card[];
+    handId: number;
+    phase: string;
+    players: PlayerState[];
+    pot: number;
+  };
+
+  internals.handId = 1;
+  internals.phase = "showdown";
+  internals.communityCards = [
+    { rank: "A", suit: "c" },
+    { rank: "K", suit: "c" },
+    { rank: "9", suit: "h" },
+    { rank: "8", suit: "d" },
+    { rank: "3", suit: "s" },
+  ];
+  internals.players[0] = {
+    ...internals.players[0],
+    holeCards: [
+      { rank: "A", suit: "s" },
+      { rank: "K", suit: "d" },
+    ],
+    stack: 0,
+    currentBet: 15,
+    totalCommitted: 15,
+    status: "all-in",
+  };
+  internals.players[1] = {
+    ...internals.players[1],
+    holeCards: [
+      { rank: "A", suit: "h" },
+      { rank: "K", suit: "s" },
+    ],
+    stack: 950,
+    currentBet: 50,
+    totalCommitted: 50,
+    status: "active",
+  };
+  internals.players[2] = {
+    ...internals.players[2],
+    holeCards: [
+      { rank: "7", suit: "d" },
+      { rank: "2", suit: "c" },
+    ],
+    stack: 950,
+    currentBet: 50,
+    totalCommitted: 50,
+    status: "active",
+  };
+  internals.pot = 115;
+
+  internals.awardPot();
+
+  const snapshot = engine.snapshot();
+  const playerA = snapshot.players.find((player) => player.id === "side-pot-a");
+  const playerB = snapshot.players.find((player) => player.id === "side-pot-b");
+  const playerC = snapshot.players.find((player) => player.id === "side-pot-c");
+
+  assert.equal(playerA?.stack, 23, "short all-in tied winner should receive half of the 45 main pot plus odd chip");
+  assert.equal(playerB?.stack, 1042, "deep tied winner should receive main pot share plus the 70 side pot");
+  assert.equal(playerC?.stack, 950, "side pot loser should not receive chips");
+  assert.ok(snapshot.logs.some((log) => log.message.includes("摊牌分池") && log.message.includes("主池 45") && log.message.includes("边池 1 70")));
 }
 
 async function assertDecisionSubscribersReceivePendingAndClear() {

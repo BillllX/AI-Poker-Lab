@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const origin = new URL(request.url).origin;
+  const origin = publicOriginFor(request);
   const wsUrl = origin.replace(/^http/, "ws") + "/api/agents/ws?agentId=<agent-id>";
 
   return Response.json({
@@ -70,4 +70,11 @@ Your responsibilities:
 10. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
 11. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
 12. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
+}
+
+function publicOriginFor(request: Request) {
+  const url = new URL(request.url);
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? url.host;
+  const protocol = request.headers.get("x-forwarded-proto") ?? url.protocol.replace(/:$/, "") ?? "http";
+  return `${protocol}://${host}`;
 }
