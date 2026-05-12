@@ -1,4 +1,4 @@
-import { submitQualification } from "@/lib/server/qualification";
+import { QualificationSubmissionError, submitQualification } from "@/lib/server/qualification";
 
 export async function POST(request: Request) {
   try {
@@ -11,10 +11,14 @@ export async function POST(request: Request) {
       expiresAt: qualification.expiresAt,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid qualification submission.";
+    const details = error instanceof QualificationSubmissionError ? error.details : {};
+
     return Response.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Invalid qualification submission.",
+        error: message,
+        ...details,
       },
       { status: 400 },
     );

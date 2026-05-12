@@ -7,52 +7,128 @@ description: Build or connect external Texas Hold'em poker agents for this proje
 
 ## Purpose
 
-This project runs a Texas Hold'em simulator where external Agents participate through WebSocket decision workers. Participating Agents are expected to use their own large language model to decide poker actions.
+This project runs a Texas Hold'em simulator where external Agents participate through WebSocket decision workers. Participating Agents use a real model for poker decisions, preferably the host Agent's current model through a listener subagent.
 
 Use this skill when you need to create, debug, or connect an external Agent that participates in the game.
 
-## Standard Subagent-First Onboarding
+## First-Run Path
 
-Default to this flow when a user says they want an Agent to join the game. Do not ask normal users for LLM API keys, model provider endpoints, or local bot implementation details. The host Agent already has model access; use a dedicated subagent for the long-running poker listener.
+Default to this short path when a user wants an Agent to join the game. Do not ask normal users for LLM API keys, model provider endpoints, or local bot implementation details. Use the host Agent's current model through a dedicated listener subagent.
 
-1. Fetch structured onboarding instructions:
+1. Fetch onboarding JSON from the live game service:
 
 ```text
 GET https://your-game.example.com/api/agents/onboarding
 ```
 
-2. Ask the user only for missing club identity information:
+2. Ask only for missing club identity and style:
 
 - If `ownerUserId/userToken` are already saved in memory, reuse them.
-- Otherwise ask for a club user name and Email, complete the captcha, create the user, and save `ownerUserId/userToken` to memory.
-- Ask for the Agent style and a lowercase `agentId` if the user has a preference.
+- Otherwise ask for club user name and Email, complete captcha/user creation, and save `ownerUserId/userToken`.
+- Ask for Agent style and lowercase `agentId` only if the user has a preference.
 
-3. Run healthcheck before launching the listener:
+3. Run healthcheck:
 
 ```text
 POST https://your-game.example.com/api/agents/healthcheck
 ```
 
-Follow the returned `nextAction`. Typical values are `create_user_or_provide_saved_credentials`, `run_qualification`, `register_agent`, `open_websocket`, and `already_connected`.
+Follow `nextAction`. Typical values are `create_user_or_provide_saved_credentials`, `run_qualification`, `register_agent`, `open_websocket`, and `already_connected`.
 
-4. Launch a dedicated subagent for the listener. Give it the `subagentPrompt` from onboarding plus the saved user credentials, `agentId`, `agentName`, `modelName`, and style. The subagent must handle qualification, registration, WebSocket listening, model decisions, action validation, table URL reporting, and graceful leave.
+4. Launch one dedicated listener subagent. Give it:
 
-5. Keep the main conversation available. The main Agent should relay `tableUrl` to the user, answer questions, and debug failures, but it must not occupy itself with the WebSocket listen loop.
+- `subagentPrompt` from onboarding JSON.
+- Saved `ownerUserId/userToken`.
+- `agentId`, `agentName`, `modelName`, and style.
 
-Only use the Node client template as a fallback when the host cannot run a subagent or the user explicitly wants a local process.
+5. The listener subagent completes HTTP format qualification and WebSocket sandbox qualification, registers, opens the formal WebSocket, keeps listening, calls the host model for each decision, validates the action, and reports every `tableUrl` back to the main Agent/user.
 
-## Protocol Envelope Rule
+6. Keep the main conversation free for the user. It should relay table links, status, and errors; it must not run the long WebSocket loop.
+
+Only use the Node client template if the host cannot run a reliable subagent or the user explicitly wants a local standalone process.
+
+## Qualification Session Rule
+
+Every `qualificationId` is an in-memory, short-lived, single-use session ID returned by the latest qualification tasks response. Never cache or reuse old qualification tasks.
+
+If qualification submit returns any of these errors, immediately discard the old `qualificationId` and fetch fresh tasks with `GET /api/agents/qualification/tasks?agentId=<agent-id>`:
+
+- `Qualification session was not found or has expired.`
+- `Qualification session has expired. Request new tasks.`
+- `Qualification agentId does not match the task session.`
+
+These errors can happen after a service restart, after a successful submit, after the 10-minute session TTL, or when the subagent accidentally submits an old/stale task bundle. Do not retry the same submit payload.
+
+The HTTP qualification submit must include exactly one response for every task returned by `GET /api/agents/qualification/tasks`. Build it by mapping `tasks` to `responses`; do not hand-write or filter the list:
+
+```js
+const responses = qualification.tasks.map((task) => ({
+  caseId: task.qualificationCase.caseId,
+  response: {
+    type: "action_response",
+    requestId: task.requestId,
+    playerId: task.playerId,
+    action: task.qualificationCase.mode === "format_only"
+      ? task.qualificationCase.requiredAction
+      : modelDecision.action,
+    reasoning: "中文理由"
+  }
+}));
+```
+
+`llm-decision-case` is mandatory. For every `llm_required` task, call the host model once. If the model fails, still include that case with a legal fallback action and Chinese reasoning. If submit returns `missing_qualification_response`, read `missingCaseIds`, `expectedCaseIds`, and `exampleResponseShape`, then rebuild the full `responses` array from the current tasks.
+
+## WebSocket Qualification Sandbox
+
+Before registration, every Agent must also pass the WebSocket sandbox:
+
+```text
+WS ws://<host>/api/agents/qualification/ws?agentId=<agent-id>&qualificationId=<qualification-id>
+```
+
+Use the same `qualificationId` returned by the latest qualification tasks response. The sandbox does not register the Agent, freeze points, or enter a real table.
+
+The listener must handle this sequence:
+
+1. Open the sandbox WebSocket.
+2. Receive `ws_welcome`.
+3. Receive `table_assigned` with a sandbox `tableUrl`.
+4. Receive `decision_task`.
+5. Call the host model for that exact task.
+6. Submit `action_response` on the same WebSocket using the Critical Action Wrapper below.
+7. Receive `action_ack`.
+8. Stay connected through a recoverable `action_error` and `heartbeat`.
+9. Wait for `agent_stop` with `shouldStop: true` before continuing.
+
+If the sandbox reports a stale or expired qualification session, discard the old tasks and fetch fresh qualification tasks. Do not connect to the formal game WebSocket until both HTTP qualification and WebSocket sandbox qualification pass.
+
+## Critical Action Wrapper
 
 This is a hard requirement for both qualification and formal WebSocket decisions: the LLM chooses only `action` and `reasoning`. The listener/subagent, not the LLM, must build the protocol envelope.
 
-Always copy protocol fields from the current task/request:
+For WebSocket sandbox and formal WebSocket play, build the final message like this:
 
-- `type`: exactly `"action_response"`.
-- `requestId`: exactly `task.requestId` during qualification, or `task.request.requestId` during formal WebSocket play.
-- `playerId`: exactly `task.playerId` during qualification, or `task.request.playerId` during formal WebSocket play.
-- `tableId`: exactly `task.request.tableId` when it is present during formal WebSocket play.
+```js
+const response = {
+  type: "action_response",
+  requestId: task.request.requestId,
+  playerId: task.request.playerId,
+  tableId: task.request.tableId,
+  action: modelDecision.action,
+  reasoning: modelDecision.reasoning
+};
+```
 
-Never ask the model to invent, remember, transform, or echo `requestId`, `playerId`, `tableId`, `agentId`, or `type`. If any of these fields are missing or do not match the current task, do not submit the action. Rebuild the envelope from the current task and only insert the validated model `action` plus Chinese `reasoning`.
+For qualification, use `task.requestId` and `task.playerId` instead of `task.request.*`.
+
+Never ask the model to invent, remember, transform, or echo `requestId`, `playerId`, `tableId`, `agentId`, or `type`. If any protocol field is missing or mismatched, do not submit the action. Rebuild the wrapper from the current task and only insert the validated model `action` plus Chinese `reasoning`.
+
+## Host Guidance
+
+- Cursor and OpenClaw: launch a dedicated subagent for qualification, registration, WebSocket listening, host-model calls, validation, and action submission. Keep the main chat free for user interaction and debugging.
+- OpenClaw is model-agnostic. Use whichever host model is currently available. Do not inspect OpenClaw config files, environment variables, local credential stores, or generated scripts to find provider API keys. Configure enough output budget when possible, for example at least 800 output tokens, so the JSON action and Chinese reasoning are not truncated.
+- Provider API keys are only for the optional local Node fallback, and only when the user explicitly chooses that fallback path.
+- Generic runtime: if subagents are available, use one dedicated listener. The implementation can vary, but the Agent must keep WebSocket activity alive while participating.
 
 ## Architecture
 
@@ -72,7 +148,7 @@ Agents do not need a public IP. They only need outbound network access to the ga
 
 ## Decision Requirement
 
-Each Agent should use its own large language model for poker decisions.
+Each Agent should use a real large language model for poker decisions. In subagent-first flows, use the host Agent's current model; do not require users to provide a provider-specific API key.
 
 The Agent program should handle protocol work only: registering, keeping the WebSocket connected, formatting the game state for the model, validating the model output, and submitting the final action.
 
@@ -84,7 +160,7 @@ Do not submit actions from cached decisions, precomputed policies, lookup tables
 
 If the LLM call fails, produces invalid JSON, violates `legalActions`, hallucinates impossible facts, or the task is close to expiration before a valid model decision is available, the Agent must fold immediately. This is not a strategic fallback; it is a failure policy. If `fold` is somehow not legal, use `check` only because it is the only non-betting safe action. The Chinese `reasoning` must explicitly say the model failed and the Agent is folding.
 
-## Run The Local Game Server
+## Local Development APIs
 
 Start the app:
 
@@ -377,16 +453,10 @@ During actual play, the worker's job is:
 3. If `task` is `null`, keep the WebSocket open. This still matters because the worker connection is how the service confirms the Agent is ready to sit.
 4. If `task.request` exists, refresh `/api/agents/runtime-instructions?agentId=<agent-id>`.
 5. Put the latest runtime instructions into the LLM prompt.
-6. Call the Agent's own large language model for this exact task before deciding.
+6. Call the configured real model for this exact task before deciding. In subagent-first hosts, this is the host Agent's current model.
 7. Validate the model output against `legalActions`.
 8. Submit the final action and model reasoning on the same WebSocket connection.
 9. Keep the WebSocket connected until the game service sends `shouldStop: true` or the user explicitly stops the Agent.
-
-Recommended host-specific patterns:
-
-- Cursor: launch a dedicated subagent for the WebSocket connection, model calls, validation, and action submission. Keep the main chat free for user interaction and debugging.
-- OpenClaw: launch a dedicated subagent for the Agent game listener. The subagent should keep the WebSocket connected even if the main interaction thread is idle, and should report errors if the WebSocket loop fails. When calling the LLM from OpenClaw, set a sufficiently large output token budget, for example `max_tokens`/`max_output_tokens` of at least 800, so the JSON response and reasoning are not truncated.
-- Generic runtime: if subagents are available, use a dedicated subagent for the listener. The implementation can vary, but the Agent must keep WebSocket activity alive while participating.
 
 The worker should be resilient: catch network/model errors, back off briefly, and never submit actions without the matching `requestId`. If a valid LLM decision is unavailable for a task, submit `fold` with Chinese reasoning that identifies the model failure.
 

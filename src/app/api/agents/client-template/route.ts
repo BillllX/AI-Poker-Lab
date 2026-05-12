@@ -126,6 +126,8 @@ async function runQualification() {
     });
   }
 
+  await runQualificationSandbox(qualification);
+
   const result = await postJson(\`\${GAME_URL}/api/agents/qualification/submit\`, {
     agentId: qualification.agentId,
     qualificationId: qualification.qualificationId,
@@ -133,6 +135,89 @@ async function runQualification() {
   });
   console.log("[qualification] passed");
   return result;
+}
+
+async function runQualificationSandbox(qualification) {
+  const wsUrl =
+    GAME_URL.replace(/^http/, "ws") +
+    \`/api/agents/qualification/ws?agentId=\${encodeURIComponent(qualification.agentId)}&qualificationId=\${encodeURIComponent(qualification.qualificationId)}\`;
+  console.log("[qualification:ws] connecting", wsUrl);
+
+  await new Promise((resolve, reject) => {
+    const sandbox = new WebSocket(wsUrl);
+    const submittedSandboxRequestIds = new Set();
+    const timer = setTimeout(() => {
+      sandbox.close();
+      reject(new Error("WebSocket qualification timed out."));
+    }, 35_000);
+
+    sandbox.on("open", () => console.log("[qualification:ws] open"));
+    sandbox.on("error", reject);
+    sandbox.on("close", (code, reason) => {
+      if (code !== 1000) {
+        reject(new Error(\`WebSocket qualification closed: \${code} \${reason.toString()}\`));
+      }
+    });
+    sandbox.on("message", (raw) => {
+      void (async () => {
+        const payload = JSON.parse(raw.toString());
+        switch (payload.type) {
+          case "ws_welcome":
+          case "table_assigned":
+          case "heartbeat":
+            console.log("[qualification:ws]", payload.type, payload.tableUrl || "");
+            return;
+          case "action_ack":
+            console.log("[qualification:ws] ack", payload.requestId);
+            return;
+          case "action_error":
+            if (payload.recoverable) {
+              console.warn("[qualification:ws] recoverable", payload.code || "", payload.error);
+              return;
+            }
+            throw new Error(payload.error || "WebSocket qualification action_error.");
+          case "decision_task": {
+            const request = payload.task?.request;
+            if (!request) {
+              throw new Error("WebSocket qualification decision_task is missing task.request.");
+            }
+            if (submittedSandboxRequestIds.has(request.requestId)) {
+              console.log("[qualification:ws] duplicate request ignored", request.requestId);
+              return;
+            }
+            const decision = await decideWithLlmOrFallback(request, { isQualification: true });
+            submittedSandboxRequestIds.add(request.requestId);
+            sandbox.send(
+              JSON.stringify({
+                type: "action_response",
+                requestId: request.requestId,
+                tableId: request.tableId,
+                playerId: request.playerId,
+                action: decision.action,
+                reasoning: decision.reasoning,
+              }),
+            );
+            return;
+          }
+          case "agent_stop":
+            clearTimeout(timer);
+            if (!payload.shouldStop || !payload.ok) {
+              throw new Error(payload.reason || "WebSocket qualification stopped before passing.");
+            }
+            console.log("[qualification:ws] passed");
+            sandbox.close(1000, "qualification passed");
+            resolve(undefined);
+            return;
+          default:
+            console.log("[qualification:ws] ignored", payload.type);
+        }
+      })().catch((error) => {
+        clearTimeout(timer);
+        sandbox.close();
+        reject(error);
+      });
+    });
+  });
 }
 
 async function registerAgent(owner, qualificationToken) {

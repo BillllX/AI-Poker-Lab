@@ -22,6 +22,7 @@ type QualificationSession = {
   tasks: QualificationTask[];
   createdAt: string;
   expiresAt: string;
+  wsPassed?: boolean;
 };
 
 type QualificationToken = {
@@ -30,6 +31,16 @@ type QualificationToken = {
   createdAt: string;
   expiresAt: string;
 };
+
+export class QualificationSubmissionError extends Error {
+  readonly details: Record<string, unknown>;
+
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = "QualificationSubmissionError";
+    this.details = details;
+  }
+}
 
 const sessionTtlMs = 10 * 60_000;
 const tokenTtlMs = 30 * 60_000;
@@ -63,6 +74,7 @@ export function createQualificationSession(rawAgentId: string) {
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,
     tasks: session.tasks,
+    submissionContract: buildSubmissionContract(session.tasks),
   };
 }
 
@@ -92,17 +104,49 @@ export function submitQualification(input: unknown) {
     throw new Error("Qualification responses must be an array.");
   }
 
+  if (!session.wsPassed) {
+    throw new Error("WebSocket qualification is required before submitting qualification responses.");
+  }
+
   const responses = input.responses;
   const submittedCaseIds = new Set<string>();
+  const expectedCaseIds = session.tasks.map((task) => task.qualificationCase.caseId);
+  const receivedCaseIds = responses
+    .filter((candidate) => isRecord(candidate) && typeof candidate.caseId === "string")
+    .map((candidate) => String(candidate.caseId));
+  const missingCaseIds = expectedCaseIds.filter((caseId) => !receivedCaseIds.includes(caseId));
 
   for (const task of session.tasks) {
     const item = responses.find((candidate) => isRecord(candidate) && candidate.caseId === task.qualificationCase.caseId);
     if (!isRecord(item)) {
-      throw new Error(`Missing qualification response for ${task.qualificationCase.caseId}.`);
+      throw new QualificationSubmissionError(`Missing qualification response for ${task.qualificationCase.caseId}.`, {
+        code: "missing_qualification_response",
+        missingCaseIds,
+        expectedCaseIds,
+        receivedCaseIds,
+        repairHint:
+          "Build responses by mapping every returned qualification.tasks item to one response. Preserve each task.qualificationCase.caseId exactly. llm_required tasks still need a response; call the host model once or use a legal fallback if the model fails.",
+        exampleResponseShape: {
+          caseId: task.qualificationCase.caseId,
+          response: {
+            type: "action_response",
+            requestId: task.requestId,
+            playerId: task.playerId,
+            action: task.qualificationCase.requiredAction ?? { type: task.legalActions[0] },
+            reasoning: "中文理由，必须非空。",
+          },
+        },
+      });
     }
 
     if (submittedCaseIds.has(task.qualificationCase.caseId)) {
-      throw new Error(`Duplicate qualification response for ${task.qualificationCase.caseId}.`);
+      throw new QualificationSubmissionError(`Duplicate qualification response for ${task.qualificationCase.caseId}.`, {
+        code: "duplicate_qualification_response",
+        duplicateCaseId: task.qualificationCase.caseId,
+        expectedCaseIds,
+        receivedCaseIds,
+        repairHint: "Submit exactly one response for each expected caseId. Do not submit duplicate caseId entries.",
+      });
     }
     submittedCaseIds.add(task.qualificationCase.caseId);
 
@@ -111,7 +155,14 @@ export function submitQualification(input: unknown) {
   }
 
   if (responses.length !== session.tasks.length) {
-    throw new Error("Qualification submit must include exactly the returned task cases.");
+    throw new QualificationSubmissionError("Qualification submit must include exactly the returned task cases.", {
+      code: "qualification_response_count_mismatch",
+      expectedCaseIds,
+      receivedCaseIds,
+      expectedCount: session.tasks.length,
+      receivedCount: responses.length,
+      repairHint: "Submit exactly one response for every expected caseId and no extra cases.",
+    });
   }
 
   sessions.delete(qualificationId);
@@ -128,6 +179,57 @@ export function submitQualification(input: unknown) {
   logger.info("qualification.passed", { agentId, qualificationId, expiresAt: qualificationToken.expiresAt });
 
   return qualificationToken;
+}
+
+export function getQualificationSession(rawQualificationId: string) {
+  const session = sessions.get(rawQualificationId);
+  if (!session) {
+    return undefined;
+  }
+
+  return session;
+}
+
+export function assertQualificationSession(rawAgentId: string, rawQualificationId: string) {
+  const agentId = normalizeAgentId(rawAgentId);
+  const qualificationId = typeof rawQualificationId === "string" ? rawQualificationId : "";
+  const session = sessions.get(qualificationId);
+
+  if (!session) {
+    throw new Error("Qualification session was not found or has expired.");
+  }
+
+  if (new Date(session.expiresAt).getTime() <= Date.now()) {
+    sessions.delete(qualificationId);
+    throw new Error("Qualification session has expired. Request new tasks.");
+  }
+
+  if (session.agentId !== agentId) {
+    throw new Error("Qualification agentId does not match the task session.");
+  }
+
+  return session;
+}
+
+export function createQualificationWsTask(rawAgentId: string, rawQualificationId: string) {
+  const session = assertQualificationSession(rawAgentId, rawQualificationId);
+
+  return createTask({
+    agentId: session.agentId,
+    qualificationId: session.qualificationId,
+    caseId: "ws-decision-case",
+    mode: "llm_required",
+    description: "WebSocket qualification check. Receive a decision_task, call the host model, and submit action_response on the same WebSocket.",
+    legalActions: ["fold", "call", "raise"],
+    toCall: 20,
+    stack: 900,
+  });
+}
+
+export function markQualificationWsPassed(rawAgentId: string, rawQualificationId: string) {
+  const session = assertQualificationSession(rawAgentId, rawQualificationId);
+  session.wsPassed = true;
+  logger.info("qualification.ws_passed", { agentId: session.agentId, qualificationId: session.qualificationId });
 }
 
 export function consumeQualificationToken(rawAgentId: string, token: unknown) {
@@ -363,6 +465,40 @@ function createTask({
       description,
       requiredAction,
     },
+  };
+}
+
+function buildSubmissionContract(tasks: QualificationTask[]) {
+  return {
+    rule: "Map every item in tasks to exactly one responses[] entry. Preserve qualificationCase.caseId exactly. Do not skip llm_required tasks.",
+    responseArrayShape: {
+      agentId: "<agentId returned by this response>",
+      qualificationId: "<qualificationId returned by this response>",
+      responses: [
+        {
+          caseId: "<task.qualificationCase.caseId>",
+          response: {
+            type: "action_response",
+            requestId: "<task.requestId>",
+            playerId: "<task.playerId>",
+            action: "<model action or qualificationCase.requiredAction>",
+            reasoning: "non-empty Chinese reasoning",
+          },
+        },
+      ],
+    },
+    expectedResponses: tasks.map((task) => ({
+      caseId: task.qualificationCase.caseId,
+      mode: task.qualificationCase.mode,
+      requiredAction: task.qualificationCase.requiredAction ?? null,
+      requestId: task.requestId,
+      playerId: task.playerId,
+      legalActions: task.legalActions,
+      instruction:
+        task.qualificationCase.mode === "format_only"
+          ? "Do not call the model. Use qualificationCase.requiredAction exactly."
+          : "Call the host model once using this exact task. If the model fails, still submit a legal fallback action with Chinese reasoning.",
+    })),
   };
 }
 
