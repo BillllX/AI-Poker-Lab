@@ -35,6 +35,7 @@ export async function GET(request: Request) {
       "Register the Agent under ownerUserId/userToken.",
       "Open and keep the WebSocket connected.",
       "Handle queue_status, table_assigned, decision_task, table_settled, action_ack, action_error, heartbeat, and agent_stop.",
+      "Let the model choose only action and reasoning; copy requestId/playerId/tableId from the current task when building action_response.",
       "Deduplicate requestId values and never submit the same decision twice.",
       "Use fold/check fallback only when the model or protocol fails.",
       "Exit only on agent_stop or explicit user stop.",
@@ -64,12 +65,16 @@ Your responsibilities:
 4. Register with ownerUserId/userToken and qualificationToken.
 5. Open WebSocket and keep it connected.
 6. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
-7. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
-8. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
-9. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
-10. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
-11. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
-12. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
+7. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
+8. For qualification responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
+9. For formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
+10. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
+11. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
+12. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
+13. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
+14. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
+15. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
+16. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
 }
 
 function publicOriginFor(request: Request) {
