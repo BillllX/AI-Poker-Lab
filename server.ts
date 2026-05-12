@@ -1,17 +1,19 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
 import WebSocket, { WebSocketServer } from "ws";
 import { listAgents, markAgentDisconnected, markAgentSeen, subscribeAgentRegistry } from "./src/lib/server/agentRegistry";
-import { getPendingDecision, StaleDecisionRequestError, submitDecision, subscribePendingDecision } from "./src/lib/server/decisionBroker";
+import { getPendingDecision, StaleDecisionRequestError, submitDecision, subscribePendingDecision, validateDecisionResponse } from "./src/lib/server/decisionBroker";
 import { addRuntimeFeedback, getRuntimeInstructions } from "./src/lib/server/runtimeInstructions";
 import { getTableManager } from "./src/lib/server/simulator";
 import { logger } from "./src/lib/server/logger";
+import { assertQualificationSession, createQualificationWsTask, markQualificationWsPassed } from "./src/lib/server/qualification";
 import type { AgentDecisionResponse } from "./src/lib/poker/types";
 
 const { hostname, port } = parseArgs(process.argv.slice(2));
 const app = next({ dev: process.env.NODE_ENV !== "production", hostname, port });
 const handle = app.getRequestHandler();
 const wsPath = "/api/agents/ws";
+const qualificationWsPath = "/api/agents/qualification/ws";
 
 void main();
 
@@ -26,7 +28,7 @@ async function main() {
   server.on("upgrade", (request, socket, head) => {
     const url = new URL(request.url ?? "/", originFor(request));
 
-    if (url.pathname !== wsPath) {
+    if (url.pathname !== wsPath && url.pathname !== qualificationWsPath) {
       socket.destroy();
       return;
     }
@@ -38,6 +40,11 @@ async function main() {
 
   wss.on("connection", (ws, request) => {
     const url = new URL(request.url ?? "/", originFor(request));
+    if (url.pathname === qualificationWsPath) {
+      handleQualificationWs(ws, request, url);
+      return;
+    }
+
     const agentId = url.searchParams.get("agentId")?.trim();
     const origin = originFor(request);
 
@@ -241,6 +248,151 @@ type AgentLeaveMessage = {
   type: "agent_leave";
   agentId?: string;
 };
+
+function handleQualificationWs(ws: WebSocket, request: IncomingMessage, url: URL) {
+  const rawAgentId = url.searchParams.get("agentId")?.trim() ?? "";
+  const qualificationId = url.searchParams.get("qualificationId")?.trim() ?? "";
+  const origin = originFor(request);
+
+  try {
+    if (!rawAgentId) {
+      throw new Error("agentId is required.");
+    }
+    if (!qualificationId) {
+      throw new Error("qualificationId is required.");
+    }
+
+    const session = assertQualificationSession(rawAgentId, qualificationId);
+    const requestTask = createQualificationWsTask(session.agentId, session.qualificationId);
+    const task = {
+      request: { ...requestTask, tableId: "qualification-table" },
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 30_000).toISOString(),
+    };
+    let acknowledged = false;
+    let failed = false;
+
+    logger.info("qualification.ws_connected", {
+      agentId: session.agentId,
+      qualificationId: session.qualificationId,
+      remoteAddress: request.socket.remoteAddress,
+    });
+    send(ws, {
+      type: "ws_welcome",
+      agentId: session.agentId,
+      shouldStop: false,
+      qualificationId: session.qualificationId,
+      runtimeInstructions: [],
+    });
+    send(ws, {
+      type: "table_assigned",
+      agentId: session.agentId,
+      tableId: "qualification-table",
+      tableUrl: `${origin}/tables/qualification-sandbox`,
+      shouldStop: false,
+    });
+    send(ws, {
+      type: "decision_task",
+      agentId: session.agentId,
+      tableId: "qualification-table",
+      tableUrl: `${origin}/tables/qualification-sandbox`,
+      qualificationId: session.qualificationId,
+      runtimeInstructions: [],
+      task,
+    });
+
+    const timeout = setTimeout(() => {
+      if (acknowledged || failed) {
+        return;
+      }
+      failed = true;
+      logger.warn("qualification.ws_timeout", { agentId: session.agentId, qualificationId: session.qualificationId });
+      send(ws, { type: "action_error", ok: false, error: "WebSocket qualification timed out before a valid action_response." });
+      ws.close(1008, "WebSocket qualification timed out");
+    }, 30_000);
+
+    ws.on("message", (raw) => {
+      try {
+        const payload = JSON.parse(raw.toString()) as AgentDecisionResponse;
+        if (acknowledged) {
+          failed = true;
+          logger.warn("qualification.ws_duplicate_submit", { agentId: session.agentId, qualificationId: session.qualificationId });
+          send(ws, {
+            type: "action_error",
+            ok: false,
+            error: "Duplicate action_response was submitted during WebSocket qualification.",
+          });
+          ws.close(1008, "Duplicate WebSocket qualification submit");
+          return;
+        }
+
+        validateDecisionResponse(payload, task.request.legalActions);
+        if (payload.requestId !== task.request.requestId) {
+          throw new Error("WebSocket qualification response has wrong requestId.");
+        }
+        if (payload.playerId !== task.request.playerId) {
+          throw new Error("WebSocket qualification response has wrong playerId.");
+        }
+        if (payload.tableId !== task.request.tableId) {
+          throw new Error("WebSocket qualification response has wrong tableId.");
+        }
+
+        acknowledged = true;
+        clearTimeout(timeout);
+        send(ws, { type: "action_ack", ok: true, requestId: payload.requestId });
+        send(ws, {
+          type: "decision_task",
+          agentId: session.agentId,
+          tableId: "qualification-table",
+          tableUrl: `${origin}/tables/qualification-sandbox`,
+          qualificationId: session.qualificationId,
+          runtimeInstructions: [],
+          task,
+        });
+        send(ws, {
+          type: "action_error",
+          ok: false,
+          recoverable: true,
+          code: "qualification_recoverable_check",
+          error: "Recoverable sandbox check. Continue listening.",
+        });
+        send(ws, { type: "heartbeat", agentId: session.agentId, shouldStop: false, at: new Date().toISOString() });
+        setTimeout(() => {
+          if (failed || ws.readyState !== WebSocket.OPEN) {
+            return;
+          }
+          markQualificationWsPassed(session.agentId, session.qualificationId);
+          send(ws, {
+            type: "agent_stop",
+            agentId: session.agentId,
+            ok: true,
+            shouldStop: true,
+            qualificationId: session.qualificationId,
+            reason: "WebSocket qualification passed. Continue with HTTP qualification submit.",
+          });
+          ws.close(1000, "WebSocket qualification passed");
+        }, 1_000);
+      } catch (error) {
+        failed = true;
+        clearTimeout(timeout);
+        const message = error instanceof Error ? error.message : "Invalid WebSocket qualification response.";
+        logger.warn("qualification.ws_rejected", { agentId: session.agentId, qualificationId: session.qualificationId, error: message });
+        send(ws, { type: "action_error", ok: false, error: message });
+        ws.close(1008, "Invalid WebSocket qualification response");
+      }
+    });
+
+    ws.on("close", () => {
+      clearTimeout(timeout);
+      logger.info("qualification.ws_closed", { agentId: session.agentId, qualificationId: session.qualificationId });
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to start WebSocket qualification.";
+    logger.warn("qualification.ws_connection_rejected", { error: message, remoteAddress: request.socket.remoteAddress });
+    send(ws, { type: "agent_stop", shouldStop: true, reason: message });
+    ws.close(1008, message);
+  }
+}
 
 function sendAgentState(ws: WebSocket, agentId: string, type: "decision_task" | "ws_welcome", origin: string) {
   if (ws.readyState !== WebSocket.OPEN) {

@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const origin = publicOriginFor(request);
   const wsUrl = origin.replace(/^http/, "ws") + "/api/agents/ws?agentId=<agent-id>";
+  const qualificationWsUrl = origin.replace(/^http/, "ws") + "/api/agents/qualification/ws?agentId=<agent-id>&qualificationId=<qualification-id>";
 
   return Response.json({
     ok: true,
@@ -13,6 +14,7 @@ export async function GET(request: Request) {
       healthcheckUrl: `${origin}/api/agents/healthcheck`,
       qualificationTasksUrl: `${origin}/api/agents/qualification/tasks?agentId=<agent-id>`,
       qualificationSubmitUrl: `${origin}/api/agents/qualification/submit`,
+      qualificationWebSocketUrl: qualificationWsUrl,
       rosterUrl: `${origin}/api/agents/roster`,
       leaveUrl: `${origin}/api/agents/leave`,
       websocketUrl: wsUrl,
@@ -37,7 +39,8 @@ export async function GET(request: Request) {
     subagentResponsibilities: [
       "Use its host model for qualification and every formal poker decision.",
       "Do not inspect host config files, environment variables, or local credential stores to find provider API keys.",
-      "Run qualification before first registration.",
+      "Run HTTP format qualification and WebSocket sandbox qualification before first registration.",
+      "Discard stale qualificationId values; if qualification submit says not found, expired, or agentId mismatch, fetch fresh tasks instead of retrying old payloads.",
       "Register the Agent under ownerUserId/userToken.",
       "Open and keep the WebSocket connected.",
       "Handle queue_status, table_assigned, decision_task, table_settled, action_ack, action_error, heartbeat, and agent_stop.",
@@ -46,12 +49,12 @@ export async function GET(request: Request) {
       "Use fold/check fallback only when the model or protocol fails.",
       "Exit only on agent_stop or explicit user stop.",
     ],
-    subagentPrompt: buildSubagentPrompt(origin, wsUrl),
+    subagentPrompt: buildSubagentPrompt(origin, wsUrl, qualificationWsUrl),
     fallbackClientTemplateUrl: `${origin}/api/agents/client-template`,
   });
 }
 
-function buildSubagentPrompt(origin: string, wsUrl: string) {
+function buildSubagentPrompt(origin: string, wsUrl: string, qualificationWsUrl: string) {
   return `You are the dedicated Texas Poker listener subagent.
 
 Use the host Agent model for all poker decisions. Do not ask the user for any LLM API key or model provider configuration.
@@ -62,6 +65,7 @@ Game service:
 - Healthcheck: ${origin}/api/agents/healthcheck
 - Qualification tasks: ${origin}/api/agents/qualification/tasks?agentId=<agent-id>
 - Qualification submit: ${origin}/api/agents/qualification/submit
+- Qualification WebSocket sandbox: ${qualificationWsUrl}
 - Roster: ${origin}/api/agents/roster
 - WebSocket: ${wsUrl}
 
@@ -69,20 +73,24 @@ Your responsibilities:
 1. Normalize agentId to lowercase letters, numbers, and hyphens.
 2. Run healthcheck and follow nextAction.
 3. Never search local config, environment variables, credential stores, or generated files for provider API keys.
-4. Run qualification before first registration. For format_only cases, return the required action exactly. For llm_required, call the host model once.
-5. Register with ownerUserId/userToken and qualificationToken.
-6. Open WebSocket and keep it connected.
-7. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
-8. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
-9. For qualification responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
-10. For formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
-11. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
-12. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
-13. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
-14. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
-15. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
-16. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
-17. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
+4. Fetch qualification tasks before first registration. For format_only cases, return the required action exactly. For llm_required, call the host model once.
+5. Build HTTP qualification submit by mapping every returned qualification.tasks item to exactly one responses[] entry. Preserve task.qualificationCase.caseId exactly. Do not skip llm-decision-case or any llm_required task.
+6. If HTTP submit returns missing_qualification_response, read missingCaseIds/expectedCaseIds/exampleResponseShape and rebuild the full responses array from the current tasks; do not send partial responses.
+7. Before HTTP qualification submit, open the Qualification WebSocket sandbox with the same agentId and qualificationId. Handle ws_welcome, table_assigned, decision_task, action_ack, recoverable action_error, heartbeat, and agent_stop. The sandbox does not register the Agent, freeze points, or enter a real table.
+8. Treat qualificationId as short-lived and single-use. If qualification submit or sandbox returns "Qualification session was not found or has expired.", "Qualification session has expired. Request new tasks.", or "Qualification agentId does not match the task session.", discard the old qualificationId and fetch fresh qualification tasks. Do not retry the same submit payload.
+9. Register with ownerUserId/userToken and qualificationToken only after both HTTP format qualification and WebSocket sandbox qualification pass.
+10. Open the formal game WebSocket and keep it connected.
+11. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
+12. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
+13. For qualification HTTP responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
+14. For Qualification WebSocket sandbox and formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
+15. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
+16. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
+17. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
+18. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
+19. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
+20. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
+21. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
 }
 
 function publicOriginFor(request: Request) {

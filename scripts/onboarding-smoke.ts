@@ -2,6 +2,9 @@ import { strict as assert } from "node:assert";
 import { GET as getClientTemplate } from "../src/app/api/agents/client-template/route";
 import { POST as postHealthcheck } from "../src/app/api/agents/healthcheck/route";
 import { GET as getOnboarding } from "../src/app/api/agents/onboarding/route";
+import { GET as getQualificationTasks } from "../src/app/api/agents/qualification/tasks/route";
+import { POST as postQualificationSubmit } from "../src/app/api/agents/qualification/submit/route";
+import { createQualificationSession, createQualificationWsTask, markQualificationWsPassed, submitQualification } from "../src/lib/server/qualification";
 
 async function main() {
   const onboardingResponse = await getOnboarding(new Request("http://localhost:3000/api/agents/onboarding"));
@@ -13,6 +16,13 @@ async function main() {
   assert.match(onboarding.subagentPrompt, /Do not ask the user for any LLM API key/);
   assert.match(onboarding.subagentPrompt, /Do not inspect OpenClaw\/Cursor config files/);
   assert.match(onboarding.subagentPrompt, /Never search local config, environment variables, credential stores/);
+  assert.match(onboarding.subagentPrompt, /qualificationId as short-lived and single-use/);
+  assert.match(onboarding.subagentPrompt, /fetch fresh qualification tasks/);
+  assert.match(onboarding.subagentPrompt, /Do not retry the same submit payload/);
+  assert.match(onboarding.subagentPrompt, /mapping every returned qualification\.tasks item/);
+  assert.match(onboarding.subagentPrompt, /Do not skip llm-decision-case/);
+  assert.match(onboarding.subagentPrompt, /missingCaseIds\/expectedCaseIds\/exampleResponseShape/);
+  assert.match(onboarding.subagentPrompt, /Qualification WebSocket sandbox/);
   assert.match(onboarding.subagentPrompt, /model may choose only action and reasoning/);
   assert.match(onboarding.subagentPrompt, /requestId copied exactly from task\.request\.requestId/);
   assert.match(onboarding.subagentPrompt, /playerId copied exactly from task\.request\.playerId/);
@@ -22,6 +32,17 @@ async function main() {
       item.includes("copy requestId/playerId/tableId from the current task"),
     ),
   );
+  assert.ok(
+    onboarding.subagentResponsibilities.some((item: string) =>
+      item.includes("Discard stale qualificationId values"),
+    ),
+  );
+  assert.ok(
+    onboarding.subagentResponsibilities.some((item: string) =>
+      item.includes("WebSocket sandbox qualification"),
+    ),
+  );
+  assert.match(onboarding.service.qualificationWebSocketUrl, /\/api\/agents\/qualification\/ws/);
   assert.ok(
     onboarding.doNotAskUserFor.some((item: string) =>
       item.includes("OpenClaw config files or local credential paths"),
@@ -56,8 +77,88 @@ async function main() {
   assert.match(template, /submittedRequestIds/);
   assert.match(template, /normalizeDecision/);
   assert.match(template, /stale_request/);
+  assert.match(template, /runQualificationSandbox/);
+  assert.match(template, /\/api\/agents\/qualification\/ws/);
+  assert.match(template, /duplicate request ignored/);
+
+  assertWebSocketQualificationRequired();
+  await assertQualificationTaskContractAndStructuredErrors();
 
   console.log("Onboarding smoke tests passed.");
+}
+
+async function assertQualificationTaskContractAndStructuredErrors() {
+  const tasksResponse = await getQualificationTasks(new Request("http://localhost:3000/api/agents/qualification/tasks?agentId=Contract Agent"));
+  const qualification = await tasksResponse.json();
+
+  assert.equal(qualification.submissionContract.expectedResponses.length, qualification.tasks.length);
+  assert.ok(qualification.submissionContract.expectedResponses.some((item: { caseId: string }) => item.caseId === "llm-decision-case"));
+  markQualificationWsPassed(qualification.agentId, qualification.qualificationId);
+
+  const partialResponses = qualification.tasks
+    .filter((task: { qualificationCase: { caseId: string } }) => task.qualificationCase.caseId !== "llm-decision-case")
+    .map((task: { qualificationCase: { caseId: string; requiredAction?: unknown }; requestId: string; playerId: string }) => ({
+      caseId: task.qualificationCase.caseId,
+      response: {
+        type: "action_response",
+        requestId: task.requestId,
+        playerId: task.playerId,
+        action: task.qualificationCase.requiredAction,
+        reasoning: "格式测试：按要求提交动作。",
+      },
+    }));
+
+  const submitResponse = await postQualificationSubmit(
+    new Request("http://localhost:3000/api/agents/qualification/submit", {
+      method: "POST",
+      body: JSON.stringify({
+        agentId: qualification.agentId,
+        qualificationId: qualification.qualificationId,
+        responses: partialResponses,
+      }),
+    }),
+  );
+  const error = await submitResponse.json();
+
+  assert.equal(error.ok, false);
+  assert.equal(error.code, "missing_qualification_response");
+  assert.deepEqual(error.missingCaseIds, ["llm-decision-case"]);
+  assert.ok(error.expectedCaseIds.includes("llm-decision-case"));
+  assert.equal(error.exampleResponseShape.caseId, "llm-decision-case");
+}
+
+function assertWebSocketQualificationRequired() {
+  const qualification = createQualificationSession("Smoke Agent Ws");
+  const responses = qualification.tasks.map((task) => ({
+    caseId: task.qualificationCase.caseId,
+    response: {
+      type: "action_response",
+      requestId: task.requestId,
+      playerId: task.playerId,
+      action: task.qualificationCase.requiredAction ?? { type: "fold" },
+      reasoning: "准入测试：使用合法动作完成格式校验。",
+    },
+  }));
+
+  assert.throws(
+    () =>
+      submitQualification({
+        agentId: qualification.agentId,
+        qualificationId: qualification.qualificationId,
+        responses,
+      }),
+    /WebSocket qualification is required/,
+  );
+
+  const wsTask = createQualificationWsTask(qualification.agentId, qualification.qualificationId);
+  assert.equal(wsTask.qualificationCase.caseId, "ws-decision-case");
+  markQualificationWsPassed(qualification.agentId, qualification.qualificationId);
+  const result = submitQualification({
+    agentId: qualification.agentId,
+    qualificationId: qualification.qualificationId,
+    responses,
+  });
+  assert.equal(result.agentId, qualification.agentId);
 }
 
 main().catch((error) => {
