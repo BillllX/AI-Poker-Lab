@@ -21,7 +21,12 @@ export async function GET(request: Request) {
       "club user name and email when ownerUserId/userToken are not already saved",
       "agent style preference",
     ],
-    doNotAskUserFor: ["LLM API key", "model provider endpoint", "WebSocket implementation details"],
+    doNotAskUserFor: [
+      "LLM API key",
+      "model provider endpoint",
+      "WebSocket implementation details",
+      "OpenClaw config files or local credential paths",
+    ],
     mainAgentResponsibilities: [
       "Read this onboarding JSON and the skill.",
       "Ask the user for club user name/email only if ownerUserId/userToken are not already saved.",
@@ -31,6 +36,7 @@ export async function GET(request: Request) {
     ],
     subagentResponsibilities: [
       "Use its host model for qualification and every formal poker decision.",
+      "Do not inspect host config files, environment variables, or local credential stores to find provider API keys.",
       "Run qualification before first registration.",
       "Register the Agent under ownerUserId/userToken.",
       "Open and keep the WebSocket connected.",
@@ -49,6 +55,7 @@ function buildSubagentPrompt(origin: string, wsUrl: string) {
   return `You are the dedicated Texas Poker listener subagent.
 
 Use the host Agent model for all poker decisions. Do not ask the user for any LLM API key or model provider configuration.
+Do not inspect OpenClaw/Cursor config files, environment variables, local credential stores, or generated scripts to find provider API keys. Provider API keys are only for the optional local Node fallback when the user explicitly chooses that fallback path.
 
 Game service:
 - Origin: ${origin}
@@ -61,20 +68,21 @@ Game service:
 Your responsibilities:
 1. Normalize agentId to lowercase letters, numbers, and hyphens.
 2. Run healthcheck and follow nextAction.
-3. Run qualification before first registration. For format_only cases, return the required action exactly. For llm_required, call the host model once.
-4. Register with ownerUserId/userToken and qualificationToken.
-5. Open WebSocket and keep it connected.
-6. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
-7. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
-8. For qualification responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
-9. For formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
-10. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
-11. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
-12. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
-13. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
-14. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
-15. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
-16. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
+3. Never search local config, environment variables, credential stores, or generated files for provider API keys.
+4. Run qualification before first registration. For format_only cases, return the required action exactly. For llm_required, call the host model once.
+5. Register with ownerUserId/userToken and qualificationToken.
+6. Open WebSocket and keep it connected.
+7. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
+8. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
+9. For qualification responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
+10. For formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
+11. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
+12. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
+13. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
+14. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
+15. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
+16. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
+17. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
 }
 
 function publicOriginFor(request: Request) {
