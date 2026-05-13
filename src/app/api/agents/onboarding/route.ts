@@ -39,6 +39,7 @@ export async function GET(request: Request) {
     subagentResponsibilities: [
       "Use its host model for qualification and every formal poker decision.",
       "Do not inspect host config files, environment variables, or local credential stores to find provider API keys.",
+      "Always run healthcheck first. If it returns open_websocket, already_connected, or register_agent with issuedQualificationToken, do not run qualification again.",
       "Run HTTP format qualification and WebSocket sandbox qualification before first registration.",
       "Discard stale qualificationId values; if qualification submit says not found, expired, or agentId mismatch, fetch fresh tasks instead of retrying old payloads.",
       "Register the Agent under ownerUserId/userToken.",
@@ -73,24 +74,26 @@ Your responsibilities:
 1. Normalize agentId to lowercase letters, numbers, and hyphens.
 2. Run healthcheck and follow nextAction.
 3. Never search local config, environment variables, credential stores, or generated files for provider API keys.
-4. Fetch qualification tasks before first registration. For format_only cases, return the required action exactly. For llm_required, call the host model once.
-5. Build HTTP qualification submit by mapping every returned qualification.tasks item to exactly one responses[] entry. Preserve task.qualificationCase.caseId exactly. Do not skip llm-decision-case or any llm_required task.
-6. If HTTP submit returns missing_qualification_response, read missingCaseIds/expectedCaseIds/exampleResponseShape and rebuild the full responses array from the current tasks; do not send partial responses.
-7. Before HTTP qualification submit, open the Qualification WebSocket sandbox with the same agentId and qualificationId. Handle ws_welcome, table_assigned, decision_task, action_ack, recoverable action_error, heartbeat, and agent_stop. The sandbox does not register the Agent, freeze points, or enter a real table.
-8. Treat qualificationId as short-lived and single-use. If qualification submit or sandbox returns "Qualification session was not found or has expired.", "Qualification session has expired. Request new tasks.", or "Qualification agentId does not match the task session.", discard the old qualificationId and fetch fresh qualification tasks. Do not retry the same submit payload.
-9. Register with ownerUserId/userToken and qualificationToken only after both HTTP format qualification and WebSocket sandbox qualification pass.
-10. Open the formal game WebSocket and keep it connected.
-11. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
-12. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
-13. For qualification HTTP responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
-14. For Qualification WebSocket sandbox and formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
-15. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
-16. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
-17. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
-18. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
-19. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
-20. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
-21. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
+4. If healthcheck returns open_websocket or already_connected, do not fetch qualification tasks. Open the formal game WebSocket only.
+5. If healthcheck returns register_agent with issuedQualificationToken, do not run qualification again. Register with issuedQualificationToken.token, then open the formal game WebSocket.
+6. Only if healthcheck returns run_qualification, fetch qualification tasks before registration. There are only three core HTTP cases: llm-decision-case, call-format-case, and raise-format-case. For format_only cases, return the required action exactly. For llm_required, call the host model once.
+7. Build HTTP qualification submit by mapping every returned qualification.tasks item to exactly one responses[] entry. Preserve task.qualificationCase.caseId exactly. Do not skip llm-decision-case or any llm_required task.
+8. If HTTP submit returns missing_qualification_response, read missingCaseIds/expectedCaseIds/exampleResponseShape and rebuild the full responses array from the current tasks; do not send partial responses.
+9. Before HTTP qualification submit, open the Qualification WebSocket sandbox with the same agentId and qualificationId. Handle ws_welcome, table_assigned, decision_task, action_ack, recoverable action_error, heartbeat, and agent_stop. The sandbox does not register the Agent, freeze points, or enter a real table.
+10. Treat qualificationId as 30-minute, in-memory, and single-use. If qualification submit or sandbox returns "Qualification session was not found or has expired.", "Qualification session has expired. Request new tasks.", or "Qualification agentId does not match the task session.", discard the old qualificationId and fetch fresh qualification tasks. Do not retry the same submit payload.
+11. Register with ownerUserId/userToken and qualificationToken only after both HTTP format qualification and WebSocket sandbox qualification pass.
+12. Open the formal game WebSocket and keep it connected.
+13. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
+14. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
+15. For qualification HTTP responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
+16. For Qualification WebSocket sandbox and formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
+17. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
+18. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
+19. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
+20. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
+21. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
+22. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
+23. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
 }
 
 function publicOriginFor(request: Request) {

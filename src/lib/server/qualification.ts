@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import type { AgentDecisionRequest, AgentDecisionResponse, PokerAction } from "../poker/types";
 import { normalizeAgentId } from "./agentRegistry";
 import { validateDecisionResponse } from "./decisionBroker";
 import { logger } from "./logger";
+import { prisma } from "./prisma";
 
 type QualificationMode = "llm_required" | "format_only";
 
@@ -42,8 +44,9 @@ export class QualificationSubmissionError extends Error {
   }
 }
 
-const sessionTtlMs = 10 * 60_000;
+const sessionTtlMs = 30 * 60_000;
 const tokenTtlMs = 30 * 60_000;
+export const qualificationProtocolVersion = "ws-sandbox-v2";
 
 const globalForQualification = globalThis as typeof globalThis & {
   __texasPokerQualificationSessions?: Map<string, QualificationSession>;
@@ -167,18 +170,82 @@ export function submitQualification(input: unknown) {
 
   sessions.delete(qualificationId);
 
-  const now = new Date();
-  const token = `qtoken-${agentId}-${now.getTime()}-${Math.random().toString(16).slice(2)}`;
-  const qualificationToken = {
-    agentId,
-    token,
-    createdAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + tokenTtlMs).toISOString(),
-  };
-  tokens.set(token, qualificationToken);
+  const qualificationToken = issueQualificationToken(agentId);
   logger.info("qualification.passed", { agentId, qualificationId, expiresAt: qualificationToken.expiresAt });
 
   return qualificationToken;
+}
+
+export async function recordPersistentQualification(input: { agentId: string; modelName: string; ownerUserId: string }) {
+  const agentId = normalizeAgentId(input.agentId);
+  const modelName = input.modelName.trim();
+  const ownerUserId = input.ownerUserId.trim();
+
+  if (!modelName) {
+    throw new Error("modelName is required to persist qualification.");
+  }
+  if (!ownerUserId) {
+    throw new Error("ownerUserId is required to persist qualification.");
+  }
+
+  const result = await prisma.agentQualification.upsert({
+    create: {
+      id: `agent_qualification_${randomUUID().replace(/-/g, "")}`,
+      agentId,
+      modelName,
+      ownerUserId,
+      protocolVersion: qualificationProtocolVersion,
+    },
+    update: {
+      passedAt: new Date(),
+      expiresAt: null,
+    },
+    where: {
+      agentId_ownerUserId_modelName_protocolVersion: {
+        agentId,
+        modelName,
+        ownerUserId,
+        protocolVersion: qualificationProtocolVersion,
+      },
+    },
+  });
+  logger.info("qualification.persisted", { agentId, ownerUserId, modelName, protocolVersion: qualificationProtocolVersion });
+  return result;
+}
+
+export async function issueQualificationTokenFromPersistentResult(input: { agentId: string; modelName: string; ownerUserId: string }) {
+  const agentId = normalizeAgentId(input.agentId);
+  const modelName = input.modelName.trim();
+  const ownerUserId = input.ownerUserId.trim();
+
+  if (!modelName || !ownerUserId) {
+    return undefined;
+  }
+
+  const result = await prisma.agentQualification.findFirst({
+    where: {
+      agentId,
+      modelName,
+      ownerUserId,
+      protocolVersion: qualificationProtocolVersion,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    orderBy: { passedAt: "desc" },
+  });
+
+  if (!result) {
+    return undefined;
+  }
+
+  const qualificationToken = issueQualificationToken(agentId);
+  logger.info("qualification.token_issued_from_persistent_result", {
+    agentId,
+    ownerUserId,
+    modelName,
+    protocolVersion: qualificationProtocolVersion,
+    expiresAt: qualificationToken.expiresAt,
+  });
+  return { qualification: result, qualificationToken };
 }
 
 export function getQualificationSession(rawQualificationId: string) {
@@ -257,6 +324,19 @@ export function consumeQualificationToken(rawAgentId: string, token: unknown) {
   logger.info("qualification.token_consumed", { agentId });
 }
 
+function issueQualificationToken(agentId: string) {
+  const now = new Date();
+  const token = `qtoken-${agentId}-${now.getTime()}-${Math.random().toString(16).slice(2)}`;
+  const qualificationToken = {
+    agentId,
+    token,
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + tokenTtlMs).toISOString(),
+  };
+  tokens.set(token, qualificationToken);
+  return qualificationToken;
+}
+
 function validateQualificationResponse(task: QualificationTask, response: unknown) {
   validateDecisionResponse(response as AgentDecisionResponse, task.legalActions);
 
@@ -307,45 +387,12 @@ function buildQualificationTasks(agentId: string, qualificationId: string): Qual
     createTask({
       agentId,
       qualificationId,
-      caseId: "fold-format-case",
-      mode: "format_only",
-      description: "Format-only check. No LLM call is required; return the required fold action shape exactly.",
-      legalActions: ["fold"],
-      requiredAction: { type: "fold" },
-      toCall: 25,
-      stack: 900,
-    }),
-    createTask({
-      agentId,
-      qualificationId,
-      caseId: "check-format-case",
-      mode: "format_only",
-      description: "Format-only check. No LLM call is required; return the required check action shape exactly.",
-      legalActions: ["check"],
-      requiredAction: { type: "check" },
-      toCall: 0,
-      stack: 900,
-    }),
-    createTask({
-      agentId,
-      qualificationId,
       caseId: "call-format-case",
       mode: "format_only",
       description: "Format-only check. No LLM call is required; return the required call action shape exactly.",
       legalActions: ["call"],
       requiredAction: { type: "call" },
       toCall: 15,
-      stack: 900,
-    }),
-    createTask({
-      agentId,
-      qualificationId,
-      caseId: "bet-format-case",
-      mode: "format_only",
-      description: "Format-only check. No LLM call is required; return the required bet action shape exactly.",
-      legalActions: ["bet"],
-      requiredAction: { type: "bet", amount: 30 },
-      toCall: 0,
       stack: 900,
     }),
     createTask({

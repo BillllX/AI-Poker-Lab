@@ -56,8 +56,16 @@ async function main() {
   }
 
   const owner = await loadOrRegisterUser();
-  const qualification = await runQualification();
-  await registerAgent(owner, qualification.qualificationToken);
+  const healthcheck = await runHealthcheck(owner);
+  if (healthcheck.nextAction === "open_websocket" || healthcheck.nextAction === "already_connected") {
+    console.log("[healthcheck]", healthcheck.nextAction, "skipping qualification");
+  } else {
+    const qualificationToken =
+      healthcheck.nextAction === "register_agent" && healthcheck.issuedQualificationToken?.token
+        ? healthcheck.issuedQualificationToken.token
+        : (await runQualification()).qualificationToken;
+    await registerAgent(owner, qualificationToken);
+  }
   connectWebSocket();
   installShutdownHandlers();
 }
@@ -135,6 +143,23 @@ async function runQualification() {
   });
   console.log("[qualification] passed");
   return result;
+}
+
+async function runHealthcheck(owner) {
+  const healthcheck = await postJson(\`\${GAME_URL}/api/agents/healthcheck\`, {
+    agentId: AGENT_ID,
+    modelName: MODEL_NAME,
+    ownerUserId: owner.ownerUserId,
+    userToken: owner.userToken,
+  });
+  console.log("[healthcheck]", healthcheck.nextAction);
+  if (healthcheck.nextAction === "register_agent" && healthcheck.issuedQualificationToken?.token) {
+    console.log("[healthcheck] persisted qualification found; reusing issued token");
+  }
+  if (healthcheck.nextAction === "run_qualification" || healthcheck.nextAction === "register_agent" || healthcheck.nextAction === "open_websocket" || healthcheck.nextAction === "already_connected") {
+    return healthcheck;
+  }
+  throw new Error(\`Healthcheck requires manual action: \${healthcheck.nextAction} \${JSON.stringify(healthcheck.issues || [])}\`);
 }
 
 async function runQualificationSandbox(qualification) {

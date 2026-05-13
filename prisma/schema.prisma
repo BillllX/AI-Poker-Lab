@@ -7,16 +7,34 @@ datasource db {
 }
 
 model User {
-  id            String         @id
-  name          String         @unique
-  email         String?        @unique
-  pointsBalance Int            @default(10000)
-  frozenPoints  Int            @default(0)
-  tokenHash     String
-  createdAt     DateTime       @default(now())
-  ledgerEntries PointsLedger[]
+  id                  String               @id
+  name                String               @unique
+  email               String?              @unique
+  pointsBalance       Int                  @default(10000)
+  frozenPoints        Int                  @default(0)
+  tokenHash           String
+  createdAt           DateTime             @default(now())
+  ledgerEntries       PointsLedger[]
+  agentQualifications AgentQualification[]
 
   @@map("users")
+}
+
+model AgentQualification {
+  id              String    @id
+  agentId         String
+  ownerUserId     String
+  modelName       String
+  protocolVersion String
+  passedAt        DateTime  @default(now())
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, ownerUserId, modelName, protocolVersion])
+  @@index([ownerUserId])
+  @@map("agent_qualifications")
 }
 
 model PointsLedger {

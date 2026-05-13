@@ -1,4 +1,5 @@
 import { listAgents, normalizeAgentId } from "@/lib/server/agentRegistry";
+import { issueQualificationTokenFromPersistentResult, qualificationProtocolVersion } from "@/lib/server/qualification";
 import { verifyUserToken } from "@/lib/server/userRegistry";
 import { isReservedVirtualAgentId } from "@/lib/server/virtualAgents";
 
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   const modelName = stringValue(input.modelName);
   const ownerUserId = stringValue(input.ownerUserId);
   const userToken = stringValue(input.userToken);
-  const qualificationToken = stringValue(input.qualificationToken);
+  let qualificationToken = stringValue(input.qualificationToken);
   let agentId: string | undefined;
 
   try {
@@ -49,6 +50,18 @@ export async function POST(request: Request) {
   }
 
   let userVerified = false;
+  let persistentQualification: {
+    modelName: string;
+    ownerUserId: string;
+    passedAt: Date;
+    protocolVersion: string;
+  } | null = null;
+  let issuedQualificationToken:
+    | {
+        expiresAt: string;
+        token: string;
+      }
+    | undefined;
   if (existingAgent?.ownerUserId) {
     if (ownerUserId && ownerUserId !== existingAgent.ownerUserId) {
       issues.push({
@@ -79,6 +92,23 @@ export async function POST(request: Request) {
     }
   }
 
+  if (agentId && !existingAgent && userVerified && ownerUserId && modelName && !qualificationToken && issues.length === 0) {
+    const issued = await issueQualificationTokenFromPersistentResult({ agentId, modelName, ownerUserId });
+    if (issued) {
+      qualificationToken = issued.qualificationToken.token;
+      issuedQualificationToken = {
+        token: issued.qualificationToken.token,
+        expiresAt: issued.qualificationToken.expiresAt,
+      };
+      persistentQualification = {
+        modelName: issued.qualification.modelName,
+        ownerUserId: issued.qualification.ownerUserId,
+        passedAt: issued.qualification.passedAt,
+        protocolVersion: issued.qualification.protocolVersion,
+      };
+    }
+  }
+
   const nextAction = nextActionFor({
     agentId,
     existingAgent,
@@ -101,6 +131,24 @@ export async function POST(request: Request) {
           tableId: existingAgent.tableId,
         }
       : null,
+    requiresQualification: nextAction === "run_qualification",
+    qualificationRequiredReason:
+      nextAction === "run_qualification"
+        ? `No persisted qualification result exists for protocol ${qualificationProtocolVersion}, this agentId, ownerUserId, and modelName.`
+        : null,
+    persistentQualification: persistentQualification
+      ? {
+          ...persistentQualification,
+          passedAt: persistentQualification.passedAt.toISOString(),
+        }
+      : null,
+    issuedQualificationToken,
+    resumeInstructions:
+      nextAction === "register_agent" && issuedQualificationToken
+        ? "Persisted qualification found. Do not run qualification again; register using issuedQualificationToken.token."
+        : nextAction === "open_websocket" || nextAction === "already_connected"
+          ? "Agent is already registered. Do not run qualification. Open the formal WebSocket only."
+          : undefined,
     issues,
   });
 }
