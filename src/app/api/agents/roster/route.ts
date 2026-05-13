@@ -1,6 +1,6 @@
 import { listAgents, listPollingAgents, normalizeAgentId, registerAgent, removeAgent } from "@/lib/server/agentRegistry";
 import { listPendingDecisions } from "@/lib/server/decisionBroker";
-import { consumeQualificationToken } from "@/lib/server/qualification";
+import { consumeQualificationToken, recordPersistentQualification } from "@/lib/server/qualification";
 import { getTableManager } from "@/lib/server/simulator";
 import { verifyUserToken } from "@/lib/server/userRegistry";
 import { isReservedVirtualAgentId } from "@/lib/server/virtualAgents";
@@ -44,6 +44,11 @@ export async function POST(request: Request) {
       }
       await verifyUserToken(input.ownerUserId, input.userToken);
       consumeQualificationToken(agentId, input.qualificationToken);
+      await recordPersistentQualification({
+        agentId,
+        modelName: input.modelName,
+        ownerUserId: input.ownerUserId,
+      });
     } else if (existingAgent.ownerUserId) {
       if (input.ownerUserId && input.ownerUserId !== existingAgent.ownerUserId) {
         return Response.json({ error: "Cannot move an existing Agent to another owner." }, { status: 409 });

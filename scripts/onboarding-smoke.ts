@@ -16,13 +16,17 @@ async function main() {
   assert.match(onboarding.subagentPrompt, /Do not ask the user for any LLM API key/);
   assert.match(onboarding.subagentPrompt, /Do not inspect OpenClaw\/Cursor config files/);
   assert.match(onboarding.subagentPrompt, /Never search local config, environment variables, credential stores/);
-  assert.match(onboarding.subagentPrompt, /qualificationId as short-lived and single-use/);
+  assert.match(onboarding.subagentPrompt, /If healthcheck returns open_websocket or already_connected, do not fetch qualification tasks/);
+  assert.match(onboarding.subagentPrompt, /If healthcheck returns register_agent with issuedQualificationToken, do not run qualification again/);
+  assert.match(onboarding.subagentPrompt, /qualificationId as 30-minute, in-memory, and single-use/);
   assert.match(onboarding.subagentPrompt, /fetch fresh qualification tasks/);
   assert.match(onboarding.subagentPrompt, /Do not retry the same submit payload/);
   assert.match(onboarding.subagentPrompt, /mapping every returned qualification\.tasks item/);
   assert.match(onboarding.subagentPrompt, /Do not skip llm-decision-case/);
   assert.match(onboarding.subagentPrompt, /missingCaseIds\/expectedCaseIds\/exampleResponseShape/);
   assert.match(onboarding.subagentPrompt, /Qualification WebSocket sandbox/);
+  assert.match(onboarding.subagentPrompt, /only three core HTTP cases/);
+  assert.match(onboarding.subagentPrompt, /30-minute/);
   assert.match(onboarding.subagentPrompt, /model may choose only action and reasoning/);
   assert.match(onboarding.subagentPrompt, /requestId copied exactly from task\.request\.requestId/);
   assert.match(onboarding.subagentPrompt, /playerId copied exactly from task\.request\.playerId/);
@@ -40,6 +44,11 @@ async function main() {
   assert.ok(
     onboarding.subagentResponsibilities.some((item: string) =>
       item.includes("WebSocket sandbox qualification"),
+    ),
+  );
+  assert.ok(
+    onboarding.subagentResponsibilities.some((item: string) =>
+      item.includes("Always run healthcheck first"),
     ),
   );
   assert.match(onboarding.service.qualificationWebSocketUrl, /\/api\/agents\/qualification\/ws/);
@@ -78,6 +87,8 @@ async function main() {
   assert.match(template, /normalizeDecision/);
   assert.match(template, /stale_request/);
   assert.match(template, /runQualificationSandbox/);
+  assert.match(template, /runHealthcheck/);
+  assert.match(template, /persisted qualification found; reusing issued token/);
   assert.match(template, /\/api\/agents\/qualification\/ws/);
   assert.match(template, /duplicate request ignored/);
 
@@ -90,9 +101,12 @@ async function main() {
 async function assertQualificationTaskContractAndStructuredErrors() {
   const tasksResponse = await getQualificationTasks(new Request("http://localhost:3000/api/agents/qualification/tasks?agentId=Contract Agent"));
   const qualification = await tasksResponse.json();
+  const caseIds = qualification.tasks.map((task: { qualificationCase: { caseId: string } }) => task.qualificationCase.caseId);
 
+  assert.deepEqual(caseIds, ["llm-decision-case", "call-format-case", "raise-format-case"]);
   assert.equal(qualification.submissionContract.expectedResponses.length, qualification.tasks.length);
   assert.ok(qualification.submissionContract.expectedResponses.some((item: { caseId: string }) => item.caseId === "llm-decision-case"));
+  assert.ok(new Date(qualification.expiresAt).getTime() - new Date(qualification.createdAt).getTime() >= 29 * 60_000);
   markQualificationWsPassed(qualification.agentId, qualification.qualificationId);
 
   const partialResponses = qualification.tasks
