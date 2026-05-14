@@ -48,6 +48,12 @@ const virtualBotJoinThreshold = 3;
 const virtualBotTargetPlayers = 4;
 const virtualBotDecisionDelayMs = 3_000;
 
+const globalForSimulator = globalThis as typeof globalThis & {
+  __texasPokerTableManager?: TableManager;
+  __texasPokerTableRunLocks?: Set<string>;
+};
+const tableRunLocks = (globalForSimulator.__texasPokerTableRunLocks ??= new Set<string>());
+
 export class GameSimulator {
   private engine: PokerGameEngine;
   private timer?: ReturnType<typeof setInterval>;
@@ -218,11 +224,12 @@ export class GameSimulator {
   }
 
   private async tick() {
-    if (!this.engine.isRunning() || this.inFlight) {
+    if (!this.engine.isRunning() || this.inFlight || tableRunLocks.has(this.tableId)) {
       return;
     }
 
     this.inFlight = true;
+    tableRunLocks.add(this.tableId);
     try {
       if (this.onlyVirtualPlayersRemain()) {
         logger.warn("table.only_virtual_players_remaining", { tableId: this.tableId });
@@ -258,6 +265,7 @@ export class GameSimulator {
       this.deps.clearAgents();
       this.stopTimer();
     } finally {
+      tableRunLocks.delete(this.tableId);
       this.inFlight = false;
     }
   }
@@ -626,10 +634,6 @@ export class TableManager {
     return record;
   }
 }
-
-const globalForSimulator = globalThis as typeof globalThis & {
-  __texasPokerTableManager?: TableManager;
-};
 
 export function getSimulator(origin = "http://localhost:3000") {
   return getTableManager(origin).defaultRunner();

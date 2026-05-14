@@ -26,6 +26,7 @@ const agents = [
     assignmentStatus: "playing" as const,
   },
 ];
+let tableIdCounter = 0;
 
 async function main() {
   await assertConcurrentStartReservesOnce();
@@ -36,6 +37,7 @@ async function main() {
   await assertBustedRealAgentSettlesAndLeaves();
   await assertDisconnectedLeaveRemovesEngineSeat();
   await assertMinimumRaiseTracksPreviousRaiseSize();
+  await assertCommunityCardsAreCappedAtFive();
   await assertSidePotSplitMainPotOnly();
   await assertDecisionSubscribersReceivePendingAndClear();
   await assertAgentRegistrySubscribersObserveSessionClear();
@@ -44,7 +46,7 @@ async function main() {
 
 async function assertConcurrentStartReservesOnce() {
   const harness = createHarness({ decisionMode: "auto-fold" });
-  const simulator = new GameSimulator("http://localhost:3000", harness.deps);
+  const simulator = createSimulator(harness);
 
   await Promise.all([simulator.start(), simulator.start(), simulator.start()]);
   simulator.stop();
@@ -56,7 +58,7 @@ async function assertConcurrentStartReservesOnce() {
 
 async function assertConcurrentEndSessionSettlesOnce() {
   const harness = createHarness({ decisionMode: "auto-fold" });
-  const simulator = new GameSimulator("http://localhost:3000", harness.deps);
+  const simulator = createSimulator(harness);
 
   await simulator.start();
   await Promise.all([simulator.endSession("http://localhost:3000"), simulator.endSession("http://localhost:3000")]);
@@ -67,7 +69,7 @@ async function assertConcurrentEndSessionSettlesOnce() {
 
 async function assertMidDecisionResetSettlesOnce() {
   const harness = createHarness({ decisionMode: "pending" });
-  const simulator = new GameSimulator("http://localhost:3000", harness.deps);
+  const simulator = createSimulator(harness);
 
   await simulator.start();
   await waitFor(() => harness.pendingDecisions.length > 0);
@@ -79,7 +81,7 @@ async function assertMidDecisionResetSettlesOnce() {
 
 async function assertAutoStartWaitsForPollingAgents() {
   const harness = createHarness({ decisionMode: "pending", agents: [] });
-  const simulator = new GameSimulator("http://localhost:3000", harness.deps);
+  const simulator = createSimulator(harness);
 
   await simulator.maybeAutoStart();
   assert.equal(harness.reserveCalls.length, 0, "auto-start should wait until two polling Agents are ready");
@@ -103,7 +105,7 @@ async function assertNewPollingAgentJoinsNextHand() {
     assignmentStatus: "playing" as const,
   };
   const harness = createHarness({ decisionMode: "pending", agents: agents.slice(0, 2) });
-  const simulator = new GameSimulator("http://localhost:3000", harness.deps);
+  const simulator = createSimulator(harness);
 
   await simulator.start();
   await waitFor(() => harness.pendingDecisions.length > 0);
@@ -137,7 +139,7 @@ async function assertBustedRealAgentSettlesAndLeaves() {
     assignmentStatus: "playing" as const,
   };
   const harness = createHarness({ decisionMode: "pending", agents: [bustedAgent, survivingAgent] });
-  const simulator = new GameSimulator("http://localhost:3000", harness.deps);
+  const simulator = createSimulator(harness);
   const internals = simulator as unknown as SimulatorInternals;
 
   registerAgent(bustedAgent);
@@ -377,6 +379,29 @@ async function assertSidePotSplitMainPotOnly() {
   assert.ok(snapshot.logs.some((log) => log.message.includes("摊牌分池") && log.message.includes("主池 45") && log.message.includes("边池 1 70")));
 }
 
+async function assertCommunityCardsAreCappedAtFive() {
+  const engine = new PokerGameEngine([
+    { id: "board-cap-a", name: "Board Cap A", modelName: "test-model" },
+    { id: "board-cap-b", name: "Board Cap B", modelName: "test-model" },
+  ]);
+  const internals = engine as unknown as {
+    communityCards: Card[];
+    deck: Card[];
+    dealCommunity: (count: number) => void;
+  };
+
+  internals.deck = [{ rank: "T", suit: "c" }];
+  internals.communityCards = [
+    { rank: "A", suit: "c" },
+    { rank: "K", suit: "c" },
+    { rank: "Q", suit: "c" },
+    { rank: "J", suit: "c" },
+  ];
+  internals.dealCommunity(3);
+
+  assert.equal(engine.snapshot().communityCards.length, 5, "community board should never exceed five cards");
+}
+
 async function assertDecisionSubscribersReceivePendingAndClear() {
   const playerId = `ws-smoke-${Date.now()}`;
   const observed: Array<string | null> = [];
@@ -497,6 +522,12 @@ function createHarness(options: { decisionMode: "auto-fold" | "pending"; agents?
     },
     settleCalls,
   };
+}
+
+function createSimulator(harness: ReturnType<typeof createHarness>) {
+  tableIdCounter += 1;
+  const tableId = `smoke-table-${tableIdCounter}`;
+  return new GameSimulator("http://localhost:3000", harness.deps, tableId, `Smoke Table ${tableIdCounter}`);
 }
 
 type SimulatorInternals = {

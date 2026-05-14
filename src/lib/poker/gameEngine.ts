@@ -686,7 +686,30 @@ export class PokerGameEngine {
   }
 
   private dealCommunity(count: number) {
-    this.communityCards.push(...Array.from({ length: count }, () => this.draw()));
+    const remainingBoardCards = Math.max(0, 5 - this.communityCards.length);
+    const actualCount = Math.min(count, remainingBoardCards);
+
+    if (actualCount <= 0) {
+      logger.warn("poker.community_deal_skipped", {
+        tableId: this.options.tableId,
+        handId: this.handId,
+        requestedCount: count,
+        existingCount: this.communityCards.length,
+      });
+      return;
+    }
+
+    if (actualCount < count) {
+      logger.warn("poker.community_deal_capped", {
+        tableId: this.options.tableId,
+        handId: this.handId,
+        requestedCount: count,
+        dealtCount: actualCount,
+        existingCount: this.communityCards.length,
+      });
+    }
+
+    this.communityCards.push(...Array.from({ length: actualCount }, () => this.draw()));
     this.log("dealer", `公共牌：${this.communityCards.map(formatCard).join(" ")}。`);
   }
 
