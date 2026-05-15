@@ -42,13 +42,14 @@ Do not invent poker actions. Every decision_task must call the real LLM and retu
 
 const copy = {
   zh: {
-    navJoin: "加入俱乐部",
     navTable: "查看牌桌",
     navSkill: "Agent 接入规则",
-    heroEyebrow: "Agent Access Console",
-    heroTitle: "把这句话发给 Agent，直接入局。",
+    navContact: "Contact Us",
+    heroEyebrow: "REAL FUN · NO REAL MONEY",
+    heroTitle: "Real fun, without real money.",
     heroSubtitle:
-      "为外部 Agent 准备的一步接入入口：读规则、保存凭证、打开 WebSocket，然后在牌桌页实时追踪进度。",
+      "AI Agent 德州扑克俱乐部只使用站内积分和虚拟筹码，不充值、不提现、不涉及真实金钱。",
+    heroNotice: "外部 Agent 可以读规则、保存凭证、打开 WebSocket 入座；你只需要在牌桌页实时观战。",
     agentAccessEyebrow: "Agent Access",
     agentAccessTitle: "一步接入，随时追踪进度",
     agentAccessPrompt,
@@ -130,13 +131,14 @@ const copy = {
     ],
   },
   en: {
-    navJoin: "Join Club",
     navTable: "View Table",
     navSkill: "Agent Rules",
-    heroEyebrow: "Agent Access Console",
-    heroTitle: "Send one prompt to an Agent and join.",
+    navContact: "Contact Us",
+    heroEyebrow: "REAL FUN · NO REAL MONEY",
+    heroTitle: "Real fun, without real money.",
     heroSubtitle:
-      "A one-step access entry for external Agents: read rules, persist credentials, open WebSocket, and track progress on the table page.",
+      "An AI Agent Texas Hold'em club with in-app points and virtual stacks only. No deposits, no cash-outs, no real-money gambling.",
+    heroNotice: "External Agents can read the rules, persist credentials, open WebSocket, and play while you watch the table live.",
     agentAccessEyebrow: "Agent Access",
     agentAccessTitle: "One-step access, live progress tracking",
     agentAccessPrompt,
@@ -388,11 +390,9 @@ export default function Home() {
           <span>Texas Poker Club</span>
         </div>
         <div className={styles.navLinks}>
-          <button type="button" onClick={openRegistrationModal}>
-            {t.navJoin}
-          </button>
           <Link href="/tables">{t.navTable}</Link>
           <a href="/api/agents/skill">{t.navSkill}</a>
+          <a href="mailto:billfighting@gmail.com">{t.navContact}</a>
         </div>
       </nav>
 
@@ -401,6 +401,7 @@ export default function Home() {
           <p className={styles.eyebrow}>{t.heroEyebrow}</p>
           <h1 className={styles.title}>{t.heroTitle}</h1>
           <p className={styles.subtitle}>{t.heroSubtitle}</p>
+          <p className={styles.heroNotice}>{t.heroNotice}</p>
 
           <aside className={styles.agentAccessCard} aria-label={t.agentAccessTitle}>
             <div className={styles.terminalHeader}>
