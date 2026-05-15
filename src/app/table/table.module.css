@@ -673,23 +673,30 @@
 
   .table {
     border-width: 10px;
-    height: min(82vw, 350px);
+    border-radius: 48% / 52%;
+    display: block;
+    height: min(92vw, 430px);
     max-height: none;
     max-width: 100%;
-    min-height: 300px;
+    min-height: 360px;
     min-width: 0;
+    padding: 0;
     width: 100%;
   }
 
   .table::after {
-    opacity: 0.25;
+    opacity: 0.2;
   }
 
   .tableCenter {
     border-radius: 20px;
     gap: 8px;
-    min-width: min(220px, 72vw);
-    padding: 14px;
+    left: 50%;
+    min-width: min(190px, 54vw);
+    padding: 12px;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
   }
 
   .pot {
@@ -709,44 +716,71 @@
   }
 
   .seat {
-    border-radius: 999px;
+    border-radius: 16px;
     min-width: 0;
-    padding: 7px 10px;
-    width: 118px;
+    padding: 7px;
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 112px;
   }
 
-  .seat:has(.seatHeader strong:first-child:last-child) {
+  .currentSeat {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+
+  .emptySeatCard {
     display: none;
   }
 
   .seatHeader {
     align-items: center;
-    flex-direction: row;
+    display: grid;
+    gap: 5px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
   }
 
   .seatHeader strong {
-    font-size: 12px;
-    max-width: 88px;
+    font-size: 11px;
+    justify-content: center;
+    max-width: 96px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .seatHeader > span,
-  .seatBadges,
-  .seat p,
-  .holeCards,
-  .chipDelta {
+  .seatBadges {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+  }
+
+  .seatBadges span {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .seatBadges span:last-child {
     display: none;
   }
 
   .seatMeta {
-    font-size: 11px;
-    gap: 6px;
-    margin: 2px 0 0;
+    display: none;
   }
 
-  .seatMeta span:nth-child(2) {
+  .holeCards {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 6px;
+  }
+
+  .chipDelta {
+    display: none;
+  }
+
+  .seat p {
     display: none;
   }
 

@@ -30,6 +30,7 @@ const copy = {
     chipChange: "筹码变化",
     players: "玩家",
     profit: "盈亏",
+    position: "位置",
   },
   en: {
     eyebrow: "Texas Poker Table",
@@ -54,6 +55,7 @@ const copy = {
     chipChange: "Chip Changes",
     players: "Players",
     profit: "P&L",
+    position: "Position",
   },
 };
 
@@ -127,7 +129,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                       {player.name}
                       {player.kind === "virtual" && <small>{t.virtualAgent}</small>}
                     </strong>
-                    <span>{player.status}</span>
+                    <div className={styles.seatBadges}>
+                      <span>{positionLabel(index, state?.dealerIndex ?? 0, players.length)}</span>
+                      <span>{player.status}</span>
+                    </div>
                   </div>
                   <div className={styles.seatMeta}>
                     <span>{t.stack} {player.stack}</span>
@@ -144,7 +149,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                   <p>{t.action}: {player.lastAction ?? t.waiting}</p>
                 </article>
               ) : (
-                <article className={styles.seat} key={`empty-${index}`} style={seatStyle(index, 6)}>
+                <article className={`${styles.seat} ${styles.emptySeatCard}`} key={`empty-${index}`} style={seatStyle(index, 6)}>
                   <div className={styles.seatHeader}>
                     <strong>{t.emptySeat}</strong>
                     <span>{t.waitingAssign}</span>
@@ -201,6 +206,20 @@ function seatStyle(index: number, totalSeats: number) {
     left: `${50 + radius * Math.cos((angle * Math.PI) / 180)}%`,
     top: `${50 + radius * Math.sin((angle * Math.PI) / 180)}%`,
   };
+}
+
+function positionLabel(index: number, dealerIndex: number, playerCount: number) {
+  if (playerCount <= 0) {
+    return "Seat";
+  }
+
+  const distance = (index - dealerIndex + playerCount) % playerCount;
+  if (playerCount === 2) {
+    return distance === 0 ? "BTN/SB" : "BB";
+  }
+
+  const labels = ["BTN", "SB", "BB", "UTG", "HJ", "CO"];
+  return labels[Math.min(distance, labels.length - 1)] ?? `P${distance + 1}`;
 }
 
 function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {

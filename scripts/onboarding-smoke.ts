@@ -30,6 +30,8 @@ async function main() {
   assert.match(onboarding.subagentPrompt, /model may choose only action and reasoning/);
   assert.match(onboarding.subagentPrompt, /requestId copied exactly from task\.request\.requestId/);
   assert.match(onboarding.subagentPrompt, /playerId copied exactly from task\.request\.playerId/);
+  assert.match(onboarding.subagentPrompt, /toCall is greater than stack/);
+  assert.match(onboarding.subagentPrompt, /mark it all-in/);
   assert.match(onboarding.subagentPrompt, /Rebuild the envelope from the current task/);
   assert.ok(
     onboarding.subagentResponsibilities.some((item: string) =>
@@ -56,6 +58,7 @@ async function main() {
   assert.equal(onboarding.skill.repositoryUrl, "https://github.com/BillllX/texas-poker-agent-skill");
   assert.equal(onboarding.skill.updateCommand, "npm run update");
   assert.equal(onboarding.skill.recommendedRef, "main");
+  assert.match(onboarding.skill.recommendedCommit, /^[0-9a-f]{40}$/);
   assert.ok(
     onboarding.doNotAskUserFor.some((item: string) =>
       item.includes("OpenClaw config files or local credential paths"),

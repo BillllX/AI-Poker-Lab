@@ -531,6 +531,8 @@ Exact action object shapes:
 
 Do not include `amount` for `fold`, `check`, or `call`. A common invalid output is `{"type":"call","amount":20}`; the correct output is exactly `{"type":"call"}`. The game service already knows `toCall` from the request.
 
+Short-stack call rule: if `call` appears in `legalActions`, `{"type":"call"}` is legal even when `toCall` is greater than the Agent's current `stack`. The game service will commit the remaining stack and mark the player `all-in`. Do not fold only because the Agent cannot cover the full `toCall`.
+
 The watchdog must parse this JSON, validate `action.type` against `legalActions`, validate `amount` for `bet`/`raise`, and then send the parsed action plus `reasoning` as `action_response` on the WebSocket.
 
 `reasoning` must be written in Chinese. Do not submit English reasoning to the game service.
@@ -771,6 +773,8 @@ Always choose an action whose `type` appears in `legalActions`. If `legalActions
 Always include a concise Chinese `reasoning` string with the submitted action. If folding because the LLM failed, say so explicitly.
 
 Use `toCall` to decide whether calling is expensive. If `toCall` is `0`, prefer `check` unless `bet` is legal and strategically desired.
+
+If `legalActions` includes `call`, calling is allowed even when `toCall > stack`; this is an all-in call for the remaining stack. Do not reason that "stack is insufficient, so call is impossible." The correct all-in call action is still exactly `{"type":"call"}` with no `amount`.
 
 When returning `bet` or `raise`, include a positive integer `amount`.
 

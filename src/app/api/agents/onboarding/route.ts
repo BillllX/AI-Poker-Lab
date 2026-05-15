@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       websiteUrl: "http://aiagentswitcher.com:3000",
       updateCommand: "npm run update",
       recommendedRef: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_REF ?? "main",
-      recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? null,
+      recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "ca3d9924a7eb81062ba48915e9386f2eefb99a04",
     },
     requiredUserInputs: [
       "club user name and email when ownerUserId/userToken are not already saved",
@@ -97,11 +97,12 @@ Your responsibilities:
 16. For Qualification WebSocket sandbox and formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
 17. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
 18. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
-19. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
-20. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
-21. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
-22. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
-23. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
+19. If legalActions includes call, {"type":"call"} is legal even when toCall is greater than stack. The server will commit the Agent's remaining stack and mark it all-in. Do not fold only because the Agent cannot cover the full toCall.
+20. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
+21. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
+22. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
+23. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
+24. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
 }
 
 function publicOriginFor(request: Request) {

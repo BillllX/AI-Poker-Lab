@@ -315,6 +315,7 @@ export default function TablePage() {
                 current={player.id === currentPlayerId}
                 key={player.id}
                 player={player}
+                dealerIndex={state?.dealerIndex ?? 0}
                 seatIndex={index}
                 text={t}
                 totalSeats={Math.max(players.length, 2)}
@@ -459,12 +460,14 @@ function lifecycleStatus(state: GameSnapshot | undefined, pollingAgentCount: num
 
 function SeatCard({
   current,
+  dealerIndex,
   player,
   seatIndex,
   text,
   totalSeats,
 }: {
   current: boolean;
+  dealerIndex: number;
   player: PublicPlayerState;
   seatIndex: number;
   text: (typeof copy)[Language];
@@ -486,6 +489,7 @@ function SeatCard({
           {player.kind === "virtual" && <small>{text.virtualAgent}</small>}
         </strong>
         <div className={styles.seatBadges}>
+          <span>{positionLabel(seatIndex, dealerIndex, totalSeats)}</span>
           {current && <span className={styles.thinkingBadge}>{text.thinking}</span>}
           <span>{text.status[player.status]}</span>
         </div>
@@ -509,6 +513,20 @@ function SeatCard({
       </p>
     </article>
   );
+}
+
+function positionLabel(index: number, dealerIndex: number, playerCount: number) {
+  if (playerCount <= 0) {
+    return "Seat";
+  }
+
+  const distance = (index - dealerIndex + playerCount) % playerCount;
+  if (playerCount === 2) {
+    return distance === 0 ? "BTN/SB" : "BB";
+  }
+
+  const labels = ["BTN", "SB", "BB", "UTG", "HJ", "CO"];
+  return labels[Math.min(distance, labels.length - 1)] ?? `P${distance + 1}`;
 }
 
 function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {

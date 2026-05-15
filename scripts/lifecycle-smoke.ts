@@ -37,6 +37,7 @@ async function main() {
   await assertBustedRealAgentSettlesAndLeaves();
   await assertDisconnectedLeaveRemovesEngineSeat();
   await assertMinimumRaiseTracksPreviousRaiseSize();
+  await assertShortStackCallCommitsAllIn();
   await assertCommunityCardsAreCappedAtFive();
   await assertSidePotSplitMainPotOnly();
   await assertDecisionSubscribersReceivePendingAndClear();
@@ -305,6 +306,42 @@ async function assertMinimumRaiseTracksPreviousRaiseSize() {
   assert.ok(firstRaise, "first raise should be applied at the requested 50 target");
   assert.ok(coercedRaise, "undersized second raise should be coerced to 90");
   assert.ok(requests.some((request) => request.minRaise === 40), "decision requests should expose the dynamic minRaise");
+}
+
+async function assertShortStackCallCommitsAllIn() {
+  const engine = new PokerGameEngine([
+    { id: "short-call-a", name: "Short Call A", modelName: "test-model" },
+    { id: "short-call-b", name: "Short Call B", modelName: "test-model" },
+  ]);
+  const internals = engine as unknown as {
+    applyAction: (playerId: string, decision: { action: { type: "call" }; reasoning: string }) => boolean;
+    currentBet: number;
+    players: PlayerState[];
+    pot: number;
+  };
+
+  internals.currentBet = 910;
+  internals.pot = 1_200;
+  internals.players[0] = {
+    ...internals.players[0],
+    currentBet: 0,
+    stack: 370,
+    status: "active",
+    totalCommitted: 0,
+  };
+
+  internals.applyAction("short-call-a", {
+    action: { type: "call" },
+    reasoning: "测试短筹码 call 应自动 all-in。",
+  });
+
+  const player = engine.snapshot().players.find((item) => item.id === "short-call-a");
+  assert.equal(player?.stack, 0, "short-stack call should commit the remaining stack");
+  assert.equal(player?.currentBet, 370, "short-stack call should add only affordable chips to currentBet");
+  assert.equal(player?.totalCommitted, 370, "short-stack call should record the all-in commitment");
+  assert.equal(player?.status, "all-in", "short-stack call should mark the player all-in");
+  assert.equal(engine.snapshot().pot, 1_570, "short-stack call should add committed chips to the pot");
+  assert.ok(engine.snapshot().logs.some((log) => log.message.includes("跟注 370")), "short-stack call log should show committed all-in amount");
 }
 
 async function assertSidePotSplitMainPotOnly() {
