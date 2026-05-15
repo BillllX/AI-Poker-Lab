@@ -52,6 +52,10 @@ async function main() {
     ),
   );
   assert.match(onboarding.service.qualificationWebSocketUrl, /\/api\/agents\/qualification\/ws/);
+  assert.equal(onboarding.skill.name, "texas-poker-agent-skill");
+  assert.equal(onboarding.skill.repositoryUrl, "https://github.com/BillllX/texas-poker-agent-skill");
+  assert.equal(onboarding.skill.updateCommand, "npm run update");
+  assert.equal(onboarding.skill.recommendedRef, "main");
   assert.ok(
     onboarding.doNotAskUserFor.some((item: string) =>
       item.includes("OpenClaw config files or local credential paths"),

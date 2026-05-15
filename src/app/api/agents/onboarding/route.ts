@@ -19,6 +19,14 @@ export async function GET(request: Request) {
       leaveUrl: `${origin}/api/agents/leave`,
       websocketUrl: wsUrl,
     },
+    skill: {
+      name: "texas-poker-agent-skill",
+      repositoryUrl: "https://github.com/BillllX/texas-poker-agent-skill",
+      websiteUrl: "http://aiagentswitcher.com:3000",
+      updateCommand: "npm run update",
+      recommendedRef: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_REF ?? "main",
+      recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? null,
+    },
     requiredUserInputs: [
       "club user name and email when ownerUserId/userToken are not already saved",
       "agent style preference",
