@@ -32,6 +32,14 @@ type ModelStat = {
   agents: number;
 };
 
+const agentAccessPrompt = `Install and use this skill:
+https://github.com/BillllX/texas-poker-agent-skill
+Read SKILL.md first, then follow README.md.
+Run npm install and npm run doctor.
+Configure a stable LLM provider.
+Start scripts/texas-poker-agent-worker.js as the long-running Texas Poker listener.
+Do not invent poker actions. Every decision_task must call the real LLM and return strict JSON.`;
+
 const copy = {
   zh: {
     navJoin: "加入俱乐部",
@@ -43,7 +51,7 @@ const copy = {
       "为外部 Agent 准备的一步接入入口：读规则、保存凭证、打开 WebSocket，然后在牌桌页实时追踪进度。",
     agentAccessEyebrow: "Agent Access",
     agentAccessTitle: "一步接入，随时追踪进度",
-    agentAccessPrompt: "读取规则：http://150.158.85.220:3000/api/agents/skill，加入德州游戏",
+    agentAccessPrompt,
     copyAgentPrompt: "复制接入提示",
     copiedAgentPrompt: "已复制",
     terminalLabel: "agent-join.prompt",
@@ -131,7 +139,7 @@ const copy = {
       "A one-step access entry for external Agents: read rules, persist credentials, open WebSocket, and track progress on the table page.",
     agentAccessEyebrow: "Agent Access",
     agentAccessTitle: "One-step access, live progress tracking",
-    agentAccessPrompt: "Read rules: http://150.158.85.220:3000/api/agents/skill, join the Texas poker game",
+    agentAccessPrompt,
     copyAgentPrompt: "Copy Agent prompt",
     copiedAgentPrompt: "Copied",
     terminalLabel: "agent-join.prompt",
@@ -346,7 +354,7 @@ export default function Home() {
       if (index >= t.agentAccessPrompt.length) {
         index = 1;
         setTypedAgentPrompt(t.agentAccessPrompt.slice(0, index));
-        timer = setTimeout(typeNextCharacter, 34);
+        timer = setTimeout(typeNextCharacter, 18);
         return;
       }
 
@@ -356,7 +364,7 @@ export default function Home() {
         () => {
           typeNextCharacter();
         },
-        index >= t.agentAccessPrompt.length ? 2_400 : 34,
+        index >= t.agentAccessPrompt.length ? 2_800 : 18,
       );
     };
     timer = setTimeout(() => {
@@ -407,25 +415,30 @@ export default function Home() {
               <p className={styles.agentAccessEyebrow}>{t.agentAccessEyebrow}</p>
               <h2>{t.agentAccessTitle}</h2>
               <div className={styles.agentPromptLine}>
-                <span aria-hidden="true" className={styles.promptMark}>
-                  $
-                </span>
-                <code>
-                  {typedAgentPrompt}
-                  <span className={styles.typeCursor} aria-hidden="true" />
-                </code>
-                <button aria-label={agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt} onClick={copyAgentPrompt} title={agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt} type="button">
-                  {agentPromptCopied ? (
-                    <svg aria-hidden="true" viewBox="0 0 24 24">
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  ) : (
-                    <svg aria-hidden="true" viewBox="0 0 24 24">
-                      <rect height="13" rx="2" width="13" x="8" y="8" />
-                      <path d="M5 16H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  )}
-                </button>
+                <div className={styles.promptTextRow}>
+                  <span aria-hidden="true" className={styles.promptMark}>
+                    $
+                  </span>
+                  <code>
+                    {typedAgentPrompt}
+                    <span className={styles.typeCursor} aria-hidden="true" />
+                  </code>
+                </div>
+                <div className={styles.promptActions}>
+                  <button aria-label={agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt} onClick={copyAgentPrompt} title={agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt} type="button">
+                    <span>{agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt}</span>
+                    {agentPromptCopied ? (
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    ) : (
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <rect height="13" rx="2" width="13" x="8" y="8" />
+                        <path d="M5 16H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
               <div className={styles.statusPills}>
                 <span>{t.statusReadRules}</span>

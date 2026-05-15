@@ -49,6 +49,33 @@ button:disabled {
   opacity: 0.55;
 }
 
+.siteFilingFooter {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(6, 19, 14, 0), rgba(6, 19, 14, 0.72)),
+    rgba(6, 19, 14, 0.86);
+  color: rgba(238, 248, 241, 0.58);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 8px;
+  justify-content: center;
+  letter-spacing: 0.02em;
+  padding: 22px 16px 26px;
+  position: relative;
+  z-index: 2;
+}
+
+.siteFilingFooter a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.siteFilingFooter a:hover {
+  color: var(--accent);
+}
+
 .card {
   align-items: center;
   background: #f8fafc;
@@ -64,4 +91,12 @@ button:disabled {
 
 .card.red {
   color: #dc2626;
+}
+
+@media (max-width: 640px) {
+  .siteFilingFooter {
+    font-size: 11px;
+    line-height: 1.6;
+    padding: 20px 16px calc(112px + env(safe-area-inset-bottom));
+  }
 }

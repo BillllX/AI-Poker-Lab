@@ -77,6 +77,20 @@
 .navLinks button {
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.navLinks a:hover,
+.navLinks button:hover {
+  background: rgba(110, 231, 168, 0.12);
+  border-color: rgba(110, 231, 168, 0.32);
+  color: var(--accent);
+  transform: translateY(-1px);
 }
 
 .languageTabs {
@@ -103,11 +117,11 @@
 .hero {
   align-items: stretch;
   display: grid;
-  gap: 30px;
-  grid-template-columns: minmax(0, 0.98fr) minmax(420px, 0.82fr);
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.68fr);
   margin: 0 auto;
   max-width: 1360px;
-  padding: 36px 24px 32px;
+  padding: 30px 24px 26px;
   position: relative;
   z-index: 1;
 }
@@ -126,7 +140,7 @@
 }
 
 .title {
-  font-size: clamp(44px, 6.2vw, 78px);
+  font-size: clamp(42px, 5.8vw, 72px);
   letter-spacing: -0.07em;
   line-height: 0.95;
   margin: 0;
@@ -135,9 +149,9 @@
 
 .subtitle {
   color: var(--muted);
-  font-size: 17px;
-  line-height: 1.65;
-  margin: 18px 0 0;
+  font-size: 16px;
+  line-height: 1.58;
+  margin: 14px 0 0;
   max-width: 720px;
 }
 
@@ -174,7 +188,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   display: grid;
   gap: 0;
-  margin-top: 22px;
+  margin-top: 18px;
   max-width: 880px;
   overflow: hidden;
   position: relative;
@@ -201,7 +215,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 13px;
   gap: 12px;
-  padding: 13px 16px;
+  padding: 10px 14px;
   position: relative;
   z-index: 1;
 }
@@ -228,8 +242,8 @@
 
 .terminalBody {
   display: grid;
-  gap: 18px;
-  padding: 22px;
+  gap: 12px;
+  padding: 16px;
   position: relative;
   z-index: 1;
 }
@@ -239,25 +253,31 @@
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.18em;
-  margin: 0 0 10px;
+  margin: 0 0 7px;
   text-transform: uppercase;
 }
 
 .agentAccessCard h2 {
-  font-size: clamp(26px, 3vw, 38px);
+  font-size: clamp(22px, 2.4vw, 32px);
   letter-spacing: -0.04em;
   line-height: 1.05;
   margin: 0;
 }
 
 .agentPromptLine {
-  align-items: center;
   background: rgba(1, 12, 8, 0.72);
   border: 1px solid rgba(110, 231, 168, 0.22);
   border-radius: 20px;
-  display: flex;
+  display: grid;
   gap: 10px;
-  padding: 10px;
+  padding: 9px;
+}
+
+.promptTextRow {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .agentPromptLine code {
@@ -268,18 +288,19 @@
   display: block;
   flex: 1 1 auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: clamp(13px, 1.25vw, 15px);
-  line-height: 1.6;
-  min-height: 28px;
+  font-size: clamp(11px, 0.95vw, 13px);
+  line-height: 1.42;
+  min-height: 86px;
   overflow-wrap: anywhere;
   padding: 0;
+  white-space: pre-wrap;
 }
 
 .promptMark {
   color: var(--warning);
-  flex: 0 0 auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-weight: 900;
+  line-height: 1.42;
 }
 
 .typeCursor {
@@ -292,25 +313,40 @@
   width: 7px;
 }
 
+.promptActions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
 .agentPromptLine button {
   align-items: center;
   background: var(--accent);
   border: 0;
-  border-radius: 16px;
+  border-radius: 999px;
   color: #052014;
   cursor: pointer;
-  display: inline-flex;
-  flex: 0 0 auto;
-  height: 46px;
+  display: inline-grid;
+  gap: 8px;
+  grid-auto-flow: column;
+  height: 42px;
   justify-content: center;
+  min-width: 0;
+  padding: 0 14px;
   position: relative;
-  width: 46px;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.agentPromptLine button span {
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .statusPills {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .statusPills span {
@@ -318,9 +354,9 @@
   border: 1px solid rgba(110, 231, 168, 0.2);
   border-radius: 999px;
   color: var(--text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
-  padding: 9px 12px;
+  padding: 7px 10px;
 }
 
 .tablePreviewPanel {
@@ -335,11 +371,11 @@
     0 32px 100px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   display: grid;
-  gap: 20px;
+  gap: 16px;
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
   overflow: hidden;
-  padding: 24px;
+  padding: 18px;
   position: relative;
 }
 
@@ -396,12 +432,12 @@
 
 .agentPromptLine button svg {
   fill: none;
-  height: 22px;
+  height: 18px;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
-  width: 22px;
+  width: 18px;
 }
 
 @keyframes cursorBlink {
@@ -914,8 +950,8 @@
   }
 
   .hero {
-    gap: 24px;
-    padding-top: 24px;
+    gap: 20px;
+    padding-top: 20px;
   }
 
   .eyebrow {
@@ -923,15 +959,15 @@
   }
 
   .title {
-    font-size: clamp(42px, 5.4vw, 68px);
+    font-size: clamp(38px, 5vw, 62px);
     line-height: 0.92;
-    max-width: 760px;
+    max-width: 720px;
   }
 
   .subtitle {
-    font-size: 16px;
-    line-height: 1.55;
-    margin-top: 14px;
+    font-size: 15px;
+    line-height: 1.45;
+    margin-top: 10px;
     max-width: 680px;
   }
 
@@ -947,7 +983,7 @@
   }
 
   .agentAccessCard {
-    margin-top: 18px;
+    margin-top: 14px;
   }
 
   .terminalHeader {
@@ -955,26 +991,33 @@
   }
 
   .terminalBody {
-    gap: 14px;
-    padding: 18px;
+    gap: 10px;
+    padding: 14px;
   }
 
   .agentAccessCard h2 {
-    font-size: clamp(24px, 2.3vw, 32px);
+    font-size: clamp(20px, 2vw, 28px);
   }
 
   .agentPromptLine {
-    padding: 10px;
+    padding: 8px;
+  }
+
+  .agentPromptLine code {
+    font-size: clamp(10px, 0.82vw, 12px);
+    line-height: 1.35;
+    min-height: 78px;
   }
 
   .agentPromptLine button {
-    height: 46px;
-    width: 46px;
+    height: 36px;
+    min-width: 0;
+    padding-inline: 12px;
   }
 
   .tablePreviewPanel {
-    gap: 16px;
-    padding: 20px;
+    gap: 12px;
+    padding: 16px;
   }
 
   .tablePreviewPanel .tableCard {
@@ -996,20 +1039,20 @@
   }
 
   .hero {
-    gap: 26px;
+    gap: 22px;
     grid-template-columns: 1fr;
-    padding: 28px 20px 24px;
+    padding: 24px 20px 22px;
   }
 
   .title {
-    font-size: clamp(44px, 6.8vw, 70px);
+    font-size: clamp(40px, 6.4vw, 64px);
     max-width: 760px;
   }
 
   .subtitle {
-    font-size: 17px;
-    line-height: 1.65;
-    margin-top: 18px;
+    font-size: 16px;
+    line-height: 1.55;
+    margin-top: 12px;
     max-width: 660px;
   }
 
@@ -1018,24 +1061,24 @@
   }
 
   .agentAccessCard {
-    margin-top: 24px;
+    margin-top: 18px;
     max-width: 100%;
   }
 
   .terminalBody {
-    gap: 16px;
-    padding: 20px;
+    gap: 12px;
+    padding: 16px;
   }
 
   .agentAccessCard h2 {
-    font-size: clamp(24px, 3.2vw, 34px);
+    font-size: clamp(22px, 3vw, 30px);
   }
 
   .tablePreviewPanel {
-    gap: 18px;
+    gap: 14px;
     grid-template-columns: minmax(0, 0.78fr) minmax(320px, 1fr);
     grid-template-rows: auto auto;
-    padding: 22px;
+    padding: 18px;
   }
 
   .tablePreviewHeader {
@@ -1097,7 +1140,7 @@
 
 @media (max-width: 1180px) and (max-height: 820px) {
   .hero {
-    padding-top: 22px;
+    padding-top: 18px;
   }
 
   .eyebrow {
@@ -1105,11 +1148,11 @@
   }
 
   .title {
-    font-size: clamp(42px, 6.2vw, 64px);
+    font-size: clamp(36px, 5.6vw, 56px);
   }
 
   .subtitle {
-    margin-top: 14px;
+    margin-top: 10px;
   }
 
   .actions {
@@ -1117,7 +1160,13 @@
   }
 
   .agentAccessCard {
-    margin-top: 20px;
+    margin-top: 14px;
+  }
+
+  .agentPromptLine code {
+    font-size: clamp(10px, 1.05vw, 12px);
+    line-height: 1.35;
+    min-height: 76px;
   }
 
   .tablePreviewPanel .tableCard {
@@ -1132,8 +1181,8 @@
   }
 
   .hero {
-    gap: 34px;
-    padding-top: 42px;
+    gap: 24px;
+    padding-top: 28px;
   }
 
   .tablePreviewPanel {
@@ -1182,16 +1231,21 @@
   }
 
   .nav {
-    background: linear-gradient(180deg, rgba(18, 53, 36, 0.94), rgba(8, 25, 17, 0.98));
-    border: 1px solid var(--border);
-    border-radius: 24px 24px 0 0;
+    backdrop-filter: blur(18px);
+    background:
+      linear-gradient(180deg, rgba(22, 69, 47, 0.88), rgba(7, 20, 14, 0.96)),
+      radial-gradient(circle at 50% 0%, rgba(110, 231, 168, 0.24), transparent 16rem);
+    border: 1px solid rgba(110, 231, 168, 0.2);
+    border-radius: 28px 28px 0 0;
     bottom: 0;
-    box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.42);
-    left: 0;
+    box-shadow:
+      0 -24px 70px rgba(0, 0, 0, 0.48),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    left: 8px;
     max-width: none;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
     position: fixed;
-    right: 0;
+    right: 8px;
     z-index: 30;
   }
 
@@ -1201,7 +1255,7 @@
 
   .navLinks {
     display: grid;
-    gap: 8px;
+    gap: 10px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     justify-content: stretch;
     width: 100%;
@@ -1210,11 +1264,30 @@
   .navLinks > a,
   .navLinks > button {
     align-items: center;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045)),
+      rgba(110, 231, 168, 0.04);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
     display: inline-flex;
+    font-size: 12px;
     justify-content: center;
-    min-height: 40px;
+    letter-spacing: 0.01em;
+    min-height: 44px;
     padding: 9px 8px;
     text-align: center;
+  }
+
+  .navLinks > a:hover,
+  .navLinks > button:hover {
+    background:
+      linear-gradient(180deg, rgba(110, 231, 168, 0.24), rgba(110, 231, 168, 0.1)),
+      rgba(255, 255, 255, 0.06);
+    border-color: rgba(110, 231, 168, 0.34);
+    color: var(--text);
+    transform: translateY(-2px);
   }
 
   .languageTabs {
@@ -1223,17 +1296,17 @@
   }
 
   .hero {
-    padding: 28px 16px 24px;
+    padding: 22px 16px 20px;
   }
 
   .title {
-    font-size: clamp(42px, 16vw, 58px);
+    font-size: clamp(36px, 13vw, 50px);
     letter-spacing: -0.06em;
   }
 
   .subtitle {
-    font-size: 16px;
-    line-height: 1.65;
+    font-size: 15px;
+    line-height: 1.5;
   }
 
   .actions {
@@ -1243,18 +1316,54 @@
 
   .agentAccessCard {
     border-radius: 22px;
-    margin-top: 22px;
+    margin-top: 16px;
     padding: 0;
   }
 
+  .terminalHeader {
+    font-size: 12px;
+    padding: 9px 12px;
+  }
+
+  .terminalBody {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .agentAccessCard h2 {
+    font-size: 22px;
+  }
+
   .agentPromptLine {
-    align-items: stretch;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .promptTextRow {
+    gap: 7px;
+  }
+
+  .agentPromptLine code {
+    font-size: 10.5px;
+    line-height: 1.35;
+    min-height: 132px;
   }
 
   .agentPromptLine button {
     border-radius: 14px;
+    height: 38px;
+    min-width: 0;
+    padding-inline: 12px;
+  }
+
+  .agentPromptLine button span {
+    font-size: 11px;
+  }
+
+  .statusPills span {
+    font-size: 11px;
+    padding: 6px 8px;
   }
 
   .tablePreviewPanel {
