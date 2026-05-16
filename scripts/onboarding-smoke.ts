@@ -61,13 +61,19 @@ async function main() {
   assert.equal(onboarding.skill.updateCommand, "npm run update");
   assert.equal(onboarding.skill.recommendedRef, "main");
   assert.match(onboarding.skill.recommendedCommit, /^[0-9a-f]{40}$/);
-  assert.equal(onboarding.skill.capabilityVersion, "2026-05-17-user-agent-naming-v1");
+  assert.equal(onboarding.skill.capabilityVersion, "2026-05-17-hand-analysis-v1");
   assert.ok(onboarding.skill.minimumFeatureSet.includes("agent-profile-custom-html"));
   assert.ok(onboarding.skill.minimumFeatureSet.includes("user-rename-agent-name-sync"));
+  assert.ok(onboarding.skill.minimumFeatureSet.includes("decision-hand-analysis"));
   assert.equal(onboarding.service.usersUrl, "http://localhost:3000/api/users");
   assert.ok(
     onboarding.subagentResponsibilities.some((item: string) =>
       item.includes("Do not invent Agent display names"),
+    ),
+  );
+  assert.ok(
+    onboarding.subagentResponsibilities.some((item: string) =>
+      item.includes("handAnalysis"),
     ),
   );
   assert.ok(

@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { analyzeDecisionHand } from "../src/lib/poker/handAnalysis";
 import type { AgentDecisionRequest, AgentDecisionResponse, Card, PlayerState } from "../src/lib/poker/types";
 import { enqueueDecision, submitDecision, subscribePendingDecision } from "../src/lib/server/decisionBroker";
 import { clearAgents, listAgents, registerAgent, subscribeAgentRegistry, type RegisteredAgent } from "../src/lib/server/agentRegistry";
@@ -468,6 +469,7 @@ async function assertDecisionSubscribersReceivePendingAndClear() {
     toCall: 0,
     minRaise: 10,
     stack: 1000,
+    handAnalysis: analyzeDecisionHand([], []),
   });
   const requestId = observed.find((value): value is string => Boolean(value));
 

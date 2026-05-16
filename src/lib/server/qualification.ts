@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { analyzeDecisionHand } from "../poker/handAnalysis";
 import type { AgentDecisionRequest, AgentDecisionResponse, PokerAction } from "../poker/types";
 import { normalizeAgentId } from "./agentRegistry";
 import { validateDecisionResponse } from "./decisionBroker";
@@ -430,15 +431,22 @@ function createTask({
   stack: number;
   toCall: number;
 }): QualificationTask {
+  const privateCards = [
+    { rank: "A", suit: "s" },
+    { rank: "K", suit: "h" },
+  ] satisfies AgentDecisionRequest["privateCards"];
+  const communityCards = [
+    { rank: "A", suit: "d" },
+    { rank: "7", suit: "c" },
+    { rank: "2", suit: "s" },
+  ] satisfies AgentDecisionRequest["publicState"]["communityCards"];
+
   return {
     type: "decision_request",
     requestId: `${qualificationId}-${caseId}`,
     handId: 0,
     playerId: agentId,
-    privateCards: [
-      { rank: "A", suit: "s" },
-      { rank: "K", suit: "h" },
-    ],
+    privateCards,
     publicState: {
       handId: 0,
       running: false,
@@ -450,11 +458,7 @@ function createTask({
       currentBet: toCall > 0 ? 20 : 0,
       minRaise: 10,
       currentPlayerId: agentId,
-      communityCards: [
-        { rank: "A", suit: "d" },
-        { rank: "7", suit: "c" },
-        { rank: "2", suit: "s" },
-      ],
+      communityCards,
       players: [
         {
           id: agentId,
@@ -506,6 +510,7 @@ function createTask({
     toCall,
     minRaise: 10,
     stack,
+    handAnalysis: analyzeDecisionHand(privateCards, communityCards),
     qualificationCase: {
       caseId,
       mode,

@@ -746,7 +746,35 @@ The game service returns this JSON inside `task.request`:
   "legalActions": ["fold", "call", "raise"],
   "toCall": 20,
   "minRaise": 10,
-  "stack": 940
+  "stack": 940,
+  "handAnalysis": {
+    "madeHand": {
+      "rank": "pair",
+      "label": "一对",
+      "bestCards": [
+        { "rank": "A", "suit": "s" },
+        { "rank": "A", "suit": "d" },
+        { "rank": "K", "suit": "h" },
+        { "rank": "7", "suit": "c" },
+        { "rank": "2", "suit": "s" }
+      ],
+      "summary": "当前最佳成牌是一对，最佳五张为 As Ad Kh 7c 2s。"
+    },
+    "draws": [],
+    "boardTexture": {
+      "paired": false,
+      "monotone": false,
+      "twoTone": true,
+      "connected": false,
+      "highCardRank": "A",
+      "summary": "两色牌面，存在同花听牌风险；最高公共牌为 A。"
+    },
+    "tacticalNotes": [
+      "当前最佳成牌是一对，最佳五张为 As Ad Kh 7c 2s。",
+      "当前没有明显同花或顺子听牌。",
+      "牌面结构：两色牌面，存在同花听牌风险；最高公共牌为 A。"
+    ]
+  }
 }
 ```
 
@@ -764,6 +792,8 @@ Game phases:
 - `showdown`
 
 `actionHistory` is the structured public betting line for the current hand, capped to the most recent 20 public actions. It contains only public actions, amounts, round, target bet, pot size after the action, actor identity, and timestamp.
+
+`handAnalysis` is the service-computed, authoritative summary of the acting Agent's current made hand, draws, board texture, and tactical facts. Always include it in the LLM prompt. Do not ask the model to recalculate hand strength differently from raw cards; the model should use `handAnalysis` as facts and focus on strategy, bet sizing, and risk tradeoffs.
 
 Important privacy rule: `publicState.players` never includes any player's `holeCards`, including the acting Agent. Opponent hole cards are not available to Agents. The acting Agent's own cards are only available in top-level `privateCards`. `actionHistory` must never include any player's hole cards, private cards, hand-strength notes, or model reasoning.
 

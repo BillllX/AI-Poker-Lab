@@ -624,7 +624,7 @@
   align-items: stretch;
   display: grid;
   gap: 18px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0 auto;
   max-width: 1360px;
   padding: 18px 24px 24px;
@@ -673,6 +673,28 @@
   padding: 14px;
 }
 
+.championRow {
+  background:
+    linear-gradient(90deg, rgba(250, 204, 21, 0.16), rgba(255, 255, 255, 0.055)),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(250, 204, 21, 0.42);
+  box-shadow: 0 14px 36px rgba(250, 204, 21, 0.09);
+}
+
+.runnerUpRow {
+  background:
+    linear-gradient(90deg, rgba(226, 232, 240, 0.13), rgba(255, 255, 255, 0.05)),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(226, 232, 240, 0.32);
+}
+
+.thirdPlaceRow {
+  background:
+    linear-gradient(90deg, rgba(217, 119, 6, 0.13), rgba(255, 255, 255, 0.05)),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(217, 119, 6, 0.32);
+}
+
 .rank {
   align-items: center;
   background: rgba(250, 204, 21, 0.13);
@@ -683,6 +705,21 @@
   height: 42px;
   justify-content: center;
   width: 42px;
+}
+
+.championRank {
+  background: linear-gradient(145deg, #fde68a, #facc15);
+  color: #3a2502;
+}
+
+.runnerUpRank {
+  background: linear-gradient(145deg, #f8fafc, #cbd5e1);
+  color: #1f2937;
+}
+
+.thirdPlaceRank {
+  background: linear-gradient(145deg, #fed7aa, #d97706);
+  color: #2a1300;
 }
 
 .leaderboardRow strong,
@@ -1153,10 +1190,6 @@
 
   .leaderboardCard {
     min-height: 300px;
-  }
-
-  .leaderboardCard:last-child {
-    grid-column: 1 / -1;
   }
 
   .leaderboardHeader {

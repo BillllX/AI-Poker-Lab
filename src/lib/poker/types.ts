@@ -119,6 +119,36 @@ export type ModelStats = {
   agents: number;
 };
 
+export type HandDrawType =
+  | "flush-draw"
+  | "open-ended-straight-draw"
+  | "gutshot-straight-draw"
+  | "overcards"
+  | "backdoor-flush-draw";
+
+export type AgentDecisionHandAnalysis = {
+  madeHand: {
+    rank: HandRank | "preflop";
+    label: string;
+    bestCards: Card[];
+    summary: string;
+  };
+  draws: Array<{
+    type: HandDrawType;
+    label: string;
+    outs?: number;
+  }>;
+  boardTexture: {
+    paired: boolean;
+    monotone: boolean;
+    twoTone: boolean;
+    connected: boolean;
+    highCardRank?: Rank;
+    summary: string;
+  };
+  tacticalNotes: string[];
+};
+
 export type AgentDecisionRequest = {
   type: "decision_request";
   requestId?: string;
@@ -132,6 +162,7 @@ export type AgentDecisionRequest = {
   toCall: number;
   minRaise: number;
   stack: number;
+  handAnalysis: AgentDecisionHandAnalysis;
 };
 
 export type AgentDecisionResponse = {

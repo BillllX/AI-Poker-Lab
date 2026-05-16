@@ -26,12 +26,6 @@ type CreatedUser = {
 
 type ClubUser = CreatedUser["user"];
 
-type ModelStat = {
-  modelName: string;
-  handsPlayed: number;
-  agents: number;
-};
-
 type AgentSummary = {
   id: string;
   name: string;
@@ -90,12 +84,11 @@ const copy = {
     leaderboardText: "展示会员当前可用积分，点击名字可进入 AI 牌手主页，查看身份、战绩和牌手卡。",
     dailyProfitTitle: "每日优胜榜",
     dailyProfitText: "按今日已结算比赛净盈亏排序，让用户第一时间感知自己的 AI 牌手今天打得如何。",
-    modelLeaderboardTitle: "模型联赛榜",
-    modelLeaderboardText: "按模型累计参赛手数排序，观察不同模型在俱乐部里的活跃度和长期表现。",
+    champion: "冠军",
+    runnerUp: "亚军",
+    thirdPlace: "季军",
     frozen: "冻结",
     todayProfit: "今日盈亏",
-    hands: "手",
-    emptyModelLeaderboard: "等待 AI 牌手入座并留下模型战绩。",
     emptyLeaderboard: "等待首位俱乐部会员注册。",
     capabilitiesTitle: "你如何参与一名 AI 牌手的成长",
     capabilitiesText: "人的参与不是每手牌手动操作，而是赛前定风格、赛中看懂局势、关键时刻给建议、赛后复盘并分享战绩。",
@@ -147,7 +140,7 @@ const copy = {
       {
         eyebrow: "Daily League",
         title: "每日目标和长期荣誉",
-        text: "每日赛、周赛和模型联赛会让用户持续关注排名变化：今天有没有进步、这周能否冲榜、哪一次决策值得分享。",
+        text: "每日赛和周赛会让用户持续关注排名变化：今天有没有进步、这周能否冲榜、哪一次决策值得分享。",
       },
     ],
   },
@@ -191,12 +184,11 @@ const copy = {
     leaderboardText: "Shows each member's available points. Click a name to open the AI player profile, history, and player card.",
     dailyProfitTitle: "Daily Winners",
     dailyProfitText: "Ranks today's settled net profit so users can immediately feel how their AI player performed.",
-    modelLeaderboardTitle: "AI Model League",
-    modelLeaderboardText: "Ranks models by total hands played, showing activity and long-term presence across the club.",
+    champion: "Champion",
+    runnerUp: "Runner-up",
+    thirdPlace: "Third",
     frozen: "Frozen",
     todayProfit: "Today P&L",
-    hands: "hands",
-    emptyModelLeaderboard: "Waiting for AI players to join and leave model history.",
     emptyLeaderboard: "Waiting for the first club member.",
     capabilitiesTitle: "How Humans Stay Involved",
     capabilitiesText: "Humans do not need to click every hand. They set the style, watch the match, understand key moments, review outcomes, and share the player story.",
@@ -248,7 +240,7 @@ const copy = {
       {
         eyebrow: "Daily League",
         title: "Daily Goals and Long-Term Prestige",
-        text: "Daily races, weekly standings, and model leagues give people a reason to return: did the player improve, climb the board, or create a hand worth sharing?",
+        text: "Daily races and weekly standings give people a reason to return: did the player improve, climb the board, or create a hand worth sharing?",
       },
     ],
   },
@@ -269,7 +261,6 @@ export default function Home() {
   const [renameStatus, setRenameStatus] = useState<string>();
   const [leaderboard, setLeaderboard] = useState<ClubUser[]>([]);
   const [dailyProfitLeaderboard, setDailyProfitLeaderboard] = useState<ClubUser[]>([]);
-  const [modelLeaderboard, setModelLeaderboard] = useState<ModelStat[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [registrationError, setRegistrationError] = useState<string>();
   const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
@@ -291,7 +282,6 @@ export default function Home() {
     const payload = await usersResponse.json();
     const tablesPayload = await tablesResponse.json();
     const users = Array.isArray(payload.users) ? (payload.users as ClubUser[]) : [];
-    const modelStats = Array.isArray(tablesPayload.modelStats) ? (tablesPayload.modelStats as ModelStat[]) : [];
     const currentAgents = Array.isArray(tablesPayload.agents) ? (tablesPayload.agents as AgentSummary[]) : [];
     setLeaderboard([...users].sort((left, right) => right.pointsBalance - left.pointsBalance).slice(0, 8));
     setDailyProfitLeaderboard(
@@ -300,7 +290,6 @@ export default function Home() {
         .sort((left, right) => right.dailyProfitToday - left.dailyProfitToday)
         .slice(0, 8),
     );
-    setModelLeaderboard([...modelStats].sort((left, right) => right.handsPlayed - left.handsPlayed).slice(0, 8));
     setAgents(currentAgents);
   }
 
@@ -572,10 +561,11 @@ export default function Home() {
               leaderboard.map((user, index) => {
                 const agent = agentForUser(agents, user.id);
                 return (
-                  <article className={styles.leaderboardRow} key={user.id}>
-                    <span className={styles.rank}>#{index + 1}</span>
+                  <article className={honorRowClass(index)} key={user.id}>
+                    <span className={honorRankClass(index)}>{honorLabel(index)}</span>
                     <div>
                       <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
+                      <small>{rankLabel(index, t)}</small>
                     </div>
                     <span className={styles.points}>{user.pointsBalance.toLocaleString()} pts</span>
                   </article>
@@ -596,10 +586,11 @@ export default function Home() {
               dailyProfitLeaderboard.map((user, index) => {
                 const agent = agentForUser(agents, user.id);
                 return (
-                  <article className={styles.leaderboardRow} key={user.id}>
-                    <span className={styles.rank}>#{index + 1}</span>
+                  <article className={honorRowClass(index)} key={user.id}>
+                    <span className={honorRankClass(index)}>{honorLabel(index)}</span>
                     <div>
                       <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
+                      <small>{rankLabel(index, t)}</small>
                     </div>
                     <span className={`${styles.points} ${user.dailyProfitToday < 0 ? styles.negativePoints : ""}`}>
                       {formatSigned(user.dailyProfitToday)} pts
@@ -613,31 +604,6 @@ export default function Home() {
           </div>
         </div>
 
-        <div className={styles.leaderboardCard}>
-          <header className={styles.leaderboardHeader}>
-            <h2>{t.modelLeaderboardTitle}</h2>
-          </header>
-          <div className={styles.leaderboardList}>
-            {modelLeaderboard.length > 0 ? (
-              modelLeaderboard.map((model, index) => {
-                const agent = agentForModel(agents, model.modelName);
-                return (
-                  <article className={styles.leaderboardRow} key={model.modelName}>
-                    <span className={styles.rank}>#{index + 1}</span>
-                    <div>
-                      <LeaderboardName href={agent ? `/agents/${encodeURIComponent(agent.id)}` : undefined} label={model.modelName} />
-                    </div>
-                    <span className={styles.points}>
-                      {model.handsPlayed.toLocaleString()} {t.hands}
-                    </span>
-                  </article>
-                );
-              })
-            ) : (
-              <p className={styles.emptyLeaderboard}>{t.emptyModelLeaderboard}</p>
-            )}
-          </div>
-        </div>
       </section>
 
       <section className={styles.section}>
@@ -808,17 +774,48 @@ function LeaderboardName({ href, label }: { href?: string; label: string }) {
   );
 }
 
+function honorLabel(index: number) {
+  if (index === 0) {
+    return "I";
+  }
+  if (index === 1) {
+    return "II";
+  }
+  if (index === 2) {
+    return "III";
+  }
+  return `#${index + 1}`;
+}
+
+function rankLabel(index: number, t: typeof copy.zh | typeof copy.en) {
+  if (index === 0) {
+    return t.champion;
+  }
+  if (index === 1) {
+    return t.runnerUp;
+  }
+  if (index === 2) {
+    return t.thirdPlace;
+  }
+  return `#${index + 1}`;
+}
+
+function honorRowClass(index: number) {
+  const honorClass = index === 0 ? styles.championRow : index === 1 ? styles.runnerUpRow : index === 2 ? styles.thirdPlaceRow : "";
+  return [styles.leaderboardRow, honorClass].filter(Boolean).join(" ");
+}
+
+function honorRankClass(index: number) {
+  const honorClass = index === 0 ? styles.championRank : index === 1 ? styles.runnerUpRank : index === 2 ? styles.thirdPlaceRank : "";
+  return [styles.rank, honorClass].filter(Boolean).join(" ");
+}
+
 function agentForUser(agents: AgentSummary[], ownerUserId: string) {
   return agents.find((agent) => agent.ownerUserId === ownerUserId && agent.assignmentStatus === "playing")
     ?? agents.find((agent) => agent.ownerUserId === ownerUserId && agent.tableId)
     ?? agents.find((agent) => agent.ownerUserId === ownerUserId);
 }
 
-function agentForModel(agents: AgentSummary[], modelName: string) {
-  return agents.find((agent) => agent.modelName === modelName && agent.assignmentStatus === "playing")
-    ?? agents.find((agent) => agent.modelName === modelName && agent.tableId)
-    ?? agents.find((agent) => agent.modelName === modelName);
-}
 
 async function copyText(value: string) {
   try {

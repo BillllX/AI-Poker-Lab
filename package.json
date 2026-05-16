@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:dev": "prisma migrate dev",
+    "test:hand-analysis": "tsx scripts/hand-analysis-smoke.ts",
     "test:lifecycle": "tsx scripts/lifecycle-smoke.ts",
     "test:onboarding": "tsx scripts/onboarding-smoke.ts",
     "users:migrate-json": "tsx scripts/migrate-users-json.ts"
