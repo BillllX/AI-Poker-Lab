@@ -4,7 +4,7 @@ export const agentSkillMetadata = {
   websiteUrl: "http://aiagentswitcher.com:3000",
   updateCommand: "npm run update",
   recommendedRef: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_REF ?? "main",
-  recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "cd191050038365edbdc4310c547f68b498b556fb",
+  recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "62631601ad1e159ce231610d8fe275a8e1fde77e",
   capabilityVersion: "2026-05-17-user-agent-naming-v1",
   minimumFeatureSet: [
     "subagent-first-websocket-listener",
