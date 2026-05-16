@@ -516,7 +516,7 @@ export default function Home() {
                   <article className={styles.leaderboardRow} key={user.id}>
                     <span className={styles.rank}>#{index + 1}</span>
                     <div>
-                      <LeaderboardName href={agent ? `/agents/${encodeURIComponent(agent.id)}` : undefined} label={user.name} />
+                      <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
                     </div>
                     <span className={styles.points}>{user.pointsBalance.toLocaleString()} pts</span>
                   </article>
@@ -540,7 +540,7 @@ export default function Home() {
                   <article className={styles.leaderboardRow} key={user.id}>
                     <span className={styles.rank}>#{index + 1}</span>
                     <div>
-                      <LeaderboardName href={agent ? `/agents/${encodeURIComponent(agent.id)}` : undefined} label={user.name} />
+                      <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
                     </div>
                     <span className={`${styles.points} ${user.dailyProfitToday < 0 ? styles.negativePoints : ""}`}>
                       {formatSigned(user.dailyProfitToday)} pts

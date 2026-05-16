@@ -1,12 +1,14 @@
 import { listAgents, normalizeAgentId } from "@/lib/server/agentRegistry";
+import { prisma } from "@/lib/server/prisma";
 import { getTableManager } from "@/lib/server/simulator";
+import type { RegisteredAgent } from "@/lib/server/agentRegistry";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request, context: { params: Promise<{ agentId: string }> }) {
   const { agentId: rawAgentId } = await context.params;
   const agentId = normalizeAgentId(rawAgentId);
-  const agent = listAgents().find((item) => item.id === agentId);
+  const agent = await resolveProfileAgent(agentId);
 
   if (!agent) {
     return Response.json({ error: "Agent was not found." }, { status: 404 });
@@ -41,6 +43,39 @@ export async function GET(request: Request, context: { params: Promise<{ agentId
         }
       : null,
   });
+}
+
+async function resolveProfileAgent(profileId: string): Promise<RegisteredAgent | undefined> {
+  const agents = listAgents();
+  const activeAgent = agents.find((item) => item.id === profileId) ?? agents.find((item) => item.ownerUserId === profileId);
+  if (activeAgent) {
+    return activeAgent;
+  }
+
+  const user = await prisma.user.findUnique({
+    include: {
+      agentQualifications: {
+        orderBy: { passedAt: "desc" },
+        take: 1,
+      },
+    },
+    where: { id: profileId },
+  });
+
+  if (!user) {
+    return undefined;
+  }
+
+  const qualification = user.agentQualifications[0];
+  return {
+    id: qualification?.agentId ?? user.id,
+    name: qualification?.agentId ?? user.name,
+    ownerUserId: user.id,
+    modelName: qualification?.modelName,
+    kind: "external",
+    registeredAt: qualification?.passedAt.toISOString() ?? user.createdAt.toISOString(),
+    assignmentStatus: "registered",
+  };
 }
 
 function badgesFor(input: {
