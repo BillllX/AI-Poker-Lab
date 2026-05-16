@@ -1,4 +1,5 @@
 import { listAgents, normalizeAgentId } from "@/lib/server/agentRegistry";
+import { agentSkillMetadata } from "@/lib/server/agentSkillMetadata";
 import { issueQualificationTokenFromPersistentResult, qualificationProtocolVersion } from "@/lib/server/qualification";
 import { verifyUserToken } from "@/lib/server/userRegistry";
 import { isReservedVirtualAgentId } from "@/lib/server/virtualAgents";
@@ -121,6 +122,13 @@ export async function POST(request: Request) {
     ok: issues.length === 0,
     nextAction,
     agentId,
+    skill: agentSkillMetadata,
+    skillUpdate: {
+      recommendedCommit: agentSkillMetadata.recommendedCommit,
+      capabilityVersion: agentSkillMetadata.capabilityVersion,
+      updateCommand: agentSkillMetadata.updateCommand,
+      updateHint: agentSkillMetadata.updateHint,
+    },
     existingAgent: existingAgent
       ? {
           id: existingAgent.id,

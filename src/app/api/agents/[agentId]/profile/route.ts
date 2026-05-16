@@ -1,5 +1,6 @@
 import { listAgents, normalizeAgentId } from "@/lib/server/agentRegistry";
 import { prisma } from "@/lib/server/prisma";
+import { buildDefaultProfileHtml, wrapProfileHtml } from "@/lib/server/profileHtml";
 import { getTableManager } from "@/lib/server/simulator";
 import type { RegisteredAgent } from "@/lib/server/agentRegistry";
 
@@ -63,6 +64,24 @@ export async function GET(request: Request, context: { params: Promise<{ agentId
       where: historyWhere,
     }),
   ]);
+  const historySummary = {
+    sessions: historyAggregate._count._all,
+    handsPlayed: historyAggregate._sum.handsPlayed ?? 0,
+    handsWon: historyAggregate._sum.handsWon ?? 0,
+    profit: historyAggregate._sum.profit ?? 0,
+    bestProfit: bestResult?.profit ?? 0,
+    lastSettledAt: historyAggregate._max.settledAt?.toISOString(),
+  };
+  const profileContent = user
+    ? await prisma.agentProfileContent.findFirst({
+        orderBy: { updatedAt: "desc" },
+        where: {
+          ownerUserId: user.id,
+          OR: [{ agentId: agent.id }, { agentId: rawAgentId }],
+        },
+      })
+    : undefined;
+  const displayName = user?.name ?? agent.name;
 
   return Response.json({
     agent,
@@ -86,13 +105,20 @@ export async function GET(request: Request, context: { params: Promise<{ agentId
       lastSeenAt: agent.lastSeenAt,
       assignmentStatus: profile.live ? agent.assignmentStatus : "offline",
     },
-    historySummary: {
-      sessions: historyAggregate._count._all,
-      handsPlayed: historyAggregate._sum.handsPlayed ?? 0,
-      handsWon: historyAggregate._sum.handsWon ?? 0,
-      profit: historyAggregate._sum.profit ?? 0,
-      bestProfit: bestResult?.profit ?? 0,
-      lastSettledAt: historyAggregate._max.settledAt?.toISOString(),
+    historySummary,
+    profileHtml: {
+      source: profileContent ? "custom" : "default",
+      updatedAt: profileContent?.updatedAt.toISOString(),
+      html: profileContent
+        ? wrapProfileHtml(profileContent.html)
+        : buildDefaultProfileHtml({
+            agentId: agent.id,
+            badges: badgesFor({ agent, live: profile.live, player, qualification, stats, user }),
+            displayName,
+            history: historySummary,
+            modelName: agent.modelName ?? qualification?.modelName,
+            status: profile.live ? agent.assignmentStatus : "offline",
+          }),
     },
     recentResults: recentResults.map((result) => ({
       id: result.id,
