@@ -19,6 +19,47 @@ type AgentProfile = {
     assignmentStatus: string;
   };
   badges: string[];
+  identity?: {
+    profileId: string;
+    agentId: string;
+    agentName: string;
+    ownerUserId?: string;
+    ownerName?: string;
+    modelName?: string;
+    protocolVersion?: string;
+    qualifiedAt?: string;
+    userCreatedAt?: string;
+    pointsBalance?: number;
+    frozenPoints?: number;
+  };
+  live?: {
+    online: boolean;
+    seated: boolean;
+    lastSeenAt?: string;
+    assignmentStatus: string;
+  };
+  historySummary?: {
+    sessions: number;
+    handsPlayed: number;
+    handsWon: number;
+    profit: number;
+    bestProfit: number;
+    lastSettledAt?: string;
+  };
+  recentResults: Array<{
+    id: string;
+    agentId: string;
+    modelName?: string;
+    tableId: string;
+    gameSessionId?: string;
+    buyIn: number;
+    finalStack: number;
+    profit: number;
+    handsPlayed: number;
+    handsWon: number;
+    settledReason: string;
+    settledAt: string;
+  }>;
   modelStat: { modelName: string; handsPlayed: number; agents: number } | null;
   stats: { handsPlayed: number; handsWon: number; profit: number; stack?: number; status?: string } | null;
   table: { id: string; name: string; running: boolean; phase: string; handId: number; url: string } | null;
@@ -30,15 +71,27 @@ const copy = {
     home: "首页",
     eyebrow: "Agent Profile",
     status: "状态",
+    liveStatus: "在线状态",
     model: "模型",
     owner: "所属用户",
     registered: "注册时间",
+    qualifiedAt: "最近准入",
+    points: "可用积分",
+    frozen: "冻结积分",
     hands: "参与手数",
     wins: "胜场",
     profit: "盈亏",
+    historyTitle: "历史战绩",
+    sessions: "参赛场次",
+    bestProfit: "最佳单场",
+    lastSettledAt: "最近结算",
+    recentResults: "最近参赛记录",
+    noRecentResults: "暂无历史战绩。完成一次入桌并结算后，这里会自动出现记录。",
+    buyIn: "买入",
+    finalStack: "结算筹码",
     stack: "当前筹码",
     currentTable: "当前牌桌",
-    noTable: "当前未入座。保持 WebSocket 在线后，系统会自动分配牌桌。",
+    noTable: "当前离线或未入座；仍可查看用户、模型、准入和积分信息。",
     openTable: "进入观战",
     shareTitle: "分享文案",
     copyShare: "复制分享文案",
@@ -53,15 +106,27 @@ const copy = {
     home: "Home",
     eyebrow: "Agent Profile",
     status: "Status",
+    liveStatus: "Live Status",
     model: "Model",
     owner: "Owner",
     registered: "Registered",
+    qualifiedAt: "Last Qualified",
+    points: "Available Points",
+    frozen: "Frozen Points",
     hands: "Hands",
     wins: "Wins",
     profit: "P&L",
+    historyTitle: "History",
+    sessions: "Sessions",
+    bestProfit: "Best Session",
+    lastSettledAt: "Last Settled",
+    recentResults: "Recent Results",
+    noRecentResults: "No history yet. Records will appear after a seated Agent settles a game.",
+    buyIn: "Buy-in",
+    finalStack: "Final Stack",
     stack: "Stack",
     currentTable: "Current Table",
-    noTable: "Not seated yet. Keep WebSocket online and the service will assign a table.",
+    noTable: "Offline or not seated. Identity, model, qualification, and points are still available.",
     openTable: "Spectate",
     shareTitle: "Share Copy",
     copyShare: "Copy share text",
@@ -81,14 +146,17 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
   const stats = profile?.stats;
+  const history = profile?.historySummary;
+  const displayName = profile?.identity?.ownerName ?? profile?.agent.name;
+  const modelName = profile?.identity?.modelName ?? profile?.agent.modelName;
   const shareText = useMemo(() => {
     if (!profile) {
       return "";
     }
     const hands = stats?.handsPlayed ?? 0;
     const profit = formatSigned(stats?.profit ?? 0);
-    return `我的 AI 牌手 ${profile.agent.name} 正在 Texas Poker Club 参赛：${hands} 手，盈亏 ${profit}，模型 ${profile.agent.modelName ?? "Unknown Model"}。Real fun, without real money.`;
-  }, [profile, stats]);
+    return `我的 AI 牌手 ${displayName ?? profile.agent.name} 正在 Texas Poker Club 参赛：${hands} 手，盈亏 ${profit}，模型 ${modelName ?? "Unknown Model"}。Real fun, without real money.`;
+  }, [displayName, modelName, profile, stats]);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,9 +204,9 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
             <section className={styles.hero}>
               <div>
                 <p className={styles.eyebrow}>{t.eyebrow}</p>
-                <h1>{profile.agent.name}</h1>
+                <h1>{displayName}</h1>
                 <p className={styles.subtitle}>
-                  {profile.agent.id} · {profile.agent.kind === "virtual" ? "BOT" : "External Agent"}
+                  {profile.identity?.agentId ?? profile.agent.id} · {profile.agent.kind === "virtual" ? "BOT" : "External Agent"}
                 </p>
                 <div className={styles.badges}>
                   {profile.badges.map((badge) => (
@@ -148,28 +216,32 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
               </div>
               <div className={styles.profileMeta}>
                 <article>
-                  <span>{t.status}</span>
-                  <strong>{profile.agent.assignmentStatus}</strong>
+                  <span>{t.liveStatus}</span>
+                  <strong>{profile.live?.assignmentStatus ?? profile.agent.assignmentStatus}</strong>
                 </article>
                 <article>
                   <span>{t.model}</span>
-                  <strong>{profile.agent.modelName ?? "Unknown Model"}</strong>
+                  <strong>{modelName ?? "Unknown Model"}</strong>
                 </article>
                 <article>
                   <span>{t.owner}</span>
-                  <strong>{profile.agent.ownerUserId ?? "-"}</strong>
+                  <strong>{profile.identity?.ownerName ?? profile.identity?.ownerUserId ?? profile.agent.ownerUserId ?? "-"}</strong>
                 </article>
                 <article>
-                  <span>{t.registered}</span>
-                  <strong>{new Date(profile.agent.registeredAt).toLocaleDateString()}</strong>
+                  <span>{profile.identity?.qualifiedAt ? t.qualifiedAt : t.registered}</span>
+                  <strong>{formatDate(profile.identity?.qualifiedAt ?? profile.agent.registeredAt)}</strong>
                 </article>
               </div>
             </section>
 
             <section className={styles.grid}>
-              <StatCard label={t.hands} value={stats?.handsPlayed ?? 0} />
-              <StatCard label={t.wins} value={stats?.handsWon ?? 0} />
-              <StatCard label={t.profit} value={formatSigned(stats?.profit ?? 0)} />
+              <StatCard label={t.points} value={formatOptionalNumber(profile.identity?.pointsBalance)} />
+              <StatCard label={t.frozen} value={formatOptionalNumber(profile.identity?.frozenPoints)} />
+              <StatCard label={t.sessions} value={history?.sessions ?? 0} />
+              <StatCard label={t.hands} value={history?.handsPlayed ?? stats?.handsPlayed ?? 0} />
+              <StatCard label={t.wins} value={history?.handsWon ?? stats?.handsWon ?? 0} />
+              <StatCard label={t.profit} value={formatSigned(history?.profit ?? stats?.profit ?? 0)} />
+              <StatCard label={t.bestProfit} value={formatSigned(history?.bestProfit ?? 0)} />
               <StatCard label={t.stack} value={stats?.stack ?? "-"} />
             </section>
 
@@ -200,6 +272,41 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
             </section>
 
             <article className={styles.card}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <h2>{t.historyTitle}</h2>
+                  <p className={styles.muted}>
+                    {t.lastSettledAt}: {formatDateTime(history?.lastSettledAt)}
+                  </p>
+                </div>
+              </div>
+              <h3 className={styles.subheading}>{t.recentResults}</h3>
+              <div className={styles.resultList}>
+                {profile.recentResults.length > 0 ? (
+                  profile.recentResults.map((result) => (
+                    <article className={styles.resultRow} key={result.id}>
+                      <div>
+                        <strong>{formatDateTime(result.settledAt)}</strong>
+                        <small>
+                          {result.agentId} · {result.modelName ?? "Unknown Model"} · {result.settledReason}
+                        </small>
+                      </div>
+                      <span>
+                        {t.hands} {result.handsPlayed} · {t.wins} {result.handsWon}
+                      </span>
+                      <span>
+                        {t.buyIn} {result.buyIn} · {t.finalStack} {result.finalStack}
+                      </span>
+                      <em className={result.profit < 0 ? styles.negative : styles.positive}>{formatSigned(result.profit)}</em>
+                    </article>
+                  ))
+                ) : (
+                  <p className={styles.muted}>{t.noRecentResults}</p>
+                )}
+              </div>
+            </article>
+
+            <article className={styles.card}>
               <h2>{t.nextStepTitle}</h2>
               <p className={styles.muted}>{t.nextStep}</p>
             </article>
@@ -221,4 +328,16 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 
 function formatSigned(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+}
+
+function formatOptionalNumber(value: number | undefined) {
+  return typeof value === "number" ? value.toLocaleString() : "-";
+}
+
+function formatDate(value: string | undefined) {
+  return value ? new Date(value).toLocaleDateString() : "-";
+}
+
+function formatDateTime(value: string | undefined) {
+  return value ? new Date(value).toLocaleString() : "-";
 }

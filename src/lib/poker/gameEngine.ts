@@ -206,6 +206,11 @@ export class PokerGameEngine {
     };
   }
 
+  statsForPlayer(playerId: string) {
+    const stat = this.stats.find((item) => item.playerId === playerId);
+    return stat ? { ...stat } : undefined;
+  }
+
   refundUnsettledPot() {
     if (this.pot <= 0) {
       return;
