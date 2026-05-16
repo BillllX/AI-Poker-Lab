@@ -385,11 +385,29 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   display: grid;
   gap: 16px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: start;
+  grid-template-rows: auto auto auto;
   min-width: 0;
   overflow: hidden;
   padding: 18px;
   position: relative;
+}
+
+.clubHeroImage {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.28);
+  min-height: 260px;
+  overflow: hidden;
+  position: relative;
+}
+
+.clubHeroAsset {
+  display: block;
+  height: 100%;
+  min-height: 260px;
+  object-fit: cover;
+  width: 100%;
 }
 
 .tablePreviewHeader {
@@ -707,19 +725,41 @@
   width: 42px;
 }
 
+.championRank,
+.runnerUpRank,
+.thirdPlaceRank {
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 999px;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  color: #1c1304;
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  height: 50px;
+  position: static;
+  width: 50px;
+}
+
 .championRank {
-  background: linear-gradient(145deg, #fde68a, #facc15);
-  color: #3a2502;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.6), transparent 16px),
+    linear-gradient(145deg, #fff1a8, #facc15 48%, #b77906);
 }
 
 .runnerUpRank {
-  background: linear-gradient(145deg, #f8fafc, #cbd5e1);
-  color: #1f2937;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.7), transparent 16px),
+    linear-gradient(145deg, #ffffff, #cbd5e1 48%, #64748b);
+  color: #111827;
 }
 
 .thirdPlaceRank {
-  background: linear-gradient(145deg, #fed7aa, #d97706);
-  color: #2a1300;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.46), transparent 16px),
+    linear-gradient(145deg, #fed7aa, #d97706 48%, #7c2d12);
+  color: #241006;
 }
 
 .leaderboardRow strong,
@@ -989,6 +1029,47 @@
   max-width: 600px;
 }
 
+.engagementShowcase {
+  align-items: center;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(250, 204, 21, 0.16), transparent 18rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(220px, 0.38fr) minmax(0, 1fr);
+  margin-bottom: 16px;
+  overflow: hidden;
+  padding: 18px;
+}
+
+.playerCardImage {
+  border: 1px solid rgba(250, 204, 21, 0.24);
+  border-radius: 24px;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+}
+
+.playerCardAsset {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.engagementShowcase h3 {
+  font-size: clamp(24px, 3vw, 38px);
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  margin: 0 0 12px;
+}
+
+.engagementShowcase p:not(.agentAccessEyebrow) {
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 0;
+}
+
 .featureGrid {
   display: grid;
   gap: 16px;
@@ -1161,25 +1242,24 @@
 
   .tablePreviewPanel {
     gap: 14px;
-    grid-template-columns: minmax(0, 0.78fr) minmax(320px, 1fr);
-    grid-template-rows: auto auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
     padding: 18px;
   }
 
   .tablePreviewHeader {
-    grid-column: 1;
+    grid-column: auto;
     grid-template-columns: 1fr;
   }
 
-  .tablePreviewPanel .tableCard {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    width: min(100%, 430px);
+  .clubHeroImage {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .tablePreviewLink {
     align-self: end;
-    grid-column: 1;
+    grid-column: auto;
   }
 
   .leaderboardsSection {
@@ -1267,24 +1347,23 @@
   }
 
   .tablePreviewPanel {
-    grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
-    grid-template-rows: auto auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
   }
 
   .tablePreviewHeader {
-    grid-column: 1;
+    grid-column: auto;
     grid-template-columns: 1fr;
   }
 
-  .tablePreviewPanel .tableCard {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    width: min(100%, 460px);
+  .clubHeroImage {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .tablePreviewLink {
     align-self: end;
-    grid-column: 1;
+    grid-column: auto;
   }
 
   .tablePreviewPanel .tableCard {
@@ -1297,6 +1376,14 @@
 
   .leaderboardsSection {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .engagementShowcase {
+    grid-template-columns: 1fr;
+  }
+
+  .playerCardImage {
+    max-width: 420px;
   }
 
   .activityCard {
@@ -1455,11 +1542,12 @@
   .tablePreviewPanel {
     border-radius: 22px;
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto auto auto;
     padding: 18px;
   }
 
   .tablePreviewHeader,
+  .clubHeroImage,
   .tablePreviewLink,
   .tablePreviewPanel .tableCard {
     grid-column: auto;

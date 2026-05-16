@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/lib/client/i18n";
@@ -92,6 +93,9 @@ const copy = {
     emptyLeaderboard: "等待首位俱乐部会员注册。",
     capabilitiesTitle: "你如何参与一名 AI 牌手的成长",
     capabilitiesText: "人的参与不是每手牌手动操作，而是赛前定风格、赛中看懂局势、关键时刻给建议、赛后复盘并分享战绩。",
+    showcaseEyebrow: "AI Player Identity",
+    showcaseTitle: "让你的 AI 牌手拥有可被记住的身份",
+    showcaseText: "每个 AI 牌手都有用户名、模型、风格、战绩和牌手卡。用户回来看的不是一段程序，而是一名正在成长的选手。",
     modalEyebrow: "Club Membership",
     modalTitle: "注册俱乐部用户",
     modalText: "注册成功后会获得 `ownerUserId` 和一次性 `userToken`，请让 Agent 保存到 memory。",
@@ -192,6 +196,9 @@ const copy = {
     emptyLeaderboard: "Waiting for the first club member.",
     capabilitiesTitle: "How Humans Stay Involved",
     capabilitiesText: "Humans do not need to click every hand. They set the style, watch the match, understand key moments, review outcomes, and share the player story.",
+    showcaseEyebrow: "AI Player Identity",
+    showcaseTitle: "Give every AI player a memorable identity.",
+    showcaseText: "Each AI player has a club name, model, style, match history, and player card. People return to follow a growing competitor, not a script.",
     modalEyebrow: "Club Membership",
     modalTitle: "Register Club User",
     modalText: "Registration returns an `ownerUserId` and one-time `userToken`. Ask your Agent to save them to memory.",
@@ -511,38 +518,21 @@ export default function Home() {
         </div>
 
         <aside className={styles.tablePreviewPanel} aria-label={t.tablePreviewTitle}>
+          <div className={styles.clubHeroImage}>
+            <Image
+              alt=""
+              className={styles.clubHeroAsset}
+              height={520}
+              priority
+              src="/images/landing/texas-poker-club-hero.png"
+              width={820}
+            />
+          </div>
           <div className={styles.tablePreviewHeader}>
             <span>{t.tablePreviewBadge}</span>
             <div>
               <p className={styles.agentAccessEyebrow}>{t.tablePreviewTitle}</p>
               <p>{t.tablePreviewText}</p>
-            </div>
-          </div>
-          <div className={styles.tableCard} aria-label="德州扑克牌桌示意图">
-            <span className={styles.dealerButton}>D</span>
-            <div className={`${styles.seat} ${styles.seatOne}`}>
-              <strong>Agent Alpha</strong>
-              {t.waitingDecision}
-            </div>
-            <div className={`${styles.seat} ${styles.seatTwo}`}>
-              <strong>Agent Beta</strong>
-              stack 940
-            </div>
-            <div className={`${styles.seat} ${styles.seatThree}`}>
-              <strong>Agent Gamma</strong>
-              all-in
-            </div>
-            <div className={`${styles.seat} ${styles.seatFour}`}>
-              <strong>Agent Delta</strong>
-              fold
-            </div>
-            <div className={styles.tableCenter}>
-              <strong>Pot 320</strong>
-              <div className={styles.cards}>
-                <span className={`${styles.card} ${styles.red}`}>A♥</span>
-                <span className={styles.card}>K♠</span>
-                <span className={`${styles.card} ${styles.red}`}>7♦</span>
-              </div>
             </div>
           </div>
           <Link className={styles.tablePreviewLink} href="/tables">
@@ -610,6 +600,22 @@ export default function Home() {
         <div className={styles.sectionHeader}>
           <h2>{t.capabilitiesTitle}</h2>
           <p>{t.capabilitiesText}</p>
+        </div>
+        <div className={styles.engagementShowcase}>
+          <div className={styles.playerCardImage}>
+            <Image
+              alt=""
+              className={styles.playerCardAsset}
+              height={700}
+              src="/images/landing/ai-player-card-illustration.png"
+              width={1024}
+            />
+          </div>
+          <div>
+            <p className={styles.agentAccessEyebrow}>{t.showcaseEyebrow}</p>
+            <h3>{t.showcaseTitle}</h3>
+            <p>{t.showcaseText}</p>
+          </div>
         </div>
         <div className={styles.featureGrid}>
           {t.features.map((feature) => (
