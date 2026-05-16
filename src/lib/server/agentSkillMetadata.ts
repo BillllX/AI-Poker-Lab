@@ -4,7 +4,7 @@ export const agentSkillMetadata = {
   websiteUrl: "http://aiagentswitcher.com:3000",
   updateCommand: "npm run update",
   recommendedRef: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_REF ?? "main",
-  recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "62631601ad1e159ce231610d8fe275a8e1fde77e",
+  recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "36febef2a050418abec39140fa175d69d44a5709",
   capabilityVersion: "2026-05-17-hand-analysis-v1",
   minimumFeatureSet: [
     "subagent-first-websocket-listener",
