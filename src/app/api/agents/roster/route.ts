@@ -1,4 +1,4 @@
-import { listAgents, listPollingAgents, normalizeAgentId, registerAgent, removeAgent } from "@/lib/server/agentRegistry";
+import { listAgents, listPollingAgents, normalizeAgentId, registerAgent, removeAgent, syncOwnerAgentNames } from "@/lib/server/agentRegistry";
 import { listPendingDecisions } from "@/lib/server/decisionBroker";
 import { consumeQualificationToken, recordPersistentQualification } from "@/lib/server/qualification";
 import { getTableManager } from "@/lib/server/simulator";
@@ -27,14 +27,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "This Agent id is reserved for a built-in virtual Agent." }, { status: 409 });
     }
 
-    if (existingAgent?.tableId && input.name && input.name.trim() !== existingAgent.name) {
-      return Response.json({ error: "Cannot rename an Agent while it is assigned to a table." }, { status: 409 });
-    }
-
     if (existingAgent?.tableId && input.modelName && input.modelName.trim() !== existingAgent.modelName) {
       return Response.json({ error: "Cannot change an Agent model while it is assigned to a table." }, { status: 409 });
     }
 
+    let verifiedUser: Awaited<ReturnType<typeof verifyUserToken>> | undefined;
     if (!existingAgent) {
       if (typeof input.ownerUserId !== "string" || !input.ownerUserId.trim()) {
         return Response.json({ error: "ownerUserId is required when registering a new Agent." }, { status: 400 });
@@ -42,7 +39,7 @@ export async function POST(request: Request) {
       if (typeof input.modelName !== "string" || !input.modelName.trim()) {
         return Response.json({ error: "modelName is required when registering a new Agent." }, { status: 400 });
       }
-      await verifyUserToken(input.ownerUserId, input.userToken);
+      verifiedUser = await verifyUserToken(input.ownerUserId, input.userToken);
       consumeQualificationToken(agentId, input.qualificationToken);
       await recordPersistentQualification({
         agentId,
@@ -53,22 +50,24 @@ export async function POST(request: Request) {
       if (input.ownerUserId && input.ownerUserId !== existingAgent.ownerUserId) {
         return Response.json({ error: "Cannot move an existing Agent to another owner." }, { status: 409 });
       }
-      await verifyUserToken(existingAgent.ownerUserId, input.userToken);
+      verifiedUser = await verifyUserToken(existingAgent.ownerUserId, input.userToken);
     }
 
-    const agent = registerAgent(input);
+    const agent = registerAgent({ ...input, name: existingAgent?.name ?? agentId });
+    const namedAgents = verifiedUser ? syncOwnerAgentNames(verifiedUser.id, verifiedUser.name) : [];
+    const namedAgent = namedAgents.find((item) => item.id === agent.id) ?? agent;
 
     await tableManager.allocateQueuedAgents();
     logger.info("agent.registered", {
-      agentId: agent.id,
-      ownerUserId: agent.ownerUserId,
-      modelName: agent.modelName,
-      assignmentStatus: agent.assignmentStatus,
-      tableId: agent.tableId,
+      agentId: namedAgent.id,
+      ownerUserId: namedAgent.ownerUserId,
+      modelName: namedAgent.modelName,
+      assignmentStatus: namedAgent.assignmentStatus,
+      tableId: namedAgent.tableId,
       existing: Boolean(existingAgent),
     });
 
-    return Response.json({ agent, agents: listAgents(), pollingAgents: listPollingAgents(), tables: tableManager.summaries() });
+    return Response.json({ agent: namedAgent, agents: listAgents(), pollingAgents: listPollingAgents(), tables: tableManager.summaries() });
   } catch (error) {
     logger.warn("agent.registration_failed", { error });
     return Response.json({ error: error instanceof Error ? error.message : "Invalid Agent registration." }, { status: 400 });

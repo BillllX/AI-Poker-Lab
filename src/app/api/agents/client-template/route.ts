@@ -10,7 +10,6 @@ const rawClientTemplate = String.raw`#!/usr/bin/env node
  *   npm install ws
  *   GAME_URL=http://150.158.85.220:3000 \
  *   AGENT_ID=alice-agent \
- *   AGENT_NAME="Alice Agent" \
  *   MODEL_NAME=gpt-4.1 \
  *   AGENT_STYLE="稳健紧凶，重视位置和底池赔率" \
  *   node texas-poker-agent-client.js
@@ -30,7 +29,6 @@ const WebSocket = require("ws");
 
 const GAME_URL = process.env.GAME_URL || "http://150.158.85.220:3000";
 const AGENT_ID = normalizeAgentId(process.env.AGENT_ID || "example-agent");
-const AGENT_NAME = process.env.AGENT_NAME || AGENT_ID;
 const MODEL_NAME = process.env.MODEL_NAME || "replace-with-real-model-name";
 const AGENT_STYLE = process.env.AGENT_STYLE || "稳健、理性、只根据当前牌局信息行动";
 const MEMORY_PATH = process.env.MEMORY_PATH || path.join(process.cwd(), ".texas-poker-agent-memory.json");
@@ -249,7 +247,6 @@ async function registerAgent(owner, qualificationToken) {
   console.log("[roster] registering", AGENT_ID);
   await postJson(\`\${GAME_URL}/api/agents/roster\`, {
     id: AGENT_ID,
-    name: AGENT_NAME,
     modelName: MODEL_NAME,
     ownerUserId: owner.ownerUserId,
     userToken: owner.userToken,

@@ -18,6 +18,12 @@ export type CreateUserInput = {
   email?: string;
 };
 
+export type UpdateUserNameInput = {
+  ownerUserId?: string;
+  userToken?: string;
+  name?: string;
+};
+
 const initialPointsBalance = 10_000;
 
 export async function listUsers() {
@@ -87,6 +93,39 @@ export async function verifyUserToken(userId: string, token: unknown) {
   const dailyProfits = await dailyProfitStatsForToday([userId]);
   const profit = dailyProfits.get(user.id);
   return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
+}
+
+export async function updateUserName(input: UpdateUserNameInput) {
+  const ownerUserId = typeof input.ownerUserId === "string" ? input.ownerUserId.trim() : "";
+  const userToken = input.userToken;
+  const name = normalizeName(input.name ?? "");
+
+  if (!ownerUserId) {
+    throw new Error("ownerUserId is required.");
+  }
+
+  const user = await findStoredUser(ownerUserId);
+  if (typeof userToken !== "string" || !userToken.trim()) {
+    throw new Error("userToken is required.");
+  }
+  if (user.tokenHash !== hashToken(userToken)) {
+    throw new Error("userToken is invalid for this ownerUserId.");
+  }
+
+  const updated = await prisma.user.update({
+    data: { name },
+    where: { id: ownerUserId },
+  }).catch((error: unknown) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new Error("User name is already taken.");
+    }
+    throw error;
+  });
+
+  logger.info("user.name_updated", { ownerUserId: updated.id, name: updated.name });
+  const dailyProfits = await dailyProfitStatsForToday([ownerUserId]);
+  const profit = dailyProfits.get(updated.id);
+  return publicUser(updated, profit?.amount ?? 0, profit?.settlements ?? 0);
 }
 
 export type GameBuyIn = {

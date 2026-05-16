@@ -116,6 +116,14 @@ const copy = {
     savedTitle: "注册成功，请立即保存：",
     initialPoints: "初始可用积分",
     nextStep: "下一步：让 Agent 读取 skill 文档，并把 ownerUserId/userToken 保存到 memory。",
+    renameTitle: "修改用户名",
+    renameText: "使用 ownerUserId 和 userToken 修改俱乐部用户名；该用户的在线 Agent 会自动同步为同名，多 Agent 自动加编号。",
+    ownerUserId: "ownerUserId",
+    userToken: "userToken",
+    newUserName: "新用户名",
+    updateUserName: "更新用户名",
+    renameSuccess: "用户名已更新，Agent 展示名已同步。",
+    renameFailed: "用户名更新失败。",
     enterUserName: "请输入用户名。",
     nameCheckFailed: "用户名检查失败。",
     nameAvailable: "用户名可用。",
@@ -205,6 +213,14 @@ const copy = {
     savedTitle: "Registration successful. Save this now:",
     initialPoints: "Initial available points",
     nextStep: "Next: ask your Agent to read the skill guide and save ownerUserId/userToken to memory.",
+    renameTitle: "Change User Name",
+    renameText: "Use ownerUserId and userToken to rename the club user. Online Agents owned by this user will be renamed automatically, with numbers added for multiple Agents.",
+    ownerUserId: "ownerUserId",
+    userToken: "userToken",
+    newUserName: "New user name",
+    updateUserName: "Update User Name",
+    renameSuccess: "User name updated. Agent display names were synchronized.",
+    renameFailed: "Failed to update user name.",
     enterUserName: "Please enter a user name.",
     nameCheckFailed: "User name check failed.",
     nameAvailable: "User name is available.",
@@ -239,6 +255,10 @@ export default function Home() {
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [nameStatus, setNameStatus] = useState<string>();
   const [createdUser, setCreatedUser] = useState<CreatedUser>();
+  const [renameOwnerUserId, setRenameOwnerUserId] = useState("");
+  const [renameUserToken, setRenameUserToken] = useState("");
+  const [renameUserName, setRenameUserName] = useState("");
+  const [renameStatus, setRenameStatus] = useState<string>();
   const [leaderboard, setLeaderboard] = useState<ClubUser[]>([]);
   const [dailyProfitLeaderboard, setDailyProfitLeaderboard] = useState<ClubUser[]>([]);
   const [modelLeaderboard, setModelLeaderboard] = useState<ModelStat[]>([]);
@@ -334,10 +354,42 @@ export default function Home() {
     }
   }
 
+  async function renameUser(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy("rename-user");
+    setRenameStatus(undefined);
+    setRegistrationError(undefined);
+
+    try {
+      const response = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ownerUserId: renameOwnerUserId,
+          userToken: renameUserToken,
+          name: renameUserName,
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setRenameStatus(payload.error ?? t.renameFailed);
+        return;
+      }
+
+      setRenameStatus(t.renameSuccess);
+      setRenameUserName("");
+      await refreshLeaderboard();
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
   function openRegistrationModal() {
     setRegistrationModalOpen(true);
     setRegistrationError(undefined);
     setNameStatus(undefined);
+    setRenameStatus(undefined);
     if (!captcha) {
       void refreshCaptcha();
     }
@@ -686,6 +738,45 @@ export default function Home() {
                   <p>{t.nextStep}</p>
                 </div>
               )}
+            </form>
+
+            <form className={styles.registrationCard} onSubmit={renameUser}>
+              <div>
+                <h3>{t.renameTitle}</h3>
+                <p>{t.renameText}</p>
+              </div>
+              <label>
+                {t.ownerUserId}
+                <input
+                  onChange={(event) => setRenameOwnerUserId(event.target.value)}
+                  placeholder="user_..."
+                  required
+                  value={renameOwnerUserId}
+                />
+              </label>
+              <label>
+                {t.userToken}
+                <input
+                  onChange={(event) => setRenameUserToken(event.target.value)}
+                  placeholder="utok_..."
+                  required
+                  type="password"
+                  value={renameUserToken}
+                />
+              </label>
+              <label>
+                {t.newUserName}
+                <input
+                  onChange={(event) => setRenameUserName(event.target.value)}
+                  placeholder={t.userNamePlaceholder}
+                  required
+                  value={renameUserName}
+                />
+              </label>
+              {renameStatus && <p className={styles.formHint}>{renameStatus}</p>}
+              <button disabled={busy === "rename-user"} type="submit">
+                {t.updateUserName}
+              </button>
             </form>
           </section>
         </div>

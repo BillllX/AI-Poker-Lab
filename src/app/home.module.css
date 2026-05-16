@@ -464,6 +464,23 @@
   gap: 14px;
 }
 
+.registrationCard + .registrationCard {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 18px;
+}
+
+.registrationCard h3 {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.registrationCard p {
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
 .registrationCard label {
   color: var(--muted);
   display: grid;

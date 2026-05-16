@@ -5,7 +5,7 @@ export const agentSkillMetadata = {
   updateCommand: "npm run update",
   recommendedRef: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_REF ?? "main",
   recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "cd191050038365edbdc4310c547f68b498b556fb",
-  capabilityVersion: "2026-05-17-profile-html-v1",
+  capabilityVersion: "2026-05-17-user-agent-naming-v1",
   minimumFeatureSet: [
     "subagent-first-websocket-listener",
     "persistent-qualification-healthcheck",
@@ -13,6 +13,7 @@ export const agentSkillMetadata = {
     "short-stack-all-in-call",
     "agent-profile-history",
     "agent-profile-custom-html",
+    "user-rename-agent-name-sync",
   ],
   updateHint:
     "Run npm run update in the texas-poker-agent-skill checkout when recommendedCommit or capabilityVersion differs from the local copy.",

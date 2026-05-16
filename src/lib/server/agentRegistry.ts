@@ -81,6 +81,25 @@ export function registerAgent(input: AgentRegistrationInput) {
   return agent;
 }
 
+export function syncOwnerAgentNames(ownerUserId: string, ownerName: string) {
+  const displayName = normalizeName(ownerName);
+  const ownerAgents = listAgents()
+    .filter((agent) => agent.kind === "external" && agent.ownerUserId === ownerUserId)
+    .sort((left, right) => left.registeredAt.localeCompare(right.registeredAt) || left.id.localeCompare(right.id));
+  const nameByAgentId = new Map(ownerAgents.map((agent, index) => [agent.id, index === 0 ? displayName : `${displayName} ${index + 1}`]));
+
+  if (nameByAgentId.size === 0) {
+    return [];
+  }
+
+  globalForAgents.__texasPokerAgents = listAgents().map((agent) => {
+    const name = nameByAgentId.get(agent.id);
+    return name ? { ...agent, name } : agent;
+  });
+  notifyAgentRegistrySubscribers();
+  return listAgents().filter((agent) => nameByAgentId.has(agent.id));
+}
+
 export function upsertVirtualAgent(input: {
   id: string;
   name: string;
