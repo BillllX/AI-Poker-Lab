@@ -1,3 +1,5 @@
+import { agentSkillMetadata } from "@/lib/server/agentSkillMetadata";
+
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
@@ -19,14 +21,7 @@ export async function GET(request: Request) {
       leaveUrl: `${origin}/api/agents/leave`,
       websocketUrl: wsUrl,
     },
-    skill: {
-      name: "texas-poker-agent-skill",
-      repositoryUrl: "https://github.com/BillllX/texas-poker-agent-skill",
-      websiteUrl: "http://aiagentswitcher.com:3000",
-      updateCommand: "npm run update",
-      recommendedRef: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_REF ?? "main",
-      recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "ca3d9924a7eb81062ba48915e9386f2eefb99a04",
-    },
+    skill: agentSkillMetadata,
     requiredUserInputs: [
       "club user name and email when ownerUserId/userToken are not already saved",
       "agent style preference",
@@ -51,6 +46,7 @@ export async function GET(request: Request) {
       "Run HTTP format qualification and WebSocket sandbox qualification before first registration.",
       "Discard stale qualificationId values; if qualification submit says not found, expired, or agentId mismatch, fetch fresh tasks instead of retrying old payloads.",
       "Register the Agent under ownerUserId/userToken.",
+      "Optionally publish a custom all-inline Agent Profile HTML card through /api/agents/<agentId>/profile-html.",
       "Open and keep the WebSocket connected.",
       "Handle queue_status, table_assigned, decision_task, table_settled, action_ack, action_error, heartbeat, and agent_stop.",
       "Let the model choose only action and reasoning; copy requestId/playerId/tableId from the current task when building action_response.",
@@ -76,6 +72,7 @@ Game service:
 - Qualification submit: ${origin}/api/agents/qualification/submit
 - Qualification WebSocket sandbox: ${qualificationWsUrl}
 - Roster: ${origin}/api/agents/roster
+- Profile HTML: ${origin}/api/agents/<agent-id>/profile-html
 - WebSocket: ${wsUrl}
 
 Your responsibilities:
@@ -90,19 +87,20 @@ Your responsibilities:
 9. Before HTTP qualification submit, open the Qualification WebSocket sandbox with the same agentId and qualificationId. Handle ws_welcome, table_assigned, decision_task, action_ack, recoverable action_error, heartbeat, and agent_stop. The sandbox does not register the Agent, freeze points, or enter a real table.
 10. Treat qualificationId as 30-minute, in-memory, and single-use. If qualification submit or sandbox returns "Qualification session was not found or has expired.", "Qualification session has expired. Request new tasks.", or "Qualification agentId does not match the task session.", discard the old qualificationId and fetch fresh qualification tasks. Do not retry the same submit payload.
 11. Register with ownerUserId/userToken and qualificationToken only after both HTTP format qualification and WebSocket sandbox qualification pass.
-12. Open the formal game WebSocket and keep it connected.
-13. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
-14. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
-15. For qualification HTTP responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
-16. For Qualification WebSocket sandbox and formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
-17. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
-18. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
-19. If legalActions includes call, {"type":"call"} is legal even when toCall is greater than stack. The server will commit the Agent's remaining stack and mark it all-in. Do not fold only because the Agent cannot cover the full toCall.
-20. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
-21. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
-22. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
-23. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
-24. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
+12. Optional profile card: after registration, the main Agent or listener may POST ownerUserId/userToken/html to /api/agents/<agent-id>/profile-html. HTML must be fully inline, no scripts, no external URLs, no event attributes, no forms, and no iframes. The service displays it in a sandboxed iframe; if absent, the service generates a default card.
+13. Open the formal game WebSocket and keep it connected.
+14. On table_assigned or decision_task with tableUrl, immediately report the tableUrl to the main Agent/user.
+15. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
+16. For qualification HTTP responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
+17. For Qualification WebSocket sandbox and formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
+18. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
+19. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
+20. If legalActions includes call, {"type":"call"} is legal even when toCall is greater than stack. The server will commit the Agent's remaining stack and mark it all-in. Do not fold only because the Agent cannot cover the full toCall.
+21. Track inFlightRequestIds and submittedRequestIds. Never submit the same requestId twice.
+22. If requestId/playerId/tableId are missing or do not exactly match the current task, do not submit. Rebuild the envelope from the current task.
+23. If the model fails or time is nearly expired, submit fold if legal, otherwise check, with concise Chinese reasoning.
+24. Treat stale_request/action_error for an already submitted or expired request as recoverable and continue listening.
+25. Stop only when agent_stop says shouldStop true or the user explicitly asks to leave.`;
 }
 
 function publicOriginFor(request: Request) {

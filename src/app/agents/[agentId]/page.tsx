@@ -60,6 +60,11 @@ type AgentProfile = {
     settledReason: string;
     settledAt: string;
   }>;
+  profileHtml: {
+    source: "default" | "custom";
+    updatedAt?: string;
+    html: string;
+  };
   modelStat: { modelName: string; handsPlayed: number; agents: number } | null;
   stats: { handsPlayed: number; handsWon: number; profit: number; stack?: number; status?: string } | null;
   table: { id: string; name: string; running: boolean; phase: string; handId: number; url: string } | null;
@@ -81,6 +86,9 @@ const copy = {
     hands: "参与手数",
     wins: "胜场",
     profit: "盈亏",
+    playerCard: "AI 牌手卡",
+    defaultCard: "默认模板",
+    customCard: "自定义 HTML",
     historyTitle: "历史战绩",
     sessions: "参赛场次",
     bestProfit: "最佳单场",
@@ -116,6 +124,9 @@ const copy = {
     hands: "Hands",
     wins: "Wins",
     profit: "P&L",
+    playerCard: "AI Player Card",
+    defaultCard: "Default Template",
+    customCard: "Custom HTML",
     historyTitle: "History",
     sessions: "Sessions",
     bestProfit: "Best Session",
@@ -244,6 +255,24 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
               <StatCard label={t.bestProfit} value={formatSigned(history?.bestProfit ?? 0)} />
               <StatCard label={t.stack} value={stats?.stack ?? "-"} />
             </section>
+
+            <article className={styles.card}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <h2>{t.playerCard}</h2>
+                  <p className={styles.muted}>
+                    {profile.profileHtml.source === "custom" ? t.customCard : t.defaultCard}
+                    {profile.profileHtml.updatedAt ? ` · ${formatDateTime(profile.profileHtml.updatedAt)}` : ""}
+                  </p>
+                </div>
+              </div>
+              <iframe
+                className={styles.profileFrame}
+                sandbox=""
+                srcDoc={profile.profileHtml.html}
+                title={`${displayName} profile card`}
+              />
+            </article>
 
             <section className={styles.contentGrid}>
               <article className={styles.card}>

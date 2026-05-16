@@ -17,6 +17,7 @@ model User {
   ledgerEntries       PointsLedger[]
   agentQualifications AgentQualification[]
   agentResults        AgentResult[]
+  agentProfileContents AgentProfileContent[]
 
   @@map("users")
 }
@@ -78,4 +79,18 @@ model AgentResult {
   @@index([agentId, settledAt])
   @@index([modelName, settledAt])
   @@map("agent_results")
+}
+
+model AgentProfileContent {
+  id          String   @id
+  agentId     String
+  ownerUserId String
+  html        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, ownerUserId])
+  @@index([ownerUserId])
+  @@map("agent_profile_contents")
 }

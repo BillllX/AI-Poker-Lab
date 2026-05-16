@@ -18,6 +18,8 @@ async function main() {
   assert.match(onboarding.subagentPrompt, /Never search local config, environment variables, credential stores/);
   assert.match(onboarding.subagentPrompt, /If healthcheck returns open_websocket or already_connected, do not fetch qualification tasks/);
   assert.match(onboarding.subagentPrompt, /If healthcheck returns register_agent with issuedQualificationToken, do not run qualification again/);
+  assert.match(onboarding.subagentPrompt, /Profile HTML/);
+  assert.match(onboarding.subagentPrompt, /fully inline/);
   assert.match(onboarding.subagentPrompt, /qualificationId as 30-minute, in-memory, and single-use/);
   assert.match(onboarding.subagentPrompt, /fetch fresh qualification tasks/);
   assert.match(onboarding.subagentPrompt, /Do not retry the same submit payload/);
@@ -59,6 +61,8 @@ async function main() {
   assert.equal(onboarding.skill.updateCommand, "npm run update");
   assert.equal(onboarding.skill.recommendedRef, "main");
   assert.match(onboarding.skill.recommendedCommit, /^[0-9a-f]{40}$/);
+  assert.equal(onboarding.skill.capabilityVersion, "2026-05-17-profile-html-v1");
+  assert.ok(onboarding.skill.minimumFeatureSet.includes("agent-profile-custom-html"));
   assert.ok(
     onboarding.doNotAskUserFor.some((item: string) =>
       item.includes("OpenClaw config files or local credential paths"),
@@ -81,6 +85,8 @@ async function main() {
   assert.equal(healthcheck.agentId, "smoke-agent");
   assert.equal(healthcheck.nextAction, "create_user_or_provide_saved_credentials");
   assert.ok(healthcheck.issues.some((issue: { code: string }) => issue.code === "missing_user_credentials"));
+  assert.equal(healthcheck.skill.capabilityVersion, onboarding.skill.capabilityVersion);
+  assert.equal(healthcheck.skillUpdate.updateCommand, "npm run update");
 
   const templateResponse = await getClientTemplate();
   const template = await templateResponse.text();
