@@ -15,6 +15,7 @@
 
 .nav,
 .hero,
+.performanceCard,
 .card {
   position: relative;
   z-index: 1;
@@ -40,6 +41,7 @@
 }
 
 .hero,
+.performanceCard,
 .card {
   background:
     radial-gradient(circle at 100% 0%, rgba(110, 231, 168, 0.09), transparent 16rem),
@@ -56,6 +58,14 @@
   padding: 26px;
 }
 
+.heroTopline {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
 .eyebrow {
   color: var(--accent);
   font-size: 12px;
@@ -63,6 +73,46 @@
   letter-spacing: 0.18em;
   margin: 0 0 12px;
   text-transform: uppercase;
+}
+
+.onlinePill,
+.offlinePill {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 7px;
+  padding: 8px 11px;
+}
+
+.onlinePill {
+  background: rgba(110, 231, 168, 0.12);
+  border: 1px solid rgba(110, 231, 168, 0.28);
+  color: var(--accent);
+}
+
+.offlinePill {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.onlinePill::before,
+.offlinePill::before {
+  border-radius: 999px;
+  content: "";
+  height: 8px;
+  width: 8px;
+}
+
+.onlinePill::before {
+  background: var(--accent);
+  box-shadow: 0 0 18px rgba(110, 231, 168, 0.72);
+}
+
+.offlinePill::before {
+  background: var(--muted);
 }
 
 .hero h1 {
@@ -74,7 +124,11 @@
 
 .subtitle,
 .muted,
+.loading,
+.refreshMeta,
 .statCard span,
+.performanceCard span,
+.performanceCard small,
 .profileMeta span,
 .shareBox p {
   color: var(--muted);
@@ -103,6 +157,12 @@
   padding: 7px 10px;
 }
 
+.refreshMeta {
+  font-size: 13px;
+  font-weight: 800;
+  margin: 16px 0 0;
+}
+
 .profileMeta {
   align-content: start;
   display: grid;
@@ -111,7 +171,8 @@
 }
 
 .profileMeta article,
-.statCard {
+.statCard,
+.performanceCard > div {
   background: rgba(255, 255, 255, 0.055);
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -121,7 +182,8 @@
 }
 
 .profileMeta strong,
-.statCard strong {
+.statCard strong,
+.performanceCard strong {
   color: var(--text);
 }
 
@@ -134,6 +196,31 @@
 .statCard strong {
   color: var(--accent);
   font-size: 30px;
+}
+
+.performanceCard {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 18px;
+}
+
+.performanceCard > div {
+  min-width: 0;
+}
+
+.performanceCard span,
+.performanceCard small {
+  font-weight: 800;
+}
+
+.performanceCard strong {
+  display: block;
+  font-size: clamp(28px, 5vw, 46px);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 8px 0 6px;
+  overflow-wrap: anywhere;
 }
 
 .contentGrid {
@@ -212,6 +299,11 @@
   color: #052014;
 }
 
+.copyButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .resultList {
   display: grid;
   gap: 10px;
@@ -259,7 +351,12 @@
 }
 
 .error {
+  background: rgba(251, 113, 133, 0.1);
+  border: 1px solid rgba(251, 113, 133, 0.22);
+  border-radius: 16px;
   color: var(--danger);
+  margin: 0;
+  padding: 14px;
 }
 
 @media (max-width: 860px) {
@@ -270,6 +367,7 @@
   .hero,
   .contentGrid,
   .resultRow,
+  .performanceCard,
   .grid {
     grid-template-columns: 1fr;
   }
@@ -280,5 +378,34 @@
 
   .profileMeta {
     min-width: 0;
+  }
+
+  .tableLink,
+  .nav {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 12px;
+  }
+
+  .hero h1 {
+    font-size: clamp(38px, 16vw, 58px);
+  }
+
+  .profileFrame {
+    min-height: 520px;
+  }
+
+  .resultRow {
+    align-items: start;
+  }
+
+  .resultRow em {
+    font-size: 22px;
   }
 }

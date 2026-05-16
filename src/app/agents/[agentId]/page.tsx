@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "../agent-profile.module.css";
 
@@ -104,6 +104,13 @@ const copy = {
     shareTitle: "分享文案",
     copyShare: "复制分享文案",
     copied: "已复制",
+    refreshing: "正在刷新",
+    lastUpdated: "最近更新",
+    winRate: "胜率",
+    performance: "牌手表现",
+    netProfit: "累计盈亏",
+    liveNow: "实时在线",
+    offline: "离线",
     nextStepTitle: "下一步",
     nextStep: "后续可以为这个 Agent 增加 Coach Card 和长期训练笔记，让它从单纯参赛变成可培养的 AI 牌手。",
     loading: "加载 Agent Profile...",
@@ -142,6 +149,13 @@ const copy = {
     shareTitle: "Share Copy",
     copyShare: "Copy share text",
     copied: "Copied",
+    refreshing: "Refreshing",
+    lastUpdated: "Last Updated",
+    winRate: "Win Rate",
+    performance: "Performance",
+    netProfit: "Net Profit",
+    liveNow: "Live Now",
+    offline: "Offline",
     nextStepTitle: "Next Step",
     nextStep: "Next, this Agent can get Coach Cards and long-term training notes, turning it from a bot into a trainable AI poker player.",
     loading: "Loading Agent Profile...",
@@ -156,45 +170,105 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
   const [profile, setProfile] = useState<AgentProfile>();
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string>();
+  const [profileFrameHeight, setProfileFrameHeight] = useState(520);
+  const loadingRef = useRef(false);
+  const profileFrameRef = useRef<HTMLIFrameElement>(null);
   const stats = profile?.stats;
   const history = profile?.historySummary;
   const displayName = profile?.identity?.ownerName ?? profile?.agent.name;
   const modelName = profile?.identity?.modelName ?? profile?.agent.modelName;
+  const totalHands = history?.handsPlayed ?? stats?.handsPlayed ?? 0;
+  const totalWins = history?.handsWon ?? stats?.handsWon ?? 0;
+  const winRate = totalHands > 0 ? Math.round((totalWins / totalHands) * 100) : 0;
+  const profitValue = history?.profit ?? stats?.profit ?? 0;
+  const isOnline = profile?.live?.online ?? false;
   const shareText = useMemo(() => {
     if (!profile) {
       return "";
     }
-    const hands = stats?.handsPlayed ?? 0;
-    const profit = formatSigned(stats?.profit ?? 0);
+    const hands = history?.handsPlayed ?? stats?.handsPlayed ?? 0;
+    const profit = formatSigned(history?.profit ?? stats?.profit ?? 0);
     return `我的 AI 牌手 ${displayName ?? profile.agent.name} 正在 Texas Poker Club 参赛：${hands} 手，盈亏 ${profit}，模型 ${modelName ?? "Unknown Model"}。Real fun, without real money.`;
-  }, [displayName, modelName, profile, stats]);
+  }, [displayName, history, modelName, profile, stats]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/profile`, { cache: "no-store" });
-      const payload = await response.json();
-      if (cancelled) {
+  const loadProfile = useCallback(
+    async ({ signal, silent = false }: { signal?: AbortSignal; silent?: boolean } = {}) => {
+      if (loadingRef.current) {
         return;
       }
-      if (!response.ok) {
-        setError(payload.error ?? t.notFound);
-        return;
+      loadingRef.current = true;
+      if (silent) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+        setError(undefined);
+        setProfile(undefined);
       }
-      setProfile(payload);
-      setError(undefined);
+
+      try {
+        const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/profile`, { cache: "no-store", signal });
+        const payload = await response.json();
+        if (signal?.aborted) {
+          return;
+        }
+        if (!response.ok) {
+          setError(payload.error ?? t.notFound);
+          setProfile(undefined);
+          return;
+        }
+        setProfile(payload);
+        setError(undefined);
+        setLastUpdatedAt(new Date().toISOString());
+      } catch (fetchError) {
+        if (signal?.aborted) {
+          return;
+        }
+        setError(fetchError instanceof Error ? fetchError.message : t.notFound);
+      } finally {
+        if (!signal?.aborted) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+        loadingRef.current = false;
+      }
+    },
+    [agentId, t.notFound],
+  );
+
+  const resizeProfileFrame = useCallback(() => {
+    const frame = profileFrameRef.current;
+    const frameDocument = frame?.contentDocument;
+    if (!frameDocument) {
+      return;
     }
 
-    void load();
-    const timer = setInterval(() => void load(), 5_000);
+    const nextHeight = Math.max(
+      460,
+      frameDocument.documentElement.scrollHeight,
+      frameDocument.body.scrollHeight,
+      frameDocument.documentElement.offsetHeight,
+      frameDocument.body.offsetHeight,
+    );
+    setProfileFrameHeight(nextHeight + 2);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void Promise.resolve().then(() => loadProfile({ signal: controller.signal }));
+    const timer = setInterval(() => void loadProfile({ signal: controller.signal, silent: true }), 5_000);
     return () => {
-      cancelled = true;
+      controller.abort();
       clearInterval(timer);
     };
-  }, [agentId, t.notFound]);
+  }, [loadProfile]);
 
   async function copyShare() {
-    await navigator.clipboard?.writeText(shareText);
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(shareText);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1_400);
   }
@@ -207,14 +281,19 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
           <Link href="/tables">{t.backLobby}</Link>
         </nav>
 
-        {!profile && !error && <p className={styles.muted}>{t.loading}</p>}
+        {loading && !profile && !error && <p className={styles.loading}>{t.loading}</p>}
         {error && <p className={styles.error}>{error}</p>}
 
         {profile && (
           <>
             <section className={styles.hero}>
               <div>
-                <p className={styles.eyebrow}>{t.eyebrow}</p>
+                <div className={styles.heroTopline}>
+                  <p className={styles.eyebrow}>{t.eyebrow}</p>
+                  <span className={isOnline ? styles.onlinePill : styles.offlinePill}>
+                    {isOnline ? t.liveNow : t.offline}
+                  </span>
+                </div>
                 <h1>{displayName}</h1>
                 <p className={styles.subtitle}>
                   {profile.identity?.agentId ?? profile.agent.id} · {profile.agent.kind === "virtual" ? "BOT" : "External Agent"}
@@ -224,6 +303,9 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
                     <span key={badge}>{badge}</span>
                   ))}
                 </div>
+                <p className={styles.refreshMeta}>
+                  {refreshing ? t.refreshing : `${t.lastUpdated}: ${formatDateTime(lastUpdatedAt)}`}
+                </p>
               </div>
               <div className={styles.profileMeta}>
                 <article>
@@ -249,11 +331,29 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
               <StatCard label={t.points} value={formatOptionalNumber(profile.identity?.pointsBalance)} />
               <StatCard label={t.frozen} value={formatOptionalNumber(profile.identity?.frozenPoints)} />
               <StatCard label={t.sessions} value={history?.sessions ?? 0} />
-              <StatCard label={t.hands} value={history?.handsPlayed ?? stats?.handsPlayed ?? 0} />
-              <StatCard label={t.wins} value={history?.handsWon ?? stats?.handsWon ?? 0} />
-              <StatCard label={t.profit} value={formatSigned(history?.profit ?? stats?.profit ?? 0)} />
+              <StatCard label={t.hands} value={totalHands} />
+              <StatCard label={t.wins} value={totalWins} />
+              <StatCard label={t.winRate} value={`${winRate}%`} />
+              <StatCard label={t.profit} value={formatSigned(profitValue)} tone={profitValue < 0 ? "negative" : "positive"} />
               <StatCard label={t.bestProfit} value={formatSigned(history?.bestProfit ?? 0)} />
-              <StatCard label={t.stack} value={stats?.stack ?? "-"} />
+            </section>
+
+            <section className={styles.performanceCard}>
+              <div>
+                <span>{t.performance}</span>
+                <strong>{totalHands > 0 ? `${totalWins}/${totalHands}` : "-"}</strong>
+                <small>{t.wins} / {t.hands}</small>
+              </div>
+              <div>
+                <span>{t.netProfit}</span>
+                <strong className={profitValue < 0 ? styles.negative : styles.positive}>{formatSigned(profitValue)}</strong>
+                <small>{t.bestProfit}: {formatSigned(history?.bestProfit ?? 0)}</small>
+              </div>
+              <div>
+                <span>{t.stack}</span>
+                <strong>{stats?.stack ?? "-"}</strong>
+                <small>{stats?.status ?? profile.live?.assignmentStatus ?? profile.agent.assignmentStatus}</small>
+              </div>
             </section>
 
             <article className={styles.card}>
@@ -267,9 +367,16 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
                 </div>
               </div>
               <iframe
+                ref={profileFrameRef}
                 className={styles.profileFrame}
-                sandbox=""
+                onLoad={() => {
+                  resizeProfileFrame();
+                  window.setTimeout(resizeProfileFrame, 80);
+                }}
+                sandbox="allow-same-origin"
+                scrolling="no"
                 srcDoc={profile.profileHtml.html}
+                style={{ height: profileFrameHeight }}
                 title={`${displayName} profile card`}
               />
             </article>
@@ -293,7 +400,7 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
                 <h2>{t.shareTitle}</h2>
                 <div className={styles.shareBox}>
                   <p className={styles.shareText}>{shareText}</p>
-                  <button className={styles.copyButton} type="button" onClick={() => void copyShare()}>
+                  <button className={styles.copyButton} type="button" disabled={!shareText} onClick={() => void copyShare()}>
                     {copied ? t.copied : t.copyShare}
                   </button>
                 </div>
@@ -320,12 +427,8 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
                           {result.agentId} · {result.modelName ?? "Unknown Model"} · {result.settledReason}
                         </small>
                       </div>
-                      <span>
-                        {t.hands} {result.handsPlayed} · {t.wins} {result.handsWon}
-                      </span>
-                      <span>
-                        {t.buyIn} {result.buyIn} · {t.finalStack} {result.finalStack}
-                      </span>
+                      <span>{t.hands} {result.handsPlayed} · {t.wins} {result.handsWon}</span>
+                      <span>{t.buyIn} {result.buyIn} · {t.finalStack} {result.finalStack}</span>
                       <em className={result.profit < 0 ? styles.negative : styles.positive}>{formatSigned(result.profit)}</em>
                     </article>
                   ))
@@ -346,11 +449,11 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+function StatCard({ label, tone, value }: { label: string; tone?: "positive" | "negative"; value: string | number }) {
   return (
     <article className={styles.statCard}>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong className={tone === "negative" ? styles.negative : undefined}>{value}</strong>
     </article>
   );
 }
