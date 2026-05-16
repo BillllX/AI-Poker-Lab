@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useLanguage, type Language } from "@/lib/client/i18n";
 import type { Card, GameSnapshot, PublicPlayerState } from "@/lib/poker/types";
@@ -407,7 +408,9 @@ export default function TablePage() {
         <div className={styles.roster}>
           {agents.map((agent) => (
             <div className={styles.rosterItem} key={agent.id}>
-              <strong>{agent.name}</strong>
+              <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
+                {agent.name}
+              </Link>
               <span>{agent.id}</span>
               <small>{agent.modelName}</small>
               <small>{agent.kind === "virtual" ? `${t.virtualAgent} · ${agent.strategy ?? "virtual"}` : agent.ownerUserId ? `Owner ${agent.ownerUserId}` : t.ownerMissing}</small>
@@ -484,10 +487,10 @@ function SeatCard({
       style={{ left: `${left}%`, top: `${top}%` }}
     >
       <div className={styles.seatHeader}>
-        <strong>
+        <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
           {player.name}
           {player.kind === "virtual" && <small>{text.virtualAgent}</small>}
-        </strong>
+        </Link>
         <div className={styles.seatBadges}>
           <span>{positionLabel(seatIndex, dealerIndex, totalSeats)}</span>
           {current && <span className={styles.thinkingBadge}>{text.thinking}</span>}

@@ -207,7 +207,9 @@ export default function TablesPage() {
               <div className={styles.rosterRow} key={agent.id}>
                 <span>#{index + 1}</span>
                 <div>
-                  <strong>{agent.name}</strong>
+                  <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
+                    {agent.name}
+                  </Link>
                   <small>{agent.id}</small>
                 </div>
                 <em>{agent.kind === "virtual" ? t.virtualAgent : agent.assignmentStatus}</em>
@@ -230,10 +232,10 @@ export default function TablesPage() {
               <div className={styles.rosterRow} key={agent.id}>
                 <span>{agent.tableId ? t.tableLabel : "-"}</span>
                 <div>
-                  <strong>
+                  <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
                     {agent.name}
                     {agent.kind === "virtual" && <b>{t.virtualAgent}</b>}
-                  </strong>
+                  </Link>
                   <small>{agent.kind === "virtual" ? agent.strategy ?? "virtual" : agent.tableId ?? t.unseated}</small>
                 </div>
                 <em>{agent.assignmentStatus}</em>

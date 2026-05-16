@@ -125,10 +125,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                   style={seatStyle(index, 6)}
                 >
                   <div className={styles.seatHeader}>
-                    <strong>
+                    <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
                       {player.name}
                       {player.kind === "virtual" && <small>{t.virtualAgent}</small>}
-                    </strong>
+                    </Link>
                     <div className={styles.seatBadges}>
                       <span>{positionLabel(index, state?.dealerIndex ?? 0, players.length)}</span>
                       <span>{player.status}</span>
@@ -169,7 +169,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                 return (
                   <article className={styles.chipRow} key={player.id}>
                     <div>
-                      <strong>{player.name}</strong>
+                      <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
+                        {player.name}
+                      </Link>
                       <small>{player.kind === "virtual" ? t.virtualAgent : player.status}</small>
                     </div>
                     <span>{player.stack}</span>

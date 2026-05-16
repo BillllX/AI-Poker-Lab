@@ -327,14 +327,21 @@
   justify-content: space-between;
 }
 
-.seatHeader strong {
+.playerProfileLink {
   align-items: center;
+  color: var(--text);
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  font-weight: 900;
+  text-decoration: none;
 }
 
-.seatHeader strong small {
+.playerProfileLink:hover {
+  color: var(--accent);
+}
+
+.playerProfileLink small {
   background: rgba(250, 204, 21, 0.16);
   border: 1px solid rgba(250, 204, 21, 0.28);
   border-radius: 999px;
@@ -462,7 +469,7 @@
   padding: 12px;
 }
 
-.chipRow strong,
+.chipRow .playerProfileLink,
 .chipRow small {
   display: block;
 }
@@ -741,7 +748,7 @@
     text-align: center;
   }
 
-  .seatHeader strong {
+  .playerProfileLink {
     font-size: 11px;
     justify-content: center;
     max-width: 96px;

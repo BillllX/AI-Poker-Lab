@@ -32,6 +32,15 @@ type ModelStat = {
   agents: number;
 };
 
+type AgentSummary = {
+  id: string;
+  name: string;
+  ownerUserId?: string;
+  modelName?: string;
+  tableId?: string;
+  assignmentStatus: string;
+};
+
 const agentAccessPrompt = `Install and use this skill:
 https://github.com/BillllX/texas-poker-agent-skill
 Read SKILL.md first, then follow README.md.
@@ -233,6 +242,7 @@ export default function Home() {
   const [leaderboard, setLeaderboard] = useState<ClubUser[]>([]);
   const [dailyProfitLeaderboard, setDailyProfitLeaderboard] = useState<ClubUser[]>([]);
   const [modelLeaderboard, setModelLeaderboard] = useState<ModelStat[]>([]);
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [registrationError, setRegistrationError] = useState<string>();
   const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
   const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.en.agentAccessPrompt);
@@ -254,6 +264,7 @@ export default function Home() {
     const tablesPayload = await tablesResponse.json();
     const users = Array.isArray(payload.users) ? (payload.users as ClubUser[]) : [];
     const modelStats = Array.isArray(tablesPayload.modelStats) ? (tablesPayload.modelStats as ModelStat[]) : [];
+    const currentAgents = Array.isArray(tablesPayload.agents) ? (tablesPayload.agents as AgentSummary[]) : [];
     setLeaderboard([...users].sort((left, right) => right.pointsBalance - left.pointsBalance).slice(0, 8));
     setDailyProfitLeaderboard(
       [...users]
@@ -262,6 +273,7 @@ export default function Home() {
         .slice(0, 8),
     );
     setModelLeaderboard([...modelStats].sort((left, right) => right.handsPlayed - left.handsPlayed).slice(0, 8));
+    setAgents(currentAgents);
   }
 
   async function checkUserName() {
@@ -498,15 +510,18 @@ export default function Home() {
           </header>
           <div className={styles.leaderboardList}>
             {leaderboard.length > 0 ? (
-              leaderboard.map((user, index) => (
-                <article className={styles.leaderboardRow} key={user.id}>
-                  <span className={styles.rank}>#{index + 1}</span>
-                  <div>
-                    <strong>{user.name}</strong>
-                  </div>
-                  <span className={styles.points}>{user.pointsBalance.toLocaleString()} pts</span>
-                </article>
-              ))
+              leaderboard.map((user, index) => {
+                const agent = agentForUser(agents, user.id);
+                return (
+                  <article className={styles.leaderboardRow} key={user.id}>
+                    <span className={styles.rank}>#{index + 1}</span>
+                    <div>
+                      <LeaderboardName href={agent ? `/agents/${encodeURIComponent(agent.id)}` : undefined} label={user.name} />
+                    </div>
+                    <span className={styles.points}>{user.pointsBalance.toLocaleString()} pts</span>
+                  </article>
+                );
+              })
             ) : (
               <p className={styles.emptyLeaderboard}>{t.emptyLeaderboard}</p>
             )}
@@ -519,17 +534,20 @@ export default function Home() {
           </header>
           <div className={styles.leaderboardList}>
             {dailyProfitLeaderboard.length > 0 ? (
-              dailyProfitLeaderboard.map((user, index) => (
-                <article className={styles.leaderboardRow} key={user.id}>
-                  <span className={styles.rank}>#{index + 1}</span>
-                  <div>
-                    <strong>{user.name}</strong>
-                  </div>
-                  <span className={`${styles.points} ${user.dailyProfitToday < 0 ? styles.negativePoints : ""}`}>
-                  {formatSigned(user.dailyProfitToday)} pts
-                  </span>
-                </article>
-              ))
+              dailyProfitLeaderboard.map((user, index) => {
+                const agent = agentForUser(agents, user.id);
+                return (
+                  <article className={styles.leaderboardRow} key={user.id}>
+                    <span className={styles.rank}>#{index + 1}</span>
+                    <div>
+                      <LeaderboardName href={agent ? `/agents/${encodeURIComponent(agent.id)}` : undefined} label={user.name} />
+                    </div>
+                    <span className={`${styles.points} ${user.dailyProfitToday < 0 ? styles.negativePoints : ""}`}>
+                      {formatSigned(user.dailyProfitToday)} pts
+                    </span>
+                  </article>
+                );
+              })
             ) : (
               <p className={styles.emptyLeaderboard}>{t.emptyLeaderboard}</p>
             )}
@@ -542,17 +560,20 @@ export default function Home() {
           </header>
           <div className={styles.leaderboardList}>
             {modelLeaderboard.length > 0 ? (
-              modelLeaderboard.map((model, index) => (
-                <article className={styles.leaderboardRow} key={model.modelName}>
-                  <span className={styles.rank}>#{index + 1}</span>
-                  <div>
-                    <strong>{model.modelName}</strong>
-                  </div>
-                  <span className={styles.points}>
-                    {model.handsPlayed.toLocaleString()} {t.hands}
-                  </span>
-                </article>
-              ))
+              modelLeaderboard.map((model, index) => {
+                const agent = agentForModel(agents, model.modelName);
+                return (
+                  <article className={styles.leaderboardRow} key={model.modelName}>
+                    <span className={styles.rank}>#{index + 1}</span>
+                    <div>
+                      <LeaderboardName href={agent ? `/agents/${encodeURIComponent(agent.id)}` : undefined} label={model.modelName} />
+                    </div>
+                    <span className={styles.points}>
+                      {model.handsPlayed.toLocaleString()} {t.hands}
+                    </span>
+                  </article>
+                );
+              })
             ) : (
               <p className={styles.emptyLeaderboard}>{t.emptyModelLeaderboard}</p>
             )}
@@ -675,6 +696,30 @@ export default function Home() {
 
 function formatSigned(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+}
+
+function LeaderboardName({ href, label }: { href?: string; label: string }) {
+  if (!href) {
+    return <strong>{label}</strong>;
+  }
+
+  return (
+    <Link className={styles.leaderboardLink} href={href}>
+      {label}
+    </Link>
+  );
+}
+
+function agentForUser(agents: AgentSummary[], ownerUserId: string) {
+  return agents.find((agent) => agent.ownerUserId === ownerUserId && agent.assignmentStatus === "playing")
+    ?? agents.find((agent) => agent.ownerUserId === ownerUserId && agent.tableId)
+    ?? agents.find((agent) => agent.ownerUserId === ownerUserId);
+}
+
+function agentForModel(agents: AgentSummary[], modelName: string) {
+  return agents.find((agent) => agent.modelName === modelName && agent.assignmentStatus === "playing")
+    ?? agents.find((agent) => agent.modelName === modelName && agent.tableId)
+    ?? agents.find((agent) => agent.modelName === modelName);
 }
 
 async function copyText(value: string) {

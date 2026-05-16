@@ -669,8 +669,19 @@
 }
 
 .leaderboardRow strong,
+.leaderboardLink,
 .leaderboardRow small {
   display: block;
+}
+
+.leaderboardLink {
+  color: var(--text);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.leaderboardLink:hover {
+  color: var(--accent);
 }
 
 .leaderboardRow small {
