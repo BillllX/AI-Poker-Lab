@@ -1,0 +1,208 @@
+.page {
+  background:
+    radial-gradient(circle at 18% 10%, rgba(110, 231, 168, 0.14), transparent 28rem),
+    radial-gradient(circle at 84% 14%, rgba(250, 204, 21, 0.1), transparent 24rem);
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.shell {
+  display: grid;
+  gap: 18px;
+  margin: 0 auto;
+  max-width: 1180px;
+}
+
+.nav,
+.hero,
+.card {
+  position: relative;
+  z-index: 1;
+}
+
+.nav {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.nav a,
+.copyButton {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.hero,
+.card {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(110, 231, 168, 0.09), transparent 16rem),
+    linear-gradient(180deg, var(--panel-strong), var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.22);
+}
+
+.hero {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 26px;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  font-size: clamp(42px, 7vw, 82px);
+  letter-spacing: -0.07em;
+  line-height: 0.95;
+  margin: 0;
+}
+
+.subtitle,
+.muted,
+.statCard span,
+.profileMeta span,
+.shareBox p {
+  color: var(--muted);
+}
+
+.subtitle {
+  line-height: 1.65;
+  margin: 14px 0 0;
+  max-width: 680px;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.badges span {
+  background: rgba(110, 231, 168, 0.1);
+  border: 1px solid rgba(110, 231, 168, 0.22);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
+.profileMeta {
+  align-content: start;
+  display: grid;
+  gap: 10px;
+  min-width: 260px;
+}
+
+.profileMeta article,
+.statCard {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.profileMeta strong,
+.statCard strong {
+  color: var(--text);
+}
+
+.grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.statCard strong {
+  color: var(--accent);
+  font-size: 30px;
+}
+
+.contentGrid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.7fr);
+}
+
+.card {
+  padding: 20px;
+}
+
+.card h2 {
+  margin: 0 0 14px;
+}
+
+.tableLink {
+  align-items: center;
+  background: rgba(110, 231, 168, 0.12);
+  border: 1px solid rgba(110, 231, 168, 0.26);
+  border-radius: 18px;
+  color: var(--accent);
+  display: flex;
+  font-weight: 900;
+  justify-content: space-between;
+  padding: 16px;
+  text-decoration: none;
+}
+
+.shareBox {
+  display: grid;
+  gap: 12px;
+}
+
+.shareText {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text);
+  line-height: 1.55;
+  margin: 0;
+  padding: 14px;
+}
+
+.copyButton {
+  background: var(--accent);
+  color: #052014;
+}
+
+.error {
+  color: var(--danger);
+}
+
+@media (max-width: 860px) {
+  .page {
+    padding: 16px;
+  }
+
+  .hero,
+  .contentGrid,
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    padding: 20px;
+  }
+
+  .profileMeta {
+    min-width: 0;
+  }
+}

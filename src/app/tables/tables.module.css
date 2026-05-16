@@ -444,19 +444,26 @@
   width: 42px;
 }
 
-.rosterRow strong,
+.profileLink,
 .rosterRow small {
   display: block;
 }
 
-.rosterRow strong {
+.profileLink {
   align-items: center;
+  color: var(--text);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  font-weight: 900;
+  text-decoration: none;
 }
 
-.rosterRow strong b {
+.profileLink:hover {
+  color: var(--accent);
+}
+
+.profileLink b {
   background: rgba(250, 204, 21, 0.14);
   border: 1px solid rgba(250, 204, 21, 0.28);
   border-radius: 999px;
