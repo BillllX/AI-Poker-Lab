@@ -16,6 +16,7 @@ model User {
   createdAt           DateTime             @default(now())
   ledgerEntries       PointsLedger[]
   agentQualifications AgentQualification[]
+  agentResults        AgentResult[]
 
   @@map("users")
 }
@@ -54,4 +55,27 @@ model PointsLedger {
   @@index([userId, dayKey])
   @@index([dayKey])
   @@map("points_ledger")
+}
+
+model AgentResult {
+  id            String   @id
+  agentId       String
+  ownerUserId   String
+  modelName     String?
+  tableId       String
+  gameSessionId String?
+  buyIn         Int
+  finalStack    Int
+  profit        Int
+  handsPlayed   Int
+  handsWon      Int
+  settledReason String
+  settledAt     DateTime @default(now())
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId, settledAt])
+  @@index([agentId, settledAt])
+  @@index([modelName, settledAt])
+  @@map("agent_results")
 }

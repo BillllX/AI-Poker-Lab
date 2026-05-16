@@ -22,8 +22,10 @@ import {
   type GameSettlement,
 } from "./userRegistry";
 import { logger } from "./logger";
+import { prisma } from "./prisma";
 
 type ActiveBuyIn = GameBuyIn;
+type AgentSettlementReason = "busted" | "left" | "session-ended";
 type SimulatorDependencies = {
   clearAgents: () => void;
   clearPendingDecisions: (reason?: string, agentId?: string) => void;
@@ -170,7 +172,7 @@ export class GameSimulator {
     this.deps.clearPendingDecisions(`Agent ${agentId} ${reason === "busted" ? "was busted" : "left the table"}.`, agentId);
     const player = this.engine.snapshot().players.find((item) => item.id === agentId);
     const settlement = this.engine.settlePlayer(agentId, reason) ?? (player ? { finalStack: Math.max(0, player.stack), player } : undefined);
-    await this.settleAgentBuyIn(agentId, settlement?.finalStack ?? 0);
+    await this.settleAgentBuyIn(agentId, settlement?.finalStack ?? 0, reason);
     if (this.inFlight && player && player.totalCommitted > 0) {
       this.playersPendingRemoval.add(agentId);
     } else {
@@ -353,13 +355,15 @@ export class GameSimulator {
     await this.settlePromise;
   }
 
-  private async settleAgentBuyIn(agentId: string, finalStack: number) {
+  private async settleAgentBuyIn(agentId: string, finalStack: number, reason: AgentSettlementReason) {
     const buyIn = this.activeBuyIns.find((item) => item.agentId === agentId);
     if (!buyIn) {
       return;
     }
 
-    await this.deps.settleGameBuyIns([{ ...buyIn, finalStack: Math.max(0, finalStack) }]);
+    const settlement = { ...buyIn, finalStack: Math.max(0, finalStack) };
+    await this.deps.settleGameBuyIns([settlement]);
+    await this.recordAgentResults([settlement], reason);
     this.activeBuyIns = this.activeBuyIns.filter((item) => item.agentId !== agentId);
     logger.info("table.buy_in_settled", { tableId: this.tableId, agentId, finalStack: Math.max(0, finalStack) });
     if (this.activeBuyIns.length === 0) {
@@ -392,6 +396,7 @@ export class GameSimulator {
         finalStack: Math.max(0, players.find((player) => player.id === buyIn.agentId)?.stack ?? 0),
       }));
     await this.deps.settleGameBuyIns(settlements);
+    await this.recordAgentResults(settlements, "session-ended");
     logger.info("table.session_settled", {
       tableId: this.tableId,
       gameSessionId: this.gameSessionId,
@@ -399,6 +404,37 @@ export class GameSimulator {
     });
     this.activeBuyIns = [];
     this.gameSessionId = undefined;
+  }
+
+  private async recordAgentResults(settlements: GameSettlement[], reason: AgentSettlementReason) {
+    const resultRows = settlements
+      .filter((settlement) => settlement.ownerUserId)
+      .map((settlement) => {
+        const stat = this.engine.statsForPlayer(settlement.agentId);
+        const agent = this.deps.listAgents().find((item) => item.id === settlement.agentId);
+        const finalStack = Math.max(0, settlement.finalStack);
+        return {
+          id: `agent_result_${randomUUID().replace(/-/g, "")}`,
+          agentId: settlement.agentId,
+          ownerUserId: settlement.ownerUserId,
+          modelName: stat?.modelName ?? agent?.modelName,
+          tableId: this.tableId,
+          gameSessionId: settlement.gameSessionId,
+          buyIn: settlement.amount,
+          finalStack,
+          profit: finalStack - settlement.amount,
+          handsPlayed: stat?.handsPlayed ?? 0,
+          handsWon: stat?.handsWon ?? 0,
+          settledReason: reason,
+        };
+      });
+
+    if (resultRows.length === 0) {
+      return;
+    }
+
+    await prisma.agentResult.createMany({ data: resultRows });
+    logger.info("agent_results.recorded", { tableId: this.tableId, count: resultRows.length, reason });
   }
 
   private stopTimer() {

@@ -150,6 +150,25 @@
   margin: 0 0 14px;
 }
 
+.cardHeader {
+  align-items: start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.cardHeader h2 {
+  margin-bottom: 6px;
+}
+
+.subheading {
+  color: var(--muted);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  margin: 18px 0 10px;
+  text-transform: uppercase;
+}
+
 .tableLink {
   align-items: center;
   background: rgba(110, 231, 168, 0.12);
@@ -183,6 +202,52 @@
   color: #052014;
 }
 
+.resultList {
+  display: grid;
+  gap: 10px;
+}
+
+.resultRow {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(160px, auto) minmax(210px, auto) auto;
+  padding: 14px;
+}
+
+.resultRow strong,
+.resultRow small {
+  display: block;
+}
+
+.resultRow small {
+  color: var(--muted);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.resultRow span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.resultRow em {
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.positive {
+  color: var(--accent);
+}
+
+.negative {
+  color: var(--danger);
+}
+
 .error {
   color: var(--danger);
 }
@@ -194,6 +259,7 @@
 
   .hero,
   .contentGrid,
+  .resultRow,
   .grid {
     grid-template-columns: 1fr;
   }
