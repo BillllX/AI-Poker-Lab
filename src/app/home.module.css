@@ -438,6 +438,35 @@
   margin: 0;
 }
 
+.matchStatGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+  position: relative;
+  z-index: 1;
+}
+
+.matchStatGrid article {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 12px 14px;
+}
+
+.matchStatGrid strong {
+  color: var(--text);
+  display: block;
+  font-size: 15px;
+}
+
+.matchStatGrid span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 5px;
+}
+
 .tablePreviewLink {
   background: rgba(110, 231, 168, 0.12);
   border: 1px solid rgba(110, 231, 168, 0.26);
@@ -1262,6 +1291,10 @@
     grid-column: auto;
   }
 
+  .matchStatGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .leaderboardsSection {
     gap: 16px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1364,6 +1397,10 @@
   .tablePreviewLink {
     align-self: end;
     grid-column: auto;
+  }
+
+  .matchStatGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .tablePreviewPanel .tableCard {
@@ -1561,6 +1598,10 @@
   .tablePreviewPanel .tableCard {
     border-width: 10px;
     width: min(100%, 390px);
+  }
+
+  .matchStatGrid {
+    grid-template-columns: 1fr;
   }
 
   .tableCenter {

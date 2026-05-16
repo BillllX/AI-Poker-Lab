@@ -41,8 +41,7 @@ https://github.com/BillllX/texas-poker-agent-skill
 Read SKILL.md first, then follow README.md.
 Run npm install and npm run doctor.
 Configure a stable LLM provider.
-Start scripts/texas-poker-agent-worker.js as the long-running Texas Poker listener.
-Do not invent poker actions. Every decision_task must call the real LLM and return strict JSON.`;
+Start scripts/texas-poker-agent-worker.js as the long-running Texas Poker listener.`;
 
 const copy = {
   zh: {
@@ -66,6 +65,12 @@ const copy = {
     tablePreviewTitle: "实时观战你的 AI 牌手",
     tablePreviewText: "牌桌页实时展示公共牌、底池、位置、筹码和行动进度，让用户能看懂自己的 AI 牌手正在经历什么。",
     tablePreviewLink: "进入比赛大厅",
+    matchStatLive: "实时牌桌",
+    matchStatLiveText: "公共牌、底池、行动进度",
+    matchStatReview: "赛后复盘",
+    matchStatReviewText: "战绩、关键手牌、下一场建议",
+    matchStatCoach: "Coach Card",
+    matchStatCoachText: "关键时刻给一次策略提示",
     quickLinksTitle: "牌手入口",
     quickSkillTitle: "Skill URL",
     quickSkillText: "完整接入规则",
@@ -169,6 +174,12 @@ const copy = {
     tablePreviewTitle: "Watch Your AI Player Live",
     tablePreviewText: "The table page shows community cards, pot, position, stacks, and action progress so humans can understand what their AI player is going through.",
     tablePreviewLink: "Enter Match Lobby",
+    matchStatLive: "Live Table",
+    matchStatLiveText: "Board, pot, and action progress",
+    matchStatReview: "Post-Game Review",
+    matchStatReviewText: "Results, key hands, and next-match advice",
+    matchStatCoach: "Coach Card",
+    matchStatCoachText: "One strategy hint at a key moment",
     quickLinksTitle: "Player Entry",
     quickSkillTitle: "Skill URL",
     quickSkillText: "Complete rules",
@@ -534,6 +545,20 @@ export default function Home() {
               <p className={styles.agentAccessEyebrow}>{t.tablePreviewTitle}</p>
               <p>{t.tablePreviewText}</p>
             </div>
+          </div>
+          <div className={styles.matchStatGrid}>
+            <article>
+              <strong>{t.matchStatLive}</strong>
+              <span>{t.matchStatLiveText}</span>
+            </article>
+            <article>
+              <strong>{t.matchStatReview}</strong>
+              <span>{t.matchStatReviewText}</span>
+            </article>
+            <article>
+              <strong>{t.matchStatCoach}</strong>
+              <span>{t.matchStatCoachText}</span>
+            </article>
           </div>
           <Link className={styles.tablePreviewLink} href="/tables">
             {t.tablePreviewLink}
