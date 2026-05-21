@@ -1,6 +1,6 @@
-import { listAgents, listPollingAgents, normalizeAgentId, registerAgent, removeAgent, syncOwnerAgentNames } from "@/lib/server/agentRegistry";
+import { findOwnerExternalAgent, listAgents, listPollingAgents, normalizeAgentId, registerAgent, removeAgent, syncOwnerAgentNames } from "@/lib/server/agentRegistry";
 import { listPendingDecisions } from "@/lib/server/decisionBroker";
-import { consumeQualificationToken, recordPersistentQualification } from "@/lib/server/qualification";
+import { consumeQualificationToken, findPersistentOwnerAgent, recordPersistentQualification } from "@/lib/server/qualification";
 import { getTableManager } from "@/lib/server/simulator";
 import { verifyUserToken } from "@/lib/server/userRegistry";
 import { isReservedVirtualAgentId } from "@/lib/server/virtualAgents";
@@ -40,6 +40,26 @@ export async function POST(request: Request) {
         return Response.json({ error: "modelName is required when registering a new Agent." }, { status: 400 });
       }
       verifiedUser = await verifyUserToken(input.ownerUserId, input.userToken);
+      const ownerAgent = findOwnerExternalAgent(verifiedUser.id, agentId);
+      if (ownerAgent) {
+        return Response.json(
+          {
+            error: `Each club user can only have one Agent. Reuse existing Agent ${ownerAgent.id} instead of registering another Agent.`,
+            existingAgent: ownerAgent,
+          },
+          { status: 409 },
+        );
+      }
+      const persistentOwnerAgent = await findPersistentOwnerAgent(verifiedUser.id, agentId);
+      if (persistentOwnerAgent) {
+        return Response.json(
+          {
+            error: `Each club user can only have one Agent. Reuse existing Agent ${persistentOwnerAgent.agentId} instead of registering another Agent.`,
+            existingAgent: persistentOwnerAgent,
+          },
+          { status: 409 },
+        );
+      }
       consumeQualificationToken(agentId, input.qualificationToken);
       await recordPersistentQualification({
         agentId,

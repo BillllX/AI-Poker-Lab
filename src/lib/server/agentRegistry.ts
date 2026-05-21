@@ -42,6 +42,15 @@ export function listAgents() {
   return globalForAgents.__texasPokerAgents ?? [];
 }
 
+export function findOwnerExternalAgent(ownerUserId: string, exceptAgentId?: string) {
+  return listAgents().find(
+    (agent) =>
+      agent.kind === "external" &&
+      agent.ownerUserId === ownerUserId &&
+      (!exceptAgentId || agent.id !== exceptAgentId),
+  );
+}
+
 export function listPollingAgents(now = new Date()) {
   return listAgents().filter((agent) => isAgentPolling(agent, now));
 }
@@ -86,7 +95,7 @@ export function syncOwnerAgentNames(ownerUserId: string, ownerName: string) {
   const ownerAgents = listAgents()
     .filter((agent) => agent.kind === "external" && agent.ownerUserId === ownerUserId)
     .sort((left, right) => left.registeredAt.localeCompare(right.registeredAt) || left.id.localeCompare(right.id));
-  const nameByAgentId = new Map(ownerAgents.map((agent, index) => [agent.id, index === 0 ? displayName : `${displayName} ${index + 1}`]));
+  const nameByAgentId = new Map(ownerAgents.map((agent) => [agent.id, displayName]));
 
   if (nameByAgentId.size === 0) {
     return [];

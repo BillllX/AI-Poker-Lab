@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { logger } from "./logger";
@@ -15,16 +15,24 @@ export type ClubUser = {
 
 export type CreateUserInput = {
   name?: string;
-  email?: string;
+  password?: string;
+};
+
+export type LoginUserInput = {
+  name?: string;
+  password?: string;
 };
 
 export type UpdateUserNameInput = {
   ownerUserId?: string;
   userToken?: string;
   name?: string;
+  authenticatedOwnerUserId?: string;
 };
 
 const initialPointsBalance = 10_000;
+export const userSessionCookieName = "texas_poker_user_session";
+const userSessionTtlSeconds = 60 * 60 * 24 * 30;
 
 export async function listUsers() {
   const [users, dailyProfits] = await Promise.all([prisma.user.findMany({ orderBy: { createdAt: "asc" } }), dailyProfitStatsForToday()]);
@@ -49,25 +57,25 @@ export async function getUser(userId: string) {
 
 export async function createUser(input: CreateUserInput) {
   const name = normalizeName(input.name ?? "");
-  const email = normalizeEmail(input.email ?? "");
+  const passwordHash = hashPassword(normalizePassword(input.password));
 
   if (!(await isUserNameAvailable(name))) {
     throw new Error("User name is already taken.");
   }
 
-  const userToken = `utok_${randomBytes(24).toString("base64url")}`;
+  const userToken = issueUserToken();
   const storedUser = await prisma.user.create({
     data: {
       id: `user_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
       name,
-      email,
+      passwordHash,
       pointsBalance: initialPointsBalance,
       frozenPoints: 0,
       tokenHash: hashToken(userToken),
     },
   }).catch((error: unknown) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new Error("Email is already registered.");
+      throw new Error("User name is already taken.");
     }
     throw error;
   });
@@ -76,6 +84,31 @@ export async function createUser(input: CreateUserInput) {
 
   return {
     user: publicUser(storedUser, 0, 0),
+    userToken,
+  };
+}
+
+export async function loginUser(input: LoginUserInput) {
+  const name = normalizeName(input.name ?? "");
+  const password = normalizePassword(input.password);
+  const user = await prisma.user.findUnique({ where: { name } });
+
+  if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
+    throw new Error("User name or password is incorrect.");
+  }
+
+  const userToken = issueUserToken();
+  const updated = await prisma.user.update({
+    data: { tokenHash: hashToken(userToken) },
+    where: { id: user.id },
+  });
+  const dailyProfits = await dailyProfitStatsForToday([updated.id]);
+  const profit = dailyProfits.get(updated.id);
+
+  logger.info("user.logged_in", { ownerUserId: updated.id, name: updated.name });
+
+  return {
+    user: publicUser(updated, profit?.amount ?? 0, profit?.settlements ?? 0),
     userToken,
   };
 }
@@ -95,21 +128,73 @@ export async function verifyUserToken(userId: string, token: unknown) {
   return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
 }
 
+export async function getUserFromSessionCookie(cookieHeader: string | null) {
+  const ownerUserId = verifyUserSessionCookie(cookieHeader);
+  if (!ownerUserId) {
+    return undefined;
+  }
+
+  return getUser(ownerUserId);
+}
+
+export function createUserSessionSetCookie(ownerUserId: string) {
+  const expiresAt = Math.floor(Date.now() / 1000) + userSessionTtlSeconds;
+  const payload = Buffer.from(JSON.stringify({ ownerUserId, expiresAt })).toString("base64url");
+  const signature = signSessionPayload(payload);
+  return serializeCookie(userSessionCookieName, `${payload}.${signature}`, userSessionTtlSeconds);
+}
+
+export function clearUserSessionSetCookie() {
+  return serializeCookie(userSessionCookieName, "", 0);
+}
+
+export function verifyUserSessionCookie(cookieHeader: string | null) {
+  const sessionCookie = parseCookie(cookieHeader ?? "")[userSessionCookieName];
+  if (!sessionCookie) {
+    return undefined;
+  }
+
+  const [payload, signature] = sessionCookie.split(".");
+  if (!payload || !signature || signSessionPayload(payload) !== signature) {
+    return undefined;
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { ownerUserId?: unknown; expiresAt?: unknown };
+    if (typeof decoded.ownerUserId !== "string" || typeof decoded.expiresAt !== "number") {
+      return undefined;
+    }
+    if (decoded.expiresAt <= Math.floor(Date.now() / 1000)) {
+      return undefined;
+    }
+    return decoded.ownerUserId;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function updateUserName(input: UpdateUserNameInput) {
-  const ownerUserId = typeof input.ownerUserId === "string" ? input.ownerUserId.trim() : "";
+  const authenticatedOwnerUserId = typeof input.authenticatedOwnerUserId === "string" ? input.authenticatedOwnerUserId.trim() : "";
+  const requestedOwnerUserId = typeof input.ownerUserId === "string" ? input.ownerUserId.trim() : "";
+  const ownerUserId = authenticatedOwnerUserId || requestedOwnerUserId;
   const userToken = input.userToken;
   const name = normalizeName(input.name ?? "");
 
   if (!ownerUserId) {
     throw new Error("ownerUserId is required.");
   }
+  if (authenticatedOwnerUserId && requestedOwnerUserId && authenticatedOwnerUserId !== requestedOwnerUserId) {
+    throw new Error("Cannot update another user's name from this session.");
+  }
 
   const user = await findStoredUser(ownerUserId);
-  if (typeof userToken !== "string" || !userToken.trim()) {
-    throw new Error("userToken is required.");
-  }
-  if (user.tokenHash !== hashToken(userToken)) {
-    throw new Error("userToken is invalid for this ownerUserId.");
+  if (!authenticatedOwnerUserId) {
+    if (typeof userToken !== "string" || !userToken.trim()) {
+      throw new Error("userToken is required.");
+    }
+    if (user.tokenHash !== hashToken(userToken)) {
+      throw new Error("userToken is invalid for this ownerUserId.");
+    }
   }
 
   const updated = await prisma.user.update({
@@ -339,6 +424,80 @@ function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function issueUserToken() {
+  return `utok_${randomBytes(24).toString("base64url")}`;
+}
+
+function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("base64url");
+  const hash = pbkdf2Sync(password, salt, 120_000, 32, "sha256").toString("base64url");
+  return `pbkdf2_sha256$120000$${salt}$${hash}`;
+}
+
+function verifyPassword(password: string, storedHash: string) {
+  const [algorithm, iterationsText, salt, expectedHash] = storedHash.split("$");
+  const iterations = Number(iterationsText);
+  if (algorithm !== "pbkdf2_sha256" || !Number.isInteger(iterations) || !salt || !expectedHash) {
+    return false;
+  }
+
+  const actual = pbkdf2Sync(password, salt, iterations, 32, "sha256");
+  const expected = Buffer.from(expectedHash, "base64url");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function normalizePassword(value: unknown) {
+  if (typeof value !== "string") {
+    throw new Error("Password is required.");
+  }
+  const password = value.trim();
+  if (password.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+  if (password.length > 128) {
+    throw new Error("Password must be at most 128 characters.");
+  }
+  return password;
+}
+
+function signSessionPayload(payload: string) {
+  return createHmac("sha256", sessionSecret()).update(payload).digest("base64url");
+}
+
+function sessionSecret() {
+  return process.env.TEXAS_POKER_USER_SESSION_SECRET ?? process.env.AUTH_SECRET ?? "texas-poker-local-session-secret";
+}
+
+function serializeCookie(name: string, value: string, maxAgeSeconds: number) {
+  const parts = [
+    `${name}=${value}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${maxAgeSeconds}`,
+  ];
+  if (process.env.TEXAS_POKER_SECURE_COOKIES === "1") {
+    parts.push("Secure");
+  }
+  return parts.join("; ");
+}
+
+function parseCookie(cookieHeader: string) {
+  return Object.fromEntries(
+    cookieHeader
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const separator = part.indexOf("=");
+        if (separator === -1) {
+          return [part, ""];
+        }
+        return [part.slice(0, separator), part.slice(separator + 1)];
+      }),
+  );
+}
+
 function normalizeName(value: string) {
   const name = value.trim().slice(0, 64);
 
@@ -347,18 +506,4 @@ function normalizeName(value: string) {
   }
 
   return name;
-}
-
-function normalizeEmail(value: string) {
-  const email = value.trim().toLowerCase().slice(0, 254);
-
-  if (!email) {
-    throw new Error("Email is required.");
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error("Email format is invalid.");
-  }
-
-  return email;
 }

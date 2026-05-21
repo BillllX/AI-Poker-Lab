@@ -1,6 +1,6 @@
 import { consumeCaptcha } from "@/lib/server/captcha";
 import { syncOwnerAgentNames } from "@/lib/server/agentRegistry";
-import { createUser, listUsers, updateUserName } from "@/lib/server/userRegistry";
+import { createUser, createUserSessionSetCookie, listUsers, updateUserName, verifyUserSessionCookie } from "@/lib/server/userRegistry";
 
 export async function GET() {
   return Response.json({ users: await listUsers() });
@@ -10,7 +10,8 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json();
     consumeCaptcha(payload.captchaId, payload.captchaAnswer);
-    return Response.json(await createUser(payload));
+    const result = await createUser(payload);
+    return Response.json(result, { headers: { "Set-Cookie": createUserSessionSetCookie(result.user.id) } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to create user." }, { status: 400 });
   }
@@ -19,7 +20,10 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const payload = await request.json();
-    const user = await updateUserName(payload);
+    const user = await updateUserName({
+      ...payload,
+      authenticatedOwnerUserId: verifyUserSessionCookie(request.headers.get("cookie")),
+    });
     const syncedAgents = syncOwnerAgentNames(user.id, user.name);
     return Response.json({ user, syncedAgents });
   } catch (error) {

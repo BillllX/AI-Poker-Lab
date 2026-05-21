@@ -13,6 +13,7 @@
     "test:hand-analysis": "tsx scripts/hand-analysis-smoke.ts",
     "test:lifecycle": "tsx scripts/lifecycle-smoke.ts",
     "test:onboarding": "tsx scripts/onboarding-smoke.ts",
+    "test:user-auth": "tsx scripts/user-auth-smoke.ts",
     "users:migrate-json": "tsx scripts/migrate-users-json.ts"
   },
   "dependencies": {

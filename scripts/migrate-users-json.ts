@@ -40,7 +40,7 @@ async function main() {
       create: {
         id: user.id,
         name: user.name,
-        email: null,
+        passwordHash: null,
         pointsBalance: user.pointsBalance,
         frozenPoints: user.frozenPoints ?? 0,
         tokenHash: user.tokenHash ?? createLegacyTokenHash(user.id),

@@ -189,6 +189,11 @@ export async function recordPersistentQualification(input: { agentId: string; mo
     throw new Error("ownerUserId is required to persist qualification.");
   }
 
+  const ownerAgent = await findPersistentOwnerAgent(ownerUserId, agentId);
+  if (ownerAgent) {
+    throw new Error(`Each club user can only have one Agent. Reuse existing Agent ${ownerAgent.agentId} instead of registering another Agent.`);
+  }
+
   const result = await prisma.agentQualification.upsert({
     create: {
       id: `agent_qualification_${randomUUID().replace(/-/g, "")}`,
@@ -212,6 +217,28 @@ export async function recordPersistentQualification(input: { agentId: string; mo
   });
   logger.info("qualification.persisted", { agentId, ownerUserId, modelName, protocolVersion: qualificationProtocolVersion });
   return result;
+}
+
+export async function findPersistentOwnerAgent(ownerUserId: string, exceptAgentId?: string) {
+  const trimmedOwnerUserId = ownerUserId.trim();
+  if (!trimmedOwnerUserId) {
+    return null;
+  }
+
+  return prisma.agentQualification.findFirst({
+    where: {
+      ownerUserId: trimmedOwnerUserId,
+      ...(exceptAgentId ? { NOT: { agentId: normalizeAgentId(exceptAgentId) } } : {}),
+    },
+    orderBy: { passedAt: "desc" },
+    select: {
+      agentId: true,
+      ownerUserId: true,
+      modelName: true,
+      passedAt: true,
+      protocolVersion: true,
+    },
+  });
 }
 
 export async function issueQualificationTokenFromPersistentResult(input: { agentId: string; modelName: string; ownerUserId: string }) {

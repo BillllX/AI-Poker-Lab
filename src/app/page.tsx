@@ -103,22 +103,29 @@ const copy = {
     showcaseText: "每个 AI 牌手都有用户名、模型、风格、战绩和牌手卡。用户回来看的不是一段程序，而是一名正在成长的选手。",
     modalEyebrow: "Club Membership",
     modalTitle: "注册俱乐部用户",
-    modalText: "注册成功后会获得 `ownerUserId` 和一次性 `userToken`，请让 Agent 保存到 memory。",
+    modalText: "用用户名和密码登录俱乐部；登录后可复制 Agent 所需的 ownerUserId/userToken。",
     closeModal: "关闭注册浮窗",
     userName: "用户名",
     userNamePlaceholder: "例如 Bill",
-    email: "Email",
-    emailPlaceholder: "用于接收每日 Token 奖励",
+    password: "密码",
+    passwordPlaceholder: "至少 8 位",
+    loginTitle: "已有账号登录",
+    loginText: "登录后会刷新一枚新的 Agent userToken，请同步给你的 Agent memory。",
+    loginUser: "登录",
+    loginFailed: "登录失败。",
+    loggedInAs: "当前登录",
+    logout: "退出登录",
+    logoutFailed: "退出登录失败。",
     check: "检查",
     captcha: "验证码",
     loading: "加载中...",
     answer: "答案",
     refresh: "刷新",
-    savedTitle: "注册成功，请立即保存：",
+    savedTitle: "请保存到 Agent memory：",
     initialPoints: "初始可用积分",
     nextStep: "下一步：让 Agent 读取 skill 文档，并把 ownerUserId/userToken 保存到 memory。",
     renameTitle: "修改用户名",
-    renameText: "使用 ownerUserId 和 userToken 修改俱乐部用户名；该用户的在线 Agent 会自动同步为同名，多 Agent 自动加编号。",
+    renameText: "使用 ownerUserId 和 userToken 修改俱乐部用户名；该用户唯一的在线 Agent 会自动同步为同名。",
     ownerUserId: "ownerUserId",
     userToken: "userToken",
     newUserName: "新用户名",
@@ -212,22 +219,29 @@ const copy = {
     showcaseText: "Each AI player has a club name, model, style, match history, and player card. People return to follow a growing competitor, not a script.",
     modalEyebrow: "Club Membership",
     modalTitle: "Register Club User",
-    modalText: "Registration returns an `ownerUserId` and one-time `userToken`. Ask your Agent to save them to memory.",
+    modalText: "Log in with user name and password. After login, copy ownerUserId/userToken for your Agent.",
     closeModal: "Close registration dialog",
     userName: "User name",
     userNamePlaceholder: "e.g. Bill",
-    email: "Email",
-    emailPlaceholder: "Used to receive daily Token rewards",
+    password: "Password",
+    passwordPlaceholder: "At least 8 characters",
+    loginTitle: "Log In",
+    loginText: "Login rotates a fresh Agent userToken. Update your Agent memory with the latest token.",
+    loginUser: "Log In",
+    loginFailed: "Login failed.",
+    loggedInAs: "Logged in as",
+    logout: "Log Out",
+    logoutFailed: "Failed to log out.",
     check: "Check",
     captcha: "Captcha",
     loading: "Loading...",
     answer: "Answer",
     refresh: "Refresh",
-    savedTitle: "Registration successful. Save this now:",
+    savedTitle: "Save this to Agent memory:",
     initialPoints: "Initial available points",
     nextStep: "Next: ask your Agent to read the skill guide and save ownerUserId/userToken to memory.",
     renameTitle: "Change User Name",
-    renameText: "Use ownerUserId and userToken to rename the club user. Online Agents owned by this user will be renamed automatically, with numbers added for multiple Agents.",
+    renameText: "Use ownerUserId and userToken to rename the club user. The user's single online Agent will be renamed automatically.",
     ownerUserId: "ownerUserId",
     userToken: "userToken",
     newUserName: "New user name",
@@ -268,11 +282,14 @@ export default function Home() {
   const { language } = useLanguage();
   const t = copy[language];
   const [userName, setUserName] = useState("");
-  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginName, setLoginName] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [captcha, setCaptcha] = useState<CaptchaState>();
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [nameStatus, setNameStatus] = useState<string>();
   const [createdUser, setCreatedUser] = useState<CreatedUser>();
+  const [authUser, setAuthUser] = useState<ClubUser>();
   const [renameOwnerUserId, setRenameOwnerUserId] = useState("");
   const [renameUserToken, setRenameUserToken] = useState("");
   const [renameUserName, setRenameUserName] = useState("");
@@ -345,7 +362,7 @@ export default function Home() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: userName,
-          email,
+          password,
           captchaId: captcha?.captchaId,
           captchaAnswer,
         }),
@@ -359,11 +376,70 @@ export default function Home() {
       }
 
       setCreatedUser(payload);
+      setAuthUser(payload.user);
       setNameStatus(undefined);
-      setEmail("");
+      setPassword("");
       setCaptchaAnswer("");
       await refreshLeaderboard();
       await refreshCaptcha();
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  async function loginUser(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy("login-user");
+    setRegistrationError(undefined);
+    setCreatedUser(undefined);
+
+    try {
+      const response = await fetch("/api/users/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: loginName,
+          password: loginPassword,
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setRegistrationError(payload.error ?? t.loginFailed);
+        return;
+      }
+
+      setCreatedUser(payload);
+      setAuthUser(payload.user);
+      setLoginPassword("");
+      await refreshLeaderboard();
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  async function refreshMe() {
+    const response = await fetch("/api/users/me", { cache: "no-store" });
+    if (!response.ok) {
+      setAuthUser(undefined);
+      return;
+    }
+    const payload = await response.json();
+    setAuthUser(payload.user ?? undefined);
+  }
+
+  async function logoutUser() {
+    setBusy("logout-user");
+    setRegistrationError(undefined);
+    try {
+      const response = await fetch("/api/users/logout", { method: "POST" });
+      if (!response.ok) {
+        const payload = await response.json();
+        setRegistrationError(payload.error ?? t.logoutFailed);
+        return;
+      }
+      setAuthUser(undefined);
+      setCreatedUser(undefined);
     } finally {
       setBusy(undefined);
     }
@@ -380,8 +456,8 @@ export default function Home() {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ownerUserId: renameOwnerUserId,
-          userToken: renameUserToken,
+          ownerUserId: authUser?.id ?? renameOwnerUserId,
+          userToken: authUser ? undefined : renameUserToken,
           name: renameUserName,
         }),
       });
@@ -393,6 +469,7 @@ export default function Home() {
       }
 
       setRenameStatus(t.renameSuccess);
+      setAuthUser(payload.user);
       setRenameUserName("");
       await refreshLeaderboard();
     } finally {
@@ -421,6 +498,7 @@ export default function Home() {
   useEffect(() => {
     const initial = setTimeout(() => {
       void refreshCaptcha();
+      void refreshMe();
       void refreshLeaderboard();
     }, 0);
 
@@ -471,6 +549,9 @@ export default function Home() {
         <div className={styles.navLinks}>
           <Link href="/tables">{t.navTable}</Link>
           <a href="/api/agents/skill">{t.navSkill}</a>
+          <button type="button" onClick={openRegistrationModal}>
+            {authUser ? `${t.loggedInAs} ${authUser.name}` : t.registerUser}
+          </button>
           <a href="mailto:billfighting@gmail.com">{t.navContact}</a>
         </div>
       </nav>
@@ -674,6 +755,10 @@ export default function Home() {
             </div>
 
             <form className={styles.registrationCard} onSubmit={registerUser}>
+              <div>
+                <h3>{t.registerUser}</h3>
+                <p>{t.modalText}</p>
+              </div>
               <label>
                 {t.userName}
                 <div className={styles.inlineField}>
@@ -696,16 +781,16 @@ export default function Home() {
               {nameStatus && <p className={styles.formHint}>{nameStatus}</p>}
 
               <label>
-                {t.email}
+                {t.password}
                 <input
                   onChange={(event) => {
-                    setEmail(event.target.value);
+                    setPassword(event.target.value);
                     setCreatedUser(undefined);
                   }}
-                  placeholder={t.emailPlaceholder}
+                  placeholder={t.passwordPlaceholder}
                   required
-                  type="email"
-                  value={email}
+                  type="password"
+                  value={password}
                 />
               </label>
 
@@ -744,30 +829,81 @@ export default function Home() {
               )}
             </form>
 
+            <form className={styles.registrationCard} onSubmit={loginUser}>
+              <div>
+                <h3>{t.loginTitle}</h3>
+                <p>{t.loginText}</p>
+              </div>
+              {authUser && (
+                <div className={styles.tokenBox}>
+                  <strong>
+                    {t.loggedInAs}: {authUser.name}
+                  </strong>
+                  <code>ownerUserId: {authUser.id}</code>
+                  <span>
+                    {t.initialPoints}: {authUser.pointsBalance}
+                  </span>
+                  <button disabled={busy === "logout-user"} type="button" onClick={() => void logoutUser()}>
+                    {t.logout}
+                  </button>
+                </div>
+              )}
+              <label>
+                {t.userName}
+                <input
+                  onChange={(event) => setLoginName(event.target.value)}
+                  placeholder={t.userNamePlaceholder}
+                  required
+                  value={loginName}
+                />
+              </label>
+              <label>
+                {t.password}
+                <input
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  placeholder={t.passwordPlaceholder}
+                  required
+                  type="password"
+                  value={loginPassword}
+                />
+              </label>
+              <button disabled={busy === "login-user"} type="submit">
+                {t.loginUser}
+              </button>
+            </form>
+
             <form className={styles.registrationCard} onSubmit={renameUser}>
               <div>
                 <h3>{t.renameTitle}</h3>
                 <p>{t.renameText}</p>
               </div>
-              <label>
-                {t.ownerUserId}
-                <input
-                  onChange={(event) => setRenameOwnerUserId(event.target.value)}
-                  placeholder="user_..."
-                  required
-                  value={renameOwnerUserId}
-                />
-              </label>
-              <label>
-                {t.userToken}
-                <input
-                  onChange={(event) => setRenameUserToken(event.target.value)}
-                  placeholder="utok_..."
-                  required
-                  type="password"
-                  value={renameUserToken}
-                />
-              </label>
+              {authUser ? (
+                <p className={styles.formHint}>
+                  {t.loggedInAs}: {authUser.name}
+                </p>
+              ) : (
+                <>
+                  <label>
+                    {t.ownerUserId}
+                    <input
+                      onChange={(event) => setRenameOwnerUserId(event.target.value)}
+                      placeholder="user_..."
+                      required
+                      value={renameOwnerUserId}
+                    />
+                  </label>
+                  <label>
+                    {t.userToken}
+                    <input
+                      onChange={(event) => setRenameUserToken(event.target.value)}
+                      placeholder="utok_..."
+                      required
+                      type="password"
+                      value={renameUserToken}
+                    />
+                  </label>
+                </>
+              )}
               <label>
                 {t.newUserName}
                 <input

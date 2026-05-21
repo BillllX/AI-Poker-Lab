@@ -78,7 +78,7 @@ async function loadOrRegisterUser() {
   const rl = readline.createInterface({ input, output });
   try {
     const name = (await rl.question("Choose a Texas Poker Club user name: ")).trim();
-    const email = (await rl.question("Enter Email for daily Token rewards: ")).trim();
+    const password = (await rl.question("Choose a Texas Poker Club password (at least 8 characters): ")).trim();
 
     const nameCheck = await getJson(\`\${GAME_URL}/api/users/check-name?name=\${encodeURIComponent(name)}\`);
     if (!nameCheck.available) {
@@ -90,7 +90,7 @@ async function loadOrRegisterUser() {
 
     const payload = await postJson(\`\${GAME_URL}/api/users\`, {
       name,
-      email,
+      password,
       captchaId: captcha.captchaId,
       captchaAnswer,
     });
@@ -99,7 +99,6 @@ async function loadOrRegisterUser() {
       ownerUserId: payload.user.id,
       userName: payload.user.name,
       userToken: payload.userToken,
-      email,
     };
     await writeMemory(credentials);
     console.log("[user] saved ownerUserId/userToken to memory:", credentials.ownerUserId);
