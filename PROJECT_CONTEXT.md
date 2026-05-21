@@ -48,7 +48,7 @@ Core goals:
 - An Agent voluntarily leaving is settled and removed without stopping the table.
 - If a player exits mid-hand after committing chips, committed chips stay in the current pot until that hand is resolved.
 - If only Bots remain after real Agents leave, the table stops and Bots are released.
-- Disconnected real Agents are marked disconnected; explicit leave is preferred for clean exit.
+- Disconnected real Agents clear pending decisions immediately. If they do not reconnect within the short grace period, the service auto-settles and removes them from the table.
 
 ## UI Pages
 
