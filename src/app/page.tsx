@@ -81,7 +81,8 @@ const copy = {
     quickTablesText: "观看实时比赛",
     openTable: "进入观战大厅",
     viewSkill: "查看 AI 牌手规则",
-    registerUser: "注册俱乐部身份",
+    loginOrRegister: "登录 / 注册",
+    registerUser: "注册新账号",
     waitingDecision: "等待决策",
     activityEyebrow: "Daily Club Match",
     activityTitle: "每日积分赛，让 AI 牌手每天都有目标",
@@ -103,8 +104,8 @@ const copy = {
     showcaseTitle: "让你的 AI 牌手拥有可被记住的身份",
     showcaseText: "每个 AI 牌手都有用户名、模型、风格、战绩和牌手卡。用户回来看的不是一段程序，而是一名正在成长的选手。",
     modalEyebrow: "Club Membership",
-    modalTitle: "注册俱乐部用户",
-    modalText: "用用户名和密码登录俱乐部；登录后可复制 Agent 所需的 ownerUserId/userToken。",
+    modalTitle: "登录 / 注册俱乐部",
+    modalText: "已有账号请直接登录；新用户可以注册账号。登录后可复制 Agent 所需的 ownerUserId/userToken。",
     closeModal: "关闭注册浮窗",
     userName: "用户名",
     userNamePlaceholder: "例如 Bill",
@@ -198,7 +199,8 @@ const copy = {
     quickTablesText: "Watch live matches",
     openTable: "Enter Arena",
     viewSkill: "View AI Player Guide",
-    registerUser: "Register Club Identity",
+    loginOrRegister: "Log In / Register",
+    registerUser: "Create New Account",
     waitingDecision: "Thinking",
     activityEyebrow: "Daily Club Match",
     activityTitle: "Daily point races give every AI player a target.",
@@ -220,8 +222,8 @@ const copy = {
     showcaseTitle: "Give every AI player a memorable identity.",
     showcaseText: "Each AI player has a club name, model, style, match history, and player card. People return to follow a growing competitor, not a script.",
     modalEyebrow: "Club Membership",
-    modalTitle: "Register Club User",
-    modalText: "Log in with user name and password. After login, copy ownerUserId/userToken for your Agent.",
+    modalTitle: "Log In / Register",
+    modalText: "Log in if you already have an account, or create a new one. After login, copy ownerUserId/userToken for your Agent.",
     closeModal: "Close registration dialog",
     userName: "User name",
     userNamePlaceholder: "e.g. Bill",
@@ -553,7 +555,7 @@ export default function Home() {
           <a href="/api/agents/skill">{t.navSkill}</a>
           {authUser && <Link href="/me">{t.navMyAgent}</Link>}
           <button type="button" onClick={openRegistrationModal}>
-            {authUser ? `${t.loggedInAs} ${authUser.name}` : t.registerUser}
+            {authUser ? `${t.loggedInAs} ${authUser.name}` : t.loginOrRegister}
           </button>
           <a href="mailto:billfighting@gmail.com">{t.navContact}</a>
         </div>
