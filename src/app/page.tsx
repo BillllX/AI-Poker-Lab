@@ -303,6 +303,7 @@ export default function Home() {
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [registrationError, setRegistrationError] = useState<string>();
   const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
+  const [authTab, setAuthTab] = useState<"login" | "register">("login");
   const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.en.agentAccessPrompt);
   const [agentPromptCopied, setAgentPromptCopied] = useState(false);
   const [busy, setBusy] = useState<string>();
@@ -483,10 +484,20 @@ export default function Home() {
 
   function openRegistrationModal() {
     setRegistrationModalOpen(true);
+    setAuthTab("login");
     setRegistrationError(undefined);
     setNameStatus(undefined);
     setRenameStatus(undefined);
     if (!captcha) {
+      void refreshCaptcha();
+    }
+  }
+
+  function switchAuthTab(tab: "login" | "register") {
+    setAuthTab(tab);
+    setRegistrationError(undefined);
+    setNameStatus(undefined);
+    if (tab === "register" && !captcha) {
       void refreshCaptcha();
     }
   }
@@ -759,123 +770,149 @@ export default function Home() {
               </button>
             </div>
 
-            <form className={styles.registrationCard} onSubmit={registerUser}>
-              <div>
-                <h3>{t.registerUser}</h3>
-                <p>{t.modalText}</p>
-              </div>
-              <label>
-                {t.userName}
-                <div className={styles.inlineField}>
-                  <input
-                    onBlur={() => void checkUserName()}
-                    onChange={(event) => {
-                      setUserName(event.target.value);
-                      setNameStatus(undefined);
-                      setCreatedUser(undefined);
-                    }}
-                    placeholder={t.userNamePlaceholder}
-                    required
-                    value={userName}
-                  />
-                  <button disabled={busy === "check-name"} type="button" onClick={() => void checkUserName()}>
-                    {t.check}
-                  </button>
-                </div>
-              </label>
-              {nameStatus && <p className={styles.formHint}>{nameStatus}</p>}
-
-              <label>
-                {t.password}
-                <input
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    setCreatedUser(undefined);
-                  }}
-                  placeholder={t.passwordPlaceholder}
-                  required
-                  type="password"
-                  value={password}
-                />
-              </label>
-
-              <label>
-                {t.captcha}
-                <div className={styles.inlineField}>
-                  <span className={styles.captcha}>{captcha?.challenge ?? t.loading}</span>
-                  <input
-                    onChange={(event) => setCaptchaAnswer(event.target.value)}
-                    placeholder={t.answer}
-                    required
-                    value={captchaAnswer}
-                  />
-                  <button type="button" onClick={() => void refreshCaptcha()}>
-                    {t.refresh}
-                  </button>
-                </div>
-              </label>
-
-              {registrationError && <p className={styles.formError}>{registrationError}</p>}
-
-              <button disabled={busy === "register-user"} type="submit">
+            <div className={styles.authTabs} role="tablist" aria-label={t.modalTitle}>
+              <button
+                aria-selected={authTab === "login"}
+                className={authTab === "login" ? styles.activeAuthTab : ""}
+                onClick={() => switchAuthTab("login")}
+                role="tab"
+                type="button"
+              >
+                {t.loginTitle}
+              </button>
+              <button
+                aria-selected={authTab === "register"}
+                className={authTab === "register" ? styles.activeAuthTab : ""}
+                onClick={() => switchAuthTab("register")}
+                role="tab"
+                type="button"
+              >
                 {t.registerUser}
               </button>
+            </div>
 
-              {createdUser && (
-                <div className={styles.tokenBox}>
-                  <strong>{t.savedTitle}</strong>
-                  <code>ownerUserId: {createdUser.user.id}</code>
-                  <code>userToken: {createdUser.userToken}</code>
-                  <span>
-                    {t.initialPoints}: {createdUser.user.pointsBalance}
-                  </span>
-                  <p>{t.nextStep}</p>
+            {authTab === "login" && (
+              <form className={styles.registrationCard} onSubmit={loginUser}>
+                <div>
+                  <h3>{t.loginTitle}</h3>
+                  <p>{t.loginText}</p>
                 </div>
-              )}
-            </form>
+                {authUser && (
+                  <div className={styles.tokenBox}>
+                    <strong>
+                      {t.loggedInAs}: {authUser.name}
+                    </strong>
+                    <code>ownerUserId: {authUser.id}</code>
+                    <span>
+                      {t.initialPoints}: {authUser.pointsBalance}
+                    </span>
+                    <button disabled={busy === "logout-user"} type="button" onClick={() => void logoutUser()}>
+                      {t.logout}
+                    </button>
+                  </div>
+                )}
+                <label>
+                  {t.userName}
+                  <input
+                    onChange={(event) => setLoginName(event.target.value)}
+                    placeholder={t.userNamePlaceholder}
+                    required
+                    value={loginName}
+                  />
+                </label>
+                <label>
+                  {t.password}
+                  <input
+                    onChange={(event) => setLoginPassword(event.target.value)}
+                    placeholder={t.passwordPlaceholder}
+                    required
+                    type="password"
+                    value={loginPassword}
+                  />
+                </label>
+                {registrationError && <p className={styles.formError}>{registrationError}</p>}
+                <button disabled={busy === "login-user"} type="submit">
+                  {t.loginUser}
+                </button>
+              </form>
+            )}
 
-            <form className={styles.registrationCard} onSubmit={loginUser}>
-              <div>
-                <h3>{t.loginTitle}</h3>
-                <p>{t.loginText}</p>
-              </div>
-              {authUser && (
-                <div className={styles.tokenBox}>
-                  <strong>
-                    {t.loggedInAs}: {authUser.name}
-                  </strong>
-                  <code>ownerUserId: {authUser.id}</code>
-                  <span>
-                    {t.initialPoints}: {authUser.pointsBalance}
-                  </span>
-                  <button disabled={busy === "logout-user"} type="button" onClick={() => void logoutUser()}>
-                    {t.logout}
-                  </button>
+            {authTab === "register" && (
+              <form className={styles.registrationCard} onSubmit={registerUser}>
+                <div>
+                  <h3>{t.registerUser}</h3>
+                  <p>{t.modalText}</p>
                 </div>
-              )}
-              <label>
-                {t.userName}
-                <input
-                  onChange={(event) => setLoginName(event.target.value)}
-                  placeholder={t.userNamePlaceholder}
-                  required
-                  value={loginName}
-                />
-              </label>
-              <label>
-                {t.password}
-                <input
-                  onChange={(event) => setLoginPassword(event.target.value)}
-                  placeholder={t.passwordPlaceholder}
-                  required
-                  type="password"
-                  value={loginPassword}
-                />
-              </label>
-              <button disabled={busy === "login-user"} type="submit">
-                {t.loginUser}
-              </button>
-            </form>
+                <label>
+                  {t.userName}
+                  <div className={styles.inlineField}>
+                    <input
+                      onBlur={() => void checkUserName()}
+                      onChange={(event) => {
+                        setUserName(event.target.value);
+                        setNameStatus(undefined);
+                        setCreatedUser(undefined);
+                      }}
+                      placeholder={t.userNamePlaceholder}
+                      required
+                      value={userName}
+                    />
+                    <button disabled={busy === "check-name"} type="button" onClick={() => void checkUserName()}>
+                      {t.check}
+                    </button>
+                  </div>
+                </label>
+                {nameStatus && <p className={styles.formHint}>{nameStatus}</p>}
+
+                <label>
+                  {t.password}
+                  <input
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setCreatedUser(undefined);
+                    }}
+                    placeholder={t.passwordPlaceholder}
+                    required
+                    type="password"
+                    value={password}
+                  />
+                </label>
+
+                <label>
+                  {t.captcha}
+                  <div className={styles.inlineField}>
+                    <span className={styles.captcha}>{captcha?.challenge ?? t.loading}</span>
+                    <input
+                      onChange={(event) => setCaptchaAnswer(event.target.value)}
+                      placeholder={t.answer}
+                      required
+                      value={captchaAnswer}
+                    />
+                    <button type="button" onClick={() => void refreshCaptcha()}>
+                      {t.refresh}
+                    </button>
+                  </div>
+                </label>
+
+                {registrationError && <p className={styles.formError}>{registrationError}</p>}
+
+                <button disabled={busy === "register-user"} type="submit">
+                  {t.registerUser}
+                </button>
+
+                {createdUser && (
+                  <div className={styles.tokenBox}>
+                    <strong>{t.savedTitle}</strong>
+                    <code>ownerUserId: {createdUser.user.id}</code>
+                    <code>userToken: {createdUser.userToken}</code>
+                    <span>
+                      {t.initialPoints}: {createdUser.user.pointsBalance}
+                    </span>
+                    <p>{t.nextStep}</p>
+                  </div>
+                )}
+              </form>
+            )}
 
             <form className={styles.registrationCard} onSubmit={renameUser}>
               <div>
