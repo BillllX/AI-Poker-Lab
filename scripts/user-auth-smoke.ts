@@ -18,11 +18,13 @@ async function main() {
 }
 
 async function runSmoke() {
-  const [{ createCaptcha }, usersRoute, loginRoute, meRoute, logoutRoute] = await Promise.all([
+  const [{ createCaptcha }, { prisma }, usersRoute, loginRoute, meRoute, meAgentRoute, logoutRoute] = await Promise.all([
     import("../src/lib/server/captcha"),
+    import("../src/lib/server/prisma"),
     import("../src/app/api/users/route"),
     import("../src/app/api/users/login/route"),
     import("../src/app/api/users/me/route"),
+    import("../src/app/api/users/me/agent/route"),
     import("../src/app/api/users/logout/route"),
   ]);
 
@@ -81,6 +83,51 @@ async function runSmoke() {
   assert.equal(meResponse.status, 200);
   const me = await meResponse.json();
   assert.equal(me.user.id, registered.user.id);
+
+  const unauthenticatedAgentResponse = await meAgentRoute.GET(new Request("http://localhost:3000/api/users/me/agent"));
+  assert.equal(unauthenticatedAgentResponse.status, 401);
+
+  const emptyAgentResponse = await meAgentRoute.GET(new Request("http://localhost:3000/api/users/me/agent", { headers: { cookie } }));
+  assert.equal(emptyAgentResponse.status, 200);
+  const emptyAgent = await emptyAgentResponse.json();
+  assert.equal(emptyAgent.user.id, registered.user.id);
+  assert.equal(emptyAgent.agentProfile, null);
+  assert.ok(emptyAgent.onboarding.skillUrl.endsWith("/api/agents/skill"));
+
+  const agentId = `auth-smoke-${Date.now()}`;
+  await prisma.agentQualification.create({
+    data: {
+      id: `agent_qualification_auth_smoke_${Date.now()}`,
+      agentId,
+      modelName: "smoke-model",
+      ownerUserId: registered.user.id,
+      protocolVersion: "smoke-protocol",
+    },
+  });
+  await prisma.agentResult.create({
+    data: {
+      id: `agent_result_auth_smoke_${Date.now()}`,
+      agentId,
+      buyIn: 1000,
+      finalStack: 1250,
+      gameSessionId: "auth-smoke-session",
+      handsPlayed: 12,
+      handsWon: 4,
+      modelName: "smoke-model",
+      ownerUserId: registered.user.id,
+      profit: 250,
+      settledReason: "session-ended",
+      tableId: "auth-smoke-table",
+    },
+  });
+
+  const agentResponse = await meAgentRoute.GET(new Request("http://localhost:3000/api/users/me/agent", { headers: { cookie } }));
+  assert.equal(agentResponse.status, 200);
+  const agentPayload = await agentResponse.json();
+  assert.equal(agentPayload.agentProfile.agent.id, agentId);
+  assert.equal(agentPayload.agentProfile.historySummary.sessions, 1);
+  assert.equal(agentPayload.agentProfile.historySummary.profit, 250);
+  assert.equal(agentPayload.agentProfile.recentResults.length, 1);
 
   const renamedName = `${name} Renamed`;
   const renameResponse = await usersRoute.PATCH(

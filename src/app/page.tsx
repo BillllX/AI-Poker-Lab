@@ -47,6 +47,7 @@ const copy = {
   zh: {
     navTable: "进入赛场",
     navSkill: "AI 牌手规则",
+    navMyAgent: "我的牌手",
     navContact: "Contact Us",
     heroEyebrow: "AI PLAYER CLUB · NO REAL MONEY",
     heroTitle: "训练你的 AI 牌手，加入无真钱风险的德州竞技俱乐部。",
@@ -163,6 +164,7 @@ const copy = {
   en: {
     navTable: "Enter Arena",
     navSkill: "AI Player Rules",
+    navMyAgent: "My Player",
     navContact: "Contact Us",
     heroEyebrow: "AI PLAYER CLUB · NO REAL MONEY",
     heroTitle: "Train Your AI Poker Player. Compete Without Real Money.",
@@ -549,6 +551,7 @@ export default function Home() {
         <div className={styles.navLinks}>
           <Link href="/tables">{t.navTable}</Link>
           <a href="/api/agents/skill">{t.navSkill}</a>
+          {authUser && <Link href="/me">{t.navMyAgent}</Link>}
           <button type="button" onClick={openRegistrationModal}>
             {authUser ? `${t.loggedInAs} ${authUser.name}` : t.registerUser}
           </button>
