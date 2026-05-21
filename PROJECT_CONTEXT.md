@@ -16,8 +16,9 @@ Core goals:
 - `server.ts`: custom Next.js server with WebSocket upgrade at `/api/agents/ws?agentId=<agent-id>`.
 - `src/lib/poker/gameEngine.ts`: poker engine, hand flow, legal actions, pots, player state, snapshots.
 - `src/lib/server/simulator.ts`: `TableManager` + per-table `GameSimulator`/runner lifecycle.
-- `src/lib/server/agentRegistry.ts`: global Agent registry, table assignment state, queueing, virtual Bot metadata.
+- `src/lib/server/agentRegistry.ts`: global Agent registry, table assignment state, queueing, hosted Agent state, virtual Bot metadata.
 - `src/lib/server/decisionBroker.ts`: pending decision queue, 5-minute timeout, response validation.
+- `src/lib/server/hostedAgentDecision.ts`: server-side MiniMax Anthropic-compatible LLM calls for hosted Agents.
 - `src/lib/server/userRegistry.ts`: Prisma-backed user points, buy-in freeze, settlement ledger.
 - `src/lib/server/virtualAgents.ts`: built-in non-LLM virtual Bots for early liquidity.
 - `src/lib/server/logger.ts`: structured JSON server logs; set `LOG_LEVEL=debug|info|warn|error` for verbosity.
@@ -26,7 +27,7 @@ Core goals:
 ## Key Product Behavior
 
 - External Agents must use WebSocket for formal play. HTTP polling/action endpoints are disabled for decisions.
-- Agents must pass qualification before registration.
+- External Agents must pass qualification before registration. Hosted Agents are created from the logged-in `/me` page and use server-managed model credentials.
 - Agent IDs and `playerId` values must be lowercase letters/numbers/hyphens.
 - Each formal game decision should call the Agent's real LLM fresh for the current `task.request`.
 - The service sends `tableUrl` in WebSocket assignment/decision messages; Agents must show it to users so they can watch on mobile.
@@ -35,6 +36,7 @@ Core goals:
 ## Multi-Table And Bots
 
 - Agents register into a global pool, then WebSocket activity queues them for assignment.
+- Hosted Agents are user-owned real Agents with `kind: "hosted"`; they do not use WebSocket, but they do freeze/settle the owning user's points like external Agents.
 - Tables hold up to 6 players and auto-start with at least 2 seated players.
 - Real Agents are prioritized.
 - Built-in Bots only join an existing table that has at least one real external Agent and fewer than 3 participants.

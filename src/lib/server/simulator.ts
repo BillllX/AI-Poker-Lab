@@ -4,7 +4,9 @@ import { initialStack, PokerGameEngine } from "../poker/gameEngine";
 import type { AgentDecisionRequest, GameSnapshot } from "../poker/types";
 import {
   assignAgentToTable,
+  isHostedAgent,
   isAgentPolling,
+  isUserOwnedAgent,
   listAgents as listRegisteredAgents,
   listQueuedAgents,
   listTableAgents,
@@ -23,6 +25,7 @@ import {
 } from "./userRegistry";
 import { logger } from "./logger";
 import { prisma } from "./prisma";
+import { decideForHostedAgent } from "./hostedAgentDecision";
 
 type ActiveBuyIn = GameBuyIn;
 type AgentSettlementReason = "busted" | "left" | "session-ended";
@@ -300,6 +303,10 @@ export class GameSimulator {
       });
       await sleep(delayMs);
       return decideForVirtualAgent(agent, request);
+    }
+
+    if (isHostedAgent(agent)) {
+      return decideForHostedAgent(agent, request);
     }
 
     return this.deps.enqueueDecision(request);
@@ -622,7 +629,7 @@ export class TableManager {
 
   private fillTableWithVirtualAgents(tableId: string) {
     const tableAgents = listTableAgents(tableId);
-    if (!tableAgents.some((agent) => agent.kind === "external")) {
+    if (!tableAgents.some((agent) => isUserOwnedAgent(agent))) {
       return [];
     }
 

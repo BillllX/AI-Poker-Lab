@@ -24,7 +24,7 @@ export type PlayerState = {
   name: string;
   ownerUserId?: string;
   modelName?: string;
-  kind?: "external" | "virtual";
+  kind?: "external" | "hosted" | "virtual";
   strategy?: AgentStyle;
   endpoint?: string;
   stack: number;

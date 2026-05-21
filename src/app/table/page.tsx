@@ -9,7 +9,7 @@ import styles from "./table.module.css";
 type RegisteredAgent = {
   id: string;
   name: string;
-  kind?: "external" | "virtual";
+  kind?: "external" | "hosted" | "virtual";
   strategy?: string;
   ownerUserId?: string;
   modelName?: string;

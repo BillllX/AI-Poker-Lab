@@ -48,6 +48,7 @@ export class QualificationSubmissionError extends Error {
 const sessionTtlMs = 30 * 60_000;
 const tokenTtlMs = 30 * 60_000;
 export const qualificationProtocolVersion = "ws-sandbox-v2";
+export const hostedAgentProtocolVersion = "hosted-agent-v1";
 
 const globalForQualification = globalThis as typeof globalThis & {
   __texasPokerQualificationSessions?: Map<string, QualificationSession>;
@@ -216,6 +217,49 @@ export async function recordPersistentQualification(input: { agentId: string; mo
     },
   });
   logger.info("qualification.persisted", { agentId, ownerUserId, modelName, protocolVersion: qualificationProtocolVersion });
+  return result;
+}
+
+export async function recordHostedAgentQualification(input: { agentId: string; modelName: string; ownerUserId: string }) {
+  const agentId = normalizeAgentId(input.agentId);
+  const modelName = input.modelName.trim();
+  const ownerUserId = input.ownerUserId.trim();
+
+  if (!modelName) {
+    throw new Error("modelName is required to persist hosted Agent.");
+  }
+  if (!ownerUserId) {
+    throw new Error("ownerUserId is required to persist hosted Agent.");
+  }
+
+  const ownerAgent = await findPersistentOwnerAgent(ownerUserId, agentId);
+  if (ownerAgent) {
+    throw new Error(`Each club user can only have one Agent. Reuse existing Agent ${ownerAgent.agentId} instead of creating a hosted Agent.`);
+  }
+
+  const result = await prisma.agentQualification.upsert({
+    create: {
+      id: `agent_qualification_${randomUUID().replace(/-/g, "")}`,
+      agentId,
+      modelName,
+      ownerUserId,
+      protocolVersion: hostedAgentProtocolVersion,
+    },
+    update: {
+      modelName,
+      passedAt: new Date(),
+      expiresAt: null,
+    },
+    where: {
+      agentId_ownerUserId_modelName_protocolVersion: {
+        agentId,
+        modelName,
+        ownerUserId,
+        protocolVersion: hostedAgentProtocolVersion,
+      },
+    },
+  });
+  logger.info("hosted_agent.qualification_persisted", { agentId, ownerUserId, modelName, protocolVersion: hostedAgentProtocolVersion });
   return result;
 }
 

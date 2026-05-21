@@ -18,7 +18,7 @@ type TableSummary = {
 type AgentSummary = {
   id: string;
   name: string;
-  kind?: "external" | "virtual";
+  kind?: "external" | "hosted" | "virtual";
   strategy?: string;
   assignmentStatus: string;
   tableId?: string;

@@ -26,6 +26,9 @@ export async function POST(request: Request) {
     if (existingAgent?.kind === "virtual" || isReservedVirtualAgentId(agentId)) {
       return Response.json({ error: "This Agent id is reserved for a built-in virtual Agent." }, { status: 409 });
     }
+    if (existingAgent?.kind === "hosted") {
+      return Response.json({ error: "This Agent id is managed by the hosted Agent service." }, { status: 409 });
+    }
 
     if (existingAgent?.tableId && input.modelName && input.modelName.trim() !== existingAgent.modelName) {
       return Response.json({ error: "Cannot change an Agent model while it is assigned to a table." }, { status: 409 });

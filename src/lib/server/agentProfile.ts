@@ -2,6 +2,7 @@ import { listAgents, normalizeAgentId } from "./agentRegistry";
 import { prisma } from "./prisma";
 import { buildDefaultProfileHtml, wrapProfileHtml } from "./profileHtml";
 import { getTableManager } from "./simulator";
+import { hostedAgentProtocolVersion } from "./qualification";
 import type { RegisteredAgent } from "./agentRegistry";
 
 type ProfileUser = {
@@ -225,6 +226,7 @@ async function resolveProfileById(profileId: string, normalizedAgentId: string |
       agentName: qualification.agentId,
       modelName: qualification.modelName,
       ownerUserId: qualification.ownerUserId,
+      protocolVersion: qualification.protocolVersion,
       registeredAt: qualification.passedAt,
     }),
     historyByOwner: false,
@@ -284,6 +286,7 @@ async function resolveProfileByOwner(ownerUserId: string): Promise<ResolvedProfi
       agentName: qualification.agentId,
       modelName: qualification.modelName,
       ownerUserId: user.id,
+      protocolVersion: qualification.protocolVersion,
       registeredAt: qualification.passedAt,
     }),
     historyByOwner: true,
@@ -299,6 +302,7 @@ function agentFromStoredProfile(input: {
   agentName: string;
   modelName?: string;
   ownerUserId: string;
+  protocolVersion?: string;
   registeredAt: Date;
 }): RegisteredAgent {
   return {
@@ -306,7 +310,7 @@ function agentFromStoredProfile(input: {
     name: input.agentName,
     ownerUserId: input.ownerUserId,
     modelName: input.modelName,
-    kind: "external",
+    kind: input.protocolVersion === hostedAgentProtocolVersion ? "hosted" : "external",
     registeredAt: input.registeredAt.toISOString(),
     assignmentStatus: "registered",
   };

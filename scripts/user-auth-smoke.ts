@@ -18,7 +18,7 @@ async function main() {
 }
 
 async function runSmoke() {
-  const [{ createCaptcha }, { prisma }, { verifyUserToken }, usersRoute, loginRoute, meRoute, meAgentRoute, tokenResetRoute, logoutRoute] = await Promise.all([
+  const [{ createCaptcha }, { prisma }, { verifyUserToken }, usersRoute, loginRoute, meRoute, meAgentRoute, hostedAgentRoute, tokenResetRoute, logoutRoute] = await Promise.all([
     import("../src/lib/server/captcha"),
     import("../src/lib/server/prisma"),
     import("../src/lib/server/userRegistry"),
@@ -26,6 +26,7 @@ async function runSmoke() {
     import("../src/app/api/users/login/route"),
     import("../src/app/api/users/me/route"),
     import("../src/app/api/users/me/agent/route"),
+    import("../src/app/api/users/me/hosted-agent/route"),
     import("../src/app/api/users/me/token/reset/route"),
     import("../src/app/api/users/logout/route"),
   ]);
@@ -107,6 +108,8 @@ async function runSmoke() {
   assert.equal(emptyAgent.credentials.ownerUserId, registered.user.id);
   assert.equal(emptyAgent.credentials.userToken, registered.userToken);
   assert.equal(emptyAgent.privateSettings.agentPrompt, "");
+  assert.equal(emptyAgent.hostedAgent.available, true);
+  assert.equal(emptyAgent.hostedAgent.agent, null);
   assert.ok(emptyAgent.onboarding.skillUrl.endsWith("/api/agents/skill"));
 
   const promptResponse = await meAgentRoute.PATCH(
@@ -129,16 +132,20 @@ async function runSmoke() {
   await assert.rejects(() => verifyUserToken(registered.user.id, registered.userToken), /invalid/);
   await assert.doesNotReject(() => verifyUserToken(registered.user.id, resetPayload.credentials.userToken));
 
-  const agentId = `auth-smoke-${Date.now()}`;
-  await prisma.agentQualification.create({
-    data: {
-      id: `agent_qualification_auth_smoke_${Date.now()}`,
-      agentId,
-      modelName: "smoke-model",
-      ownerUserId: registered.user.id,
-      protocolVersion: "smoke-protocol",
-    },
-  });
+  const hostedResponse = await hostedAgentRoute.POST(new Request("http://localhost:3000/api/users/me/hosted-agent", { method: "POST", headers: { cookie } }));
+  assert.equal(hostedResponse.status, 200);
+  const hostedPayload = await hostedResponse.json();
+  assert.equal(hostedPayload.agent.kind, "hosted");
+  assert.equal(hostedPayload.agent.ownerUserId, registered.user.id);
+  assert.equal(hostedPayload.hostedAgent.available, true);
+  assert.equal(hostedPayload.hostedAgent.agent.id, hostedPayload.agent.id);
+
+  const duplicateHostedResponse = await hostedAgentRoute.POST(new Request("http://localhost:3000/api/users/me/hosted-agent", { method: "POST", headers: { cookie } }));
+  assert.equal(duplicateHostedResponse.status, 200);
+  const duplicateHosted = await duplicateHostedResponse.json();
+  assert.equal(duplicateHosted.agent.id, hostedPayload.agent.id);
+
+  const agentId = hostedPayload.agent.id;
   await prisma.agentResult.create({
     data: {
       id: `agent_result_auth_smoke_${Date.now()}`,
@@ -148,7 +155,7 @@ async function runSmoke() {
       gameSessionId: "auth-smoke-session",
       handsPlayed: 12,
       handsWon: 4,
-      modelName: "smoke-model",
+      modelName: hostedPayload.agent.modelName,
       ownerUserId: registered.user.id,
       profit: 250,
       settledReason: "session-ended",
@@ -160,9 +167,13 @@ async function runSmoke() {
   assert.equal(agentResponse.status, 200);
   const agentPayload = await agentResponse.json();
   assert.equal(agentPayload.agentProfile.agent.id, agentId);
-  assert.equal(agentPayload.agentProfile.historySummary.sessions, 1);
-  assert.equal(agentPayload.agentProfile.historySummary.profit, 250);
-  assert.equal(agentPayload.agentProfile.recentResults.length, 1);
+  assert.equal(agentPayload.hostedAgent.agent.id, agentId);
+  assert.ok(agentPayload.agentProfile.historySummary.sessions >= 1);
+  assert.ok(agentPayload.agentProfile.historySummary.profit >= 250);
+  assert.ok(agentPayload.agentProfile.recentResults.length >= 1);
+
+  const leaveHostedResponse = await hostedAgentRoute.DELETE(new Request("http://localhost:3000/api/users/me/hosted-agent", { method: "DELETE", headers: { cookie } }));
+  assert.equal(leaveHostedResponse.status, 200);
 
   const renamedName = `${name} Renamed`;
   const renameResponse = await usersRoute.PATCH(

@@ -23,6 +23,7 @@ type MeAgentPayload = {
     agentPrompt: string;
     updatedAt?: string;
   };
+  hostedAgent?: HostedAgentStatus;
   agentProfile: AgentProfile | null;
   onboarding?: {
     skillUrl: string;
@@ -90,6 +91,27 @@ type AgentProfile = {
   table: { id: string; name: string; running: boolean; phase: string; handId: number; url: string } | null;
 };
 
+type HostedAgentStatus = {
+  available: boolean;
+  agent: {
+    id: string;
+    name: string;
+    ownerUserId?: string;
+    modelName?: string;
+    kind: "hosted";
+    registeredAt: string;
+    lastSeenAt?: string;
+    tableId?: string;
+    assignmentStatus: string;
+  } | null;
+  blockedByAgent: {
+    agentId: string;
+    modelName?: string | null;
+    protocolVersion?: string;
+  } | null;
+  modelName: string;
+};
+
 export default function MyAgentPage() {
   const [payload, setPayload] = useState<MeAgentPayload>();
   const [error, setError] = useState<string>();
@@ -99,12 +121,15 @@ export default function MyAgentPage() {
   const [promptStatus, setPromptStatus] = useState<string>();
   const [promptSaving, setPromptSaving] = useState(false);
   const [tokenResetting, setTokenResetting] = useState(false);
+  const [hostedBusy, setHostedBusy] = useState<"join" | "leave">();
+  const [hostedStatus, setHostedStatus] = useState<string>();
   const [frameHeight, setFrameHeight] = useState(520);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const profile = payload?.agentProfile;
   const user = payload?.user;
   const credentials = payload?.credentials;
   const privateSettings = payload?.privateSettings;
+  const hostedAgent = payload?.hostedAgent;
   const history = profile?.historySummary;
   const totalHands = history?.handsPlayed ?? profile?.stats?.handsPlayed ?? 0;
   const totalWins = history?.handsWon ?? profile?.stats?.handsWon ?? 0;
@@ -203,9 +228,43 @@ export default function MyAgentPage() {
       }
       setPayload((current) => current ? { ...current, privateSettings: data.privateSettings } : current);
       setPromptDraft(data.privateSettings?.agentPrompt ?? "");
-      setPromptStatus("Prompt 已保存。当前版本只在 My Player 展示，不会自动注入 Agent 决策。");
+      setPromptStatus("Prompt 已保存。托管 Agent 的后续决策会使用这段设定。");
     } finally {
       setPromptSaving(false);
+    }
+  }
+
+  async function joinHostedAgent() {
+    setHostedBusy("join");
+    setHostedStatus(undefined);
+    try {
+      const response = await fetch("/api/users/me/hosted-agent", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        setHostedStatus(data.error ?? "创建托管 Agent 失败。");
+        return;
+      }
+      setHostedStatus("托管 Agent 已创建并加入匹配队列。");
+      await loadDashboard();
+    } finally {
+      setHostedBusy(undefined);
+    }
+  }
+
+  async function leaveHostedAgent() {
+    setHostedBusy("leave");
+    setHostedStatus(undefined);
+    try {
+      const response = await fetch("/api/users/me/hosted-agent", { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) {
+        setHostedStatus(data.error ?? "托管 Agent 离开失败。");
+        return;
+      }
+      setHostedStatus(data.removed ? "托管 Agent 已离开比赛/队列。" : "当前没有在线托管 Agent。");
+      await loadDashboard();
+    } finally {
+      setHostedBusy(undefined);
     }
   }
 
@@ -312,7 +371,7 @@ export default function MyAgentPage() {
           <article className={styles.card}>
             <p className={styles.eyebrow}>PLAYER PROMPT</p>
             <h2>牌手 Prompt</h2>
-            <p className={styles.muted}>这里保存你的 AI 牌手风格设定。当前版本先做持久化展示，暂不注入 Agent 决策请求。</p>
+            <p className={styles.muted}>这里保存你的 AI 牌手风格设定。托管 Agent 决策时会把它和当前牌桌信息一起发给服务器端模型。</p>
             <textarea
               className={styles.promptEditor}
               maxLength={4000}
@@ -330,12 +389,50 @@ export default function MyAgentPage() {
           </article>
         </section>
 
+        <section className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div>
+              <p className={styles.eyebrow}>HOSTED AGENT</p>
+              <h2>服务器托管 AI 牌手</h2>
+              <p className={styles.muted}>
+                没有本地 Agent 也可以参赛。服务器会使用统一配置的模型和你的牌手 Prompt，根据每次手牌、公共牌、行动历史和服务端牌力分析来决策。
+              </p>
+            </div>
+          </div>
+          <div className={styles.hostedGrid}>
+            <Detail label="托管模型" value={hostedAgent?.modelName ?? "-"} />
+            <Detail label="托管 Agent" value={hostedAgent?.agent?.id ?? "未创建"} />
+            <Detail label="状态" value={hostedStatusText(hostedAgent)} />
+            <Detail label="当前牌桌" value={hostedAgent?.agent?.tableId ?? "未入座"} />
+          </div>
+          {hostedAgent?.blockedByAgent ? (
+            <p className={styles.muted}>
+              当前账号已经绑定 Agent {hostedAgent.blockedByAgent.agentId}，因此不能再创建托管 Agent。
+            </p>
+          ) : (
+            <div className={styles.actionRow}>
+              <button type="button" disabled={hostedBusy === "join"} onClick={() => void joinHostedAgent()}>
+                {hostedBusy === "join" ? "加入中..." : hostedAgent?.agent ? "重新加入比赛" : "创建托管 Agent 并加入比赛"}
+              </button>
+              {hostedAgent?.agent ? (
+                <button type="button" disabled={hostedBusy === "leave"} onClick={() => void leaveHostedAgent()}>
+                  {hostedBusy === "leave" ? "离开中..." : "离开托管 Agent"}
+                </button>
+              ) : null}
+            </div>
+          )}
+          {hostedStatus ? <p className={styles.muted}>{hostedStatus}</p> : null}
+        </section>
+
         {!profile ? (
           <section className={styles.emptyState}>
             <p className={styles.eyebrow}>NO AGENT YET</p>
             <h2>还没有绑定 AI 牌手</h2>
-            <p>登录账号已经准备好。下一步让 Agent 读取 skill，使用你的 ownerUserId 和最新 userToken 完成准入与注册。</p>
+            <p>登录账号已经准备好。你可以直接创建服务器托管 Agent，也可以让本地 Agent 读取 skill 后接入。</p>
             <div className={styles.actionRow}>
+              <button className={styles.primaryLink} type="button" disabled={hostedBusy === "join"} onClick={() => void joinHostedAgent()}>
+                {hostedBusy === "join" ? "创建中..." : "创建托管 Agent"}
+              </button>
               <a className={styles.primaryLink} href={payload?.onboarding?.skillUrl ?? "/api/agents/skill"}>查看 Agent Skill</a>
               <Link className={styles.secondaryLink} href="/tables">去比赛大厅</Link>
             </div>
@@ -471,6 +568,22 @@ function FutureCard({ text, title }: { title: string; text: string }) {
       <p>{text}</p>
     </article>
   );
+}
+
+function hostedStatusText(hostedAgent?: HostedAgentStatus) {
+  if (hostedAgent?.blockedByAgent) {
+    return "已绑定其他 Agent";
+  }
+  if (!hostedAgent?.agent) {
+    return "未创建";
+  }
+  if (hostedAgent.agent.assignmentStatus === "queued") {
+    return "匹配队列中";
+  }
+  if (hostedAgent.agent.assignmentStatus === "seated" || hostedAgent.agent.assignmentStatus === "playing") {
+    return "比赛中";
+  }
+  return hostedAgent.agent.assignmentStatus;
 }
 
 function formatSigned(value: number) {

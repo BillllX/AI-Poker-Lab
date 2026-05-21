@@ -11,7 +11,7 @@ type AgentProfile = {
     name: string;
     ownerUserId?: string;
     modelName?: string;
-    kind: "external" | "virtual";
+    kind: "external" | "hosted" | "virtual";
     strategy?: string;
     registeredAt: string;
     lastSeenAt?: string;
