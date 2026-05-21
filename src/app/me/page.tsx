@@ -14,6 +14,15 @@ type MeAgentPayload = {
     dailySettlementsToday: number;
     createdAt: string;
   } | null;
+  credentials?: {
+    ownerUserId: string;
+    tokenAvailable: boolean;
+    userToken: string | null;
+  };
+  privateSettings?: {
+    agentPrompt: string;
+    updatedAt?: string;
+  };
   agentProfile: AgentProfile | null;
   onboarding?: {
     skillUrl: string;
@@ -86,10 +95,16 @@ export default function MyAgentPage() {
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string>();
+  const [promptDraft, setPromptDraft] = useState("");
+  const [promptStatus, setPromptStatus] = useState<string>();
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [tokenResetting, setTokenResetting] = useState(false);
   const [frameHeight, setFrameHeight] = useState(520);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const profile = payload?.agentProfile;
   const user = payload?.user;
+  const credentials = payload?.credentials;
+  const privateSettings = payload?.privateSettings;
   const history = profile?.historySummary;
   const totalHands = history?.handsPlayed ?? profile?.stats?.handsPlayed ?? 0;
   const totalWins = history?.handsWon ?? profile?.stats?.handsWon ?? 0;
@@ -108,6 +123,7 @@ export default function MyAgentPage() {
         return;
       }
       setPayload(data);
+      setPromptDraft(data.privateSettings?.agentPrompt ?? "");
     } finally {
       setLoading(false);
     }
@@ -151,6 +167,45 @@ export default function MyAgentPage() {
     if (ok) {
       setCopied(label);
       window.setTimeout(() => setCopied(undefined), 1400);
+    }
+  }
+
+  async function resetUserToken() {
+    setTokenResetting(true);
+    try {
+      const response = await fetch("/api/users/me/token/reset", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        setPromptStatus(data.error ?? "重置 userToken 失败。");
+        return;
+      }
+      setPayload((current) => current ? { ...current, credentials: data.credentials } : current);
+      setCopied("token-reset");
+      window.setTimeout(() => setCopied(undefined), 1400);
+    } finally {
+      setTokenResetting(false);
+    }
+  }
+
+  async function savePrompt() {
+    setPromptSaving(true);
+    setPromptStatus(undefined);
+    try {
+      const response = await fetch("/api/users/me/agent", {
+        body: JSON.stringify({ agentPrompt: promptDraft }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setPromptStatus(data.error ?? "保存 prompt 失败。");
+        return;
+      }
+      setPayload((current) => current ? { ...current, privateSettings: data.privateSettings } : current);
+      setPromptDraft(data.privateSettings?.agentPrompt ?? "");
+      setPromptStatus("Prompt 已保存。当前版本只在 My Player 展示，不会自动注入 Agent 决策。");
+    } finally {
+      setPromptSaving(false);
     }
   }
 
@@ -216,6 +271,65 @@ export default function MyAgentPage() {
           <StatCard label="今日结算" value={user.dailySettlementsToday.toLocaleString()} />
         </section>
 
+        <section className={styles.agentGrid}>
+          <article className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div>
+                <p className={styles.eyebrow}>AGENT CREDENTIALS</p>
+                <h2>Agent 接入凭证</h2>
+                <p className={styles.muted}>Agent 使用 ownerUserId + userToken 连接俱乐部。网页登录不会自动轮换 token。</p>
+              </div>
+            </div>
+            <div className={styles.credentialList}>
+              <div>
+                <span>ownerUserId</span>
+                <code>{credentials?.ownerUserId ?? user.id}</code>
+                <button type="button" onClick={() => void copyValue("owner-main", credentials?.ownerUserId ?? user.id)}>
+                  {copied === "owner-main" ? "已复制" : "复制 ownerUserId"}
+                </button>
+              </div>
+              <div>
+                <span>userToken</span>
+                {credentials?.tokenAvailable && credentials.userToken ? (
+                  <code>{credentials.userToken}</code>
+                ) : (
+                  <p className={styles.muted}>当前账号没有可查看的加密 token。重置后会生成新 token，并让旧 token 失效。</p>
+                )}
+                <div className={styles.actionRow}>
+                  {credentials?.tokenAvailable && credentials.userToken ? (
+                    <button type="button" onClick={() => void copyValue("token", credentials.userToken ?? "")}>
+                      {copied === "token" ? "已复制" : "复制 userToken"}
+                    </button>
+                  ) : null}
+                  <button type="button" disabled={tokenResetting} onClick={() => void resetUserToken()}>
+                    {tokenResetting ? "重置中..." : copied === "token-reset" ? "已重置" : "重置 userToken"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article className={styles.card}>
+            <p className={styles.eyebrow}>PLAYER PROMPT</p>
+            <h2>牌手 Prompt</h2>
+            <p className={styles.muted}>这里保存你的 AI 牌手风格设定。当前版本先做持久化展示，暂不注入 Agent 决策请求。</p>
+            <textarea
+              className={styles.promptEditor}
+              maxLength={4000}
+              onChange={(event) => setPromptDraft(event.target.value)}
+              placeholder="例如：稳健紧凶，避免边缘 all-in；翻后优先控制底池，遇到明显价值下注时愿意支付合理价格。"
+              value={promptDraft}
+            />
+            <div className={styles.promptFooter}>
+              <span>{promptDraft.length}/4000</span>
+              <button type="button" disabled={promptSaving} onClick={() => void savePrompt()}>
+                {promptSaving ? "保存中..." : "保存 Prompt"}
+              </button>
+            </div>
+            {promptStatus ? <p className={styles.muted}>{promptStatus}</p> : null}
+          </article>
+        </section>
+
         {!profile ? (
           <section className={styles.emptyState}>
             <p className={styles.eyebrow}>NO AGENT YET</p>
@@ -258,12 +372,11 @@ export default function MyAgentPage() {
 
               <article className={styles.card}>
                 <p className={styles.eyebrow}>MANAGEMENT</p>
-                <h2>账号与凭证</h2>
+                <h2>主页管理</h2>
                 <p className={styles.muted}>
-                  Agent 仍使用 ownerUserId + userToken。网页登录后会刷新最新 userToken；如需复制最新 token，请回首页登录弹窗查看。
+                  公开主页会展示牌手身份、历史战绩和牌手卡。凭证和 prompt 仅在本页私密展示。
                 </p>
                 <div className={styles.actionRow}>
-                  <Link className={styles.secondaryLink} href="/">登录/复制 token</Link>
                   <Link className={styles.secondaryLink} href={`/agents/${encodeURIComponent(profile.agent.id)}`}>打开公开主页</Link>
                 </div>
               </article>

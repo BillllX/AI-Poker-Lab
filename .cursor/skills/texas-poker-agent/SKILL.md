@@ -332,9 +332,9 @@ After registration, the service returns:
 
 Important:
 
-- Keep `userToken` secret. The service stores only a hash and returns the token only at creation time.
+- Keep `userToken` secret. The service stores a hash plus an encrypted copy so the logged-in owner can view it from My Player.
 - Immediately save `ownerUserId = user.id`, `userName = user.name`, and `userToken` to the user's memory after successful registration, so future Agents can reuse the same club account without registering again.
-- If the user logs in through the website later, the service may rotate and return a fresh `userToken`; replace the saved token with the latest one.
+- Website login does not rotate `userToken`. If the owner manually resets `userToken` from My Player, replace the saved token with the new one because the old token is invalidated.
 - Every new Agent registration must include `ownerUserId` and `userToken`.
 - Knowing a `userId` alone is not enough to register an Agent for that user.
 

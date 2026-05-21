@@ -18,15 +18,27 @@ async function main() {
 }
 
 async function runSmoke() {
-  const [{ createCaptcha }, { prisma }, usersRoute, loginRoute, meRoute, meAgentRoute, logoutRoute] = await Promise.all([
+  const [{ createCaptcha }, { prisma }, { verifyUserToken }, usersRoute, loginRoute, meRoute, meAgentRoute, tokenResetRoute, logoutRoute] = await Promise.all([
     import("../src/lib/server/captcha"),
     import("../src/lib/server/prisma"),
+    import("../src/lib/server/userRegistry"),
     import("../src/app/api/users/route"),
     import("../src/app/api/users/login/route"),
     import("../src/app/api/users/me/route"),
     import("../src/app/api/users/me/agent/route"),
+    import("../src/app/api/users/me/token/reset/route"),
     import("../src/app/api/users/logout/route"),
   ]);
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      console.log("Database is unavailable; skipping user auth smoke tests.");
+      return;
+    }
+    throw error;
+  }
 
   const name = `Auth Smoke ${Date.now()}`;
   const password = "smoke-password-123";
@@ -76,7 +88,7 @@ async function runSmoke() {
   const loggedIn = await loginResponse.json();
   assert.equal(loggedIn.user.id, registered.user.id);
   assert.match(loggedIn.userToken, /^utok_/);
-  assert.notEqual(loggedIn.userToken, registered.userToken);
+  assert.equal(loggedIn.userToken, registered.userToken);
 
   const cookie = loginResponse.headers.get("set-cookie")?.split(";")[0] ?? "";
   const meResponse = await meRoute.GET(new Request("http://localhost:3000/api/users/me", { headers: { cookie } }));
@@ -92,7 +104,30 @@ async function runSmoke() {
   const emptyAgent = await emptyAgentResponse.json();
   assert.equal(emptyAgent.user.id, registered.user.id);
   assert.equal(emptyAgent.agentProfile, null);
+  assert.equal(emptyAgent.credentials.ownerUserId, registered.user.id);
+  assert.equal(emptyAgent.credentials.userToken, registered.userToken);
+  assert.equal(emptyAgent.privateSettings.agentPrompt, "");
   assert.ok(emptyAgent.onboarding.skillUrl.endsWith("/api/agents/skill"));
+
+  const promptResponse = await meAgentRoute.PATCH(
+    new Request("http://localhost:3000/api/users/me/agent", {
+      method: "PATCH",
+      headers: { cookie },
+      body: JSON.stringify({ agentPrompt: "Play tight aggressive in early position." }),
+    }),
+  );
+  assert.equal(promptResponse.status, 200);
+  const promptPayload = await promptResponse.json();
+  assert.equal(promptPayload.privateSettings.agentPrompt, "Play tight aggressive in early position.");
+
+  const resetResponse = await tokenResetRoute.POST(new Request("http://localhost:3000/api/users/me/token/reset", { method: "POST", headers: { cookie } }));
+  assert.equal(resetResponse.status, 200);
+  const resetPayload = await resetResponse.json();
+  assert.equal(resetPayload.credentials.ownerUserId, registered.user.id);
+  assert.match(resetPayload.credentials.userToken, /^utok_/);
+  assert.notEqual(resetPayload.credentials.userToken, registered.userToken);
+  await assert.rejects(() => verifyUserToken(registered.user.id, registered.userToken), /invalid/);
+  await assert.doesNotReject(() => verifyUserToken(registered.user.id, resetPayload.credentials.userToken));
 
   const agentId = `auth-smoke-${Date.now()}`;
   await prisma.agentQualification.create({
@@ -156,7 +191,8 @@ function answerForCaptcha(challenge: string) {
 
 function isDatabaseUnavailable(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return /ECONNREFUSED|Can't reach database|connect ECONNREFUSED/i.test(message);
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  return code === "ECONNREFUSED" || /ECONNREFUSED|Can't reach database|connect ECONNREFUSED/i.test(message);
 }
 
 main().catch((error) => {

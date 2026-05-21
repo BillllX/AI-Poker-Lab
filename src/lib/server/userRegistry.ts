@@ -1,4 +1,4 @@
-import { createHash, createHmac, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { logger } from "./logger";
@@ -72,6 +72,7 @@ export async function createUser(input: CreateUserInput) {
       pointsBalance: initialPointsBalance,
       frozenPoints: 0,
       tokenHash: hashToken(userToken),
+      encryptedUserToken: encryptUserToken(userToken),
     },
   }).catch((error: unknown) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -97,20 +98,34 @@ export async function loginUser(input: LoginUserInput) {
     throw new Error("User name or password is incorrect.");
   }
 
-  const userToken = issueUserToken();
-  const updated = await prisma.user.update({
-    data: { tokenHash: hashToken(userToken) },
-    where: { id: user.id },
-  });
-  const dailyProfits = await dailyProfitStatsForToday([updated.id]);
-  const profit = dailyProfits.get(updated.id);
+  const dailyProfits = await dailyProfitStatsForToday([user.id]);
+  const profit = dailyProfits.get(user.id);
+  const userToken = decryptUserToken(user.encryptedUserToken);
 
-  logger.info("user.logged_in", { ownerUserId: updated.id, name: updated.name });
+  logger.info("user.logged_in", { ownerUserId: user.id, name: user.name, tokenAvailable: Boolean(userToken) });
 
   return {
-    user: publicUser(updated, profit?.amount ?? 0, profit?.settlements ?? 0),
+    user: publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0),
     userToken,
   };
+}
+
+export async function getCurrentUserTokenForSession(ownerUserId: string) {
+  const user = await findStoredUser(ownerUserId);
+  return decryptUserToken(user.encryptedUserToken);
+}
+
+export async function resetUserTokenForSession(ownerUserId: string) {
+  const userToken = issueUserToken();
+  await prisma.user.update({
+    data: {
+      encryptedUserToken: encryptUserToken(userToken),
+      tokenHash: hashToken(userToken),
+    },
+    where: { id: ownerUserId },
+  });
+  logger.warn("user.token_reset", { ownerUserId });
+  return userToken;
 }
 
 export async function verifyUserToken(userId: string, token: unknown) {
@@ -426,6 +441,40 @@ function hashToken(token: string) {
 
 function issueUserToken() {
   return `utok_${randomBytes(24).toString("base64url")}`;
+}
+
+function encryptUserToken(token: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", tokenEncryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return ["v1", iv.toString("base64url"), tag.toString("base64url"), ciphertext.toString("base64url")].join(".");
+}
+
+function decryptUserToken(encryptedToken?: string | null) {
+  if (!encryptedToken) {
+    return undefined;
+  }
+  const [version, ivText, tagText, ciphertextText] = encryptedToken.split(".");
+  if (version !== "v1" || !ivText || !tagText || !ciphertextText) {
+    return undefined;
+  }
+
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", tokenEncryptionKey(), Buffer.from(ivText, "base64url"));
+    decipher.setAuthTag(Buffer.from(tagText, "base64url"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(ciphertextText, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+function tokenEncryptionKey() {
+  const secret = process.env.TEXAS_POKER_TOKEN_ENCRYPTION_SECRET ?? process.env.AUTH_SECRET ?? sessionSecret();
+  return createHash("sha256").update(`texas-poker-token:${secret}`).digest();
 }
 
 function hashPassword(password: string) {

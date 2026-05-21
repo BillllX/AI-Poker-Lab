@@ -13,11 +13,13 @@ model User {
   pointsBalance       Int                  @default(10000)
   frozenPoints        Int                  @default(0)
   tokenHash           String
+  encryptedUserToken  String?
   createdAt           DateTime             @default(now())
   ledgerEntries       PointsLedger[]
   agentQualifications AgentQualification[]
   agentResults        AgentResult[]
   agentProfileContents AgentProfileContent[]
+  agentPrivateSettings AgentPrivateSettings?
 
   @@map("users")
 }
@@ -93,4 +95,15 @@ model AgentProfileContent {
   @@unique([agentId, ownerUserId])
   @@index([ownerUserId])
   @@map("agent_profile_contents")
+}
+
+model AgentPrivateSettings {
+  id          String   @id
+  ownerUserId String   @unique
+  agentPrompt String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@map("agent_private_settings")
 }

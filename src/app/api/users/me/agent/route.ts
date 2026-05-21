@@ -1,5 +1,6 @@
 import { resolveAgentProfileByOwner } from "@/lib/server/agentProfile";
-import { getUserFromSessionCookie } from "@/lib/server/userRegistry";
+import { getAgentPrivateSettings, updateAgentPrivateSettings } from "@/lib/server/agentPrivateSettings";
+import { getCurrentUserTokenForSession, getUserFromSessionCookie } from "@/lib/server/userRegistry";
 
 export async function GET(request: Request) {
   const user = await getUserFromSessionCookie(request.headers.get("cookie"));
@@ -8,10 +9,20 @@ export async function GET(request: Request) {
   }
 
   const origin = new URL(request.url).origin;
-  const agentProfile = await resolveAgentProfileByOwner(user.id, origin);
+  const [agentProfile, userToken, privateSettings] = await Promise.all([
+    resolveAgentProfileByOwner(user.id, origin),
+    getCurrentUserTokenForSession(user.id),
+    getAgentPrivateSettings(user.id),
+  ]);
 
   return Response.json({
     user,
+    credentials: {
+      ownerUserId: user.id,
+      tokenAvailable: Boolean(userToken),
+      userToken: userToken ?? null,
+    },
+    privateSettings,
     agentProfile: agentProfile ?? null,
     onboarding: agentProfile
       ? null
@@ -21,4 +32,19 @@ export async function GET(request: Request) {
           message: "No Agent identity has been created for this user yet.",
         },
   });
+}
+
+export async function PATCH(request: Request) {
+  const user = await getUserFromSessionCookie(request.headers.get("cookie"));
+  if (!user) {
+    return Response.json({ error: "Login is required." }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const privateSettings = await updateAgentPrivateSettings(user.id, body);
+    return Response.json({ privateSettings });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Unable to update private settings." }, { status: 400 });
+  }
 }

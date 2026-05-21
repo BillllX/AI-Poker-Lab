@@ -22,7 +22,7 @@ type CreatedUser = {
     dailySettlementsToday: number;
     createdAt: string;
   };
-  userToken: string;
+  userToken?: string;
 };
 
 type ClubUser = CreatedUser["user"];
@@ -112,7 +112,7 @@ const copy = {
     password: "密码",
     passwordPlaceholder: "至少 8 位",
     loginTitle: "已有账号登录",
-    loginText: "登录后会刷新一枚新的 Agent userToken，请同步给你的 Agent memory。",
+    loginText: "登录不会自动轮换 Agent userToken；如需查看或重置，请进入「我的牌手」。",
     loginUser: "登录",
     loginFailed: "登录失败。",
     loggedInAs: "当前登录",
@@ -230,7 +230,7 @@ const copy = {
     password: "Password",
     passwordPlaceholder: "At least 8 characters",
     loginTitle: "Log In",
-    loginText: "Login rotates a fresh Agent userToken. Update your Agent memory with the latest token.",
+    loginText: "Login does not rotate the Agent userToken. View or reset it from My Player.",
     loginUser: "Log In",
     loginFailed: "Login failed.",
     loggedInAs: "Logged in as",
@@ -294,8 +294,6 @@ export default function Home() {
   const [nameStatus, setNameStatus] = useState<string>();
   const [createdUser, setCreatedUser] = useState<CreatedUser>();
   const [authUser, setAuthUser] = useState<ClubUser>();
-  const [renameOwnerUserId, setRenameOwnerUserId] = useState("");
-  const [renameUserToken, setRenameUserToken] = useState("");
   const [renameUserName, setRenameUserName] = useState("");
   const [renameStatus, setRenameStatus] = useState<string>();
   const [leaderboard, setLeaderboard] = useState<ClubUser[]>([]);
@@ -461,8 +459,7 @@ export default function Home() {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ownerUserId: authUser?.id ?? renameOwnerUserId,
-          userToken: authUser ? undefined : renameUserToken,
+          ownerUserId: authUser?.id,
           name: renameUserName,
         }),
       });
@@ -904,7 +901,7 @@ export default function Home() {
                   <div className={styles.tokenBox}>
                     <strong>{t.savedTitle}</strong>
                     <code>ownerUserId: {createdUser.user.id}</code>
-                    <code>userToken: {createdUser.userToken}</code>
+                    <code>userToken: {createdUser.userToken ?? "请到我的牌手查看或重置"}</code>
                     <span>
                       {t.initialPoints}: {createdUser.user.pointsBalance}
                     </span>
@@ -914,52 +911,30 @@ export default function Home() {
               </form>
             )}
 
-            <form className={styles.registrationCard} onSubmit={renameUser}>
-              <div>
-                <h3>{t.renameTitle}</h3>
-                <p>{t.renameText}</p>
-              </div>
-              {authUser ? (
+            {authUser && (
+              <form className={styles.registrationCard} onSubmit={renameUser}>
+                <div>
+                  <h3>{t.renameTitle}</h3>
+                  <p>{t.renameText}</p>
+                </div>
                 <p className={styles.formHint}>
                   {t.loggedInAs}: {authUser.name}
                 </p>
-              ) : (
-                <>
-                  <label>
-                    {t.ownerUserId}
-                    <input
-                      onChange={(event) => setRenameOwnerUserId(event.target.value)}
-                      placeholder="user_..."
-                      required
-                      value={renameOwnerUserId}
-                    />
-                  </label>
-                  <label>
-                    {t.userToken}
-                    <input
-                      onChange={(event) => setRenameUserToken(event.target.value)}
-                      placeholder="utok_..."
-                      required
-                      type="password"
-                      value={renameUserToken}
-                    />
-                  </label>
-                </>
-              )}
-              <label>
-                {t.newUserName}
-                <input
-                  onChange={(event) => setRenameUserName(event.target.value)}
-                  placeholder={t.userNamePlaceholder}
-                  required
-                  value={renameUserName}
-                />
-              </label>
-              {renameStatus && <p className={styles.formHint}>{renameStatus}</p>}
-              <button disabled={busy === "rename-user"} type="submit">
-                {t.updateUserName}
-              </button>
-            </form>
+                <label>
+                  {t.newUserName}
+                  <input
+                    onChange={(event) => setRenameUserName(event.target.value)}
+                    placeholder={t.userNamePlaceholder}
+                    required
+                    value={renameUserName}
+                  />
+                </label>
+                {renameStatus && <p className={styles.formHint}>{renameStatus}</p>}
+                <button disabled={busy === "rename-user"} type="submit">
+                  {t.updateUserName}
+                </button>
+              </form>
+            )}
           </section>
         </div>
       )}

@@ -31,7 +31,9 @@
 .secondaryLink,
 .identityCard button,
 .cardHeader button,
-.tokenButton {
+.tokenButton,
+.credentialList button,
+.promptFooter button {
   border-radius: 999px;
   color: var(--text);
   cursor: pointer;
@@ -45,7 +47,9 @@
 .secondaryLink,
 .identityCard button,
 .cardHeader button,
-.tokenButton {
+.tokenButton,
+.credentialList button,
+.promptFooter button {
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid var(--border);
 }
@@ -196,13 +200,15 @@
 }
 
 .detailList,
+.credentialList,
 .resultList {
   display: grid;
   gap: 10px;
   margin: 16px 0;
 }
 
-.detailList div,
+.detailList > div,
+.credentialList > div,
 .resultRow {
   background: rgba(255, 255, 255, 0.055);
   border: 1px solid var(--border);
@@ -210,6 +216,47 @@
   display: grid;
   gap: 5px;
   padding: 13px;
+}
+
+.credentialList code {
+  color: var(--text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.promptEditor {
+  background: rgba(2, 6, 23, 0.52);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-sizing: border-box;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.55;
+  min-height: 190px;
+  padding: 14px;
+  resize: vertical;
+  width: 100%;
+}
+
+.promptFooter {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.promptFooter span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.credentialList button:disabled,
+.promptFooter button:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .resultRow {
