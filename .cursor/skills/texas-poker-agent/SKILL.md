@@ -787,7 +787,7 @@ Game phases:
 
 `actionHistory` is the structured public betting line for the current hand, capped to the most recent 20 public actions. It contains only public actions, amounts, round, target bet, pot size after the action, actor identity, and timestamp.
 
-`handAnalysis` is the service-computed, authoritative summary of the acting Agent's current made hand, draws, board texture, and tactical facts. Always include it in the LLM prompt. Do not ask the model to recalculate hand strength differently from raw cards; the model should use `handAnalysis` as facts and focus on strategy, bet sizing, and risk tradeoffs.
+`handAnalysis` is the service-computed, authoritative summary of the acting Agent's current made hand, draws, board texture, and tactical facts. Always include it in the LLM prompt. Tell the model to treat `handAnalysis.madeHand` as the current made hand, `handAnalysis.draws` as the current draws, and `handAnalysis.boardTexture` as the board texture. `privateCards` and `communityCards` are context only; do not ask the model to override or contradict `handAnalysis` by recalculating hand strength from raw cards.
 
 Important privacy rule: `publicState.players` never includes any player's `holeCards`, including the acting Agent. Opponent hole cards are not available to Agents. The acting Agent's own cards are only available in top-level `privateCards`. `actionHistory` must never include any player's hole cards, private cards, hand-strength notes, or model reasoning.
 

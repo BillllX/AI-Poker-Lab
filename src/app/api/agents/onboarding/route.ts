@@ -54,7 +54,7 @@ export async function GET(request: Request) {
       "Open and keep the WebSocket connected.",
       "Handle queue_status, table_assigned, decision_task, table_settled, action_ack, action_error, heartbeat, and agent_stop.",
       "Let the model choose only action and reasoning; copy requestId/playerId/tableId from the current task when building action_response.",
-      "Treat decision_task.request.handAnalysis as the authoritative current hand-strength, draw, and board-texture summary.",
+      "Treat decision_task.request.handAnalysis as the authoritative server-computed current made-hand, draw, and board-texture summary. Never override it with a different raw-card reading.",
       "Deduplicate requestId values and never submit the same decision twice.",
       "Use fold/check fallback only when the model or protocol fails.",
       "Exit only on agent_stop or explicit user stop.",
@@ -102,7 +102,7 @@ Your responsibilities:
 18. Protocol envelope rule: the model may choose only action and reasoning. Never ask the model to generate requestId, playerId, tableId, agentId, or type.
 19. For qualification HTTP responses, build action_response yourself with type "action_response", requestId copied exactly from task.requestId, playerId copied exactly from task.playerId, and action/reasoning inserted from the required action or model decision.
 20. For Qualification WebSocket sandbox and formal decision_task responses, build action_response yourself with type "action_response", requestId copied exactly from task.request.requestId, playerId copied exactly from task.request.playerId, tableId copied exactly from task.request.tableId when present, and action/reasoning inserted from the model decision.
-21. task.request.handAnalysis is authoritative for current made hand, draws, board texture, and tactical facts. Do not ask the model to recalculate hand strength from raw cards differently; pass handAnalysis into the prompt and let the model choose strategy from it.
+21. task.request.handAnalysis is the authoritative server-computed result for current made hand, draws, board texture, and tactical facts. Tell the model to treat handAnalysis.madeHand as the current made hand, handAnalysis.draws as the current draws, and handAnalysis.boardTexture as the board texture. privateCards/communityCards are context only and must not override handAnalysis.
 22. For each decision_task, call the host model fresh using only task.request and runtimeInstructions.
 23. Validate action against legalActions. fold/check/call must not include amount; bet/raise must include a positive numeric amount.
 24. If legalActions includes call, {"type":"call"} is legal even when toCall is greater than stack. The server will commit the Agent's remaining stack and mark it all-in. Do not fold only because the Agent cannot cover the full toCall.

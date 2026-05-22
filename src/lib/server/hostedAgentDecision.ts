@@ -4,6 +4,7 @@ import { getAgentPrivateSettings } from "./agentPrivateSettings";
 import type { RegisteredAgent } from "./agentRegistry";
 import { validateDecisionResponse } from "./decisionBroker";
 import { logger } from "./logger";
+import { getRuntimeInstructions } from "./runtimeInstructions";
 
 type MiniMaxContentBlock = {
   type?: unknown;
@@ -49,6 +50,7 @@ export async function decideForHostedAgent(agent: RegisteredAgent & { kind: "hos
 
 async function buildHostedAgentPrompt(agent: RegisteredAgent, request: AgentDecisionRequest) {
   const settings = agent.ownerUserId ? await getAgentPrivateSettings(agent.ownerUserId) : undefined;
+  const runtimeInstructions = getRuntimeInstructions(agent.id);
   const playerPrompt = settings?.agentPrompt?.trim() || "你是一名稳健、纪律性强的德州扑克 AI 牌手。优先做合法、可解释、风险可控的决策。";
   const decisionInput = {
     requestId: request.requestId,
@@ -65,6 +67,7 @@ async function buildHostedAgentPrompt(agent: RegisteredAgent, request: AgentDeci
     minRaise: request.minRaise,
     stack: request.stack,
     handAnalysis: request.handAnalysis,
+    runtimeInstructions: runtimeInstructions.instructions,
   };
 
   return `你是 Texas Poker Club 的服务器托管 AI 牌手。请根据用户风格 Prompt 和当前牌桌信息选择一个合法动作。
@@ -72,12 +75,21 @@ async function buildHostedAgentPrompt(agent: RegisteredAgent, request: AgentDeci
 用户风格 Prompt:
 ${playerPrompt}
 
+现场 Coaching / Runtime Instructions:
+${JSON.stringify(runtimeInstructions.instructions)}
+
 输出要求:
 - 只输出 JSON，不要 Markdown，不要代码块。
 - action.type 必须来自 legalActions。
 - fold/check/call 不能包含 amount。
 - bet/raise 必须包含正数 amount；raise 的 amount 是本轮目标总下注额，通常至少为 currentBet + minRaise。
 - reasoning 必须是简短中文解释。
+
+牌力判断硬约束:
+- decisionInput.handAnalysis 是当前手牌+公牌组合的权威牌力计算结果。
+- 当前成牌必须以 handAnalysis.madeHand 为准；听牌必须以 handAnalysis.draws 为准；牌面结构必须以 handAnalysis.boardTexture 为准。
+- privateCards 和 publicState.communityCards 只用于理解上下文、位置、下注和风险，不允许重新计算出与 handAnalysis 冲突的牌力结论。
+- 如果你自己的直觉牌力判断与 handAnalysis 不一致，必须服从 handAnalysis，并在 reasoning 中按 handAnalysis 描述当前牌力。
 
 JSON schema:
 {"action":{"type":"fold|check|call|bet|raise","amount":number_if_and_only_if_bet_or_raise},"reasoning":"中文简短解释"}
