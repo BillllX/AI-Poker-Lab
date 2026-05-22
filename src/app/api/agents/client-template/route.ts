@@ -325,7 +325,7 @@ async function handleDecisionTask(task) {
 
   inFlightRequestIds.add(request.requestId);
   try {
-    const runtimeInstructions = await fetchRuntimeInstructions();
+    const runtimeInstructions = await fetchRuntimeInstructions(request);
     const decision = await withDeadline(
       decideWithLlmOrFallback(request, { runtimeInstructions, isQualification: false }),
       Math.max(1_000, msLeft - DECISION_SAFETY_MS),
@@ -389,9 +389,16 @@ function installShutdownHandlers() {
   }
 }
 
-async function fetchRuntimeInstructions() {
+async function fetchRuntimeInstructions(request) {
   try {
-    return await getJson(\`\${GAME_URL}/api/agents/runtime-instructions?agentId=\${encodeURIComponent(AGENT_ID)}\`);
+    const params = new URLSearchParams({ agentId: AGENT_ID });
+    if (request?.tableId) {
+      params.set("tableId", request.tableId);
+    }
+    if (Number.isFinite(Number(request?.handId))) {
+      params.set("handId", String(request.handId));
+    }
+    return await getJson(\`\${GAME_URL}/api/agents/runtime-instructions?\${params.toString()}\`);
   } catch {
     return { instructions: [] };
   }

@@ -50,7 +50,7 @@ export async function decideForHostedAgent(agent: RegisteredAgent & { kind: "hos
 
 async function buildHostedAgentPrompt(agent: RegisteredAgent, request: AgentDecisionRequest) {
   const settings = agent.ownerUserId ? await getAgentPrivateSettings(agent.ownerUserId) : undefined;
-  const runtimeInstructions = getRuntimeInstructions(agent.id);
+  const runtimeInstructions = getRuntimeInstructions(agent.id, { tableId: request.tableId, handId: request.handId });
   const playerPrompt = settings?.agentPrompt?.trim() || "你是一名稳健、纪律性强的德州扑克 AI 牌手。优先做合法、可解释、风险可控的决策。";
   const decisionInput = {
     requestId: request.requestId,
