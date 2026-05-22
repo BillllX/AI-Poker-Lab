@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { analyzeDecisionHand } from "../poker/handAnalysis";
 import type { AgentDecisionRequest, AgentDecisionResponse, PokerAction } from "../poker/types";
 import { normalizeAgentId } from "./agentRegistry";
 import { validateDecisionResponse } from "./decisionBroker";
@@ -47,6 +48,7 @@ export class QualificationSubmissionError extends Error {
 const sessionTtlMs = 30 * 60_000;
 const tokenTtlMs = 30 * 60_000;
 export const qualificationProtocolVersion = "ws-sandbox-v2";
+export const hostedAgentProtocolVersion = "hosted-agent-v1";
 
 const globalForQualification = globalThis as typeof globalThis & {
   __texasPokerQualificationSessions?: Map<string, QualificationSession>;
@@ -188,6 +190,11 @@ export async function recordPersistentQualification(input: { agentId: string; mo
     throw new Error("ownerUserId is required to persist qualification.");
   }
 
+  const ownerAgent = await findPersistentOwnerAgent(ownerUserId, agentId);
+  if (ownerAgent) {
+    throw new Error(`Each club user can only have one Agent. Reuse existing Agent ${ownerAgent.agentId} instead of registering another Agent.`);
+  }
+
   const result = await prisma.agentQualification.upsert({
     create: {
       id: `agent_qualification_${randomUUID().replace(/-/g, "")}`,
@@ -211,6 +218,71 @@ export async function recordPersistentQualification(input: { agentId: string; mo
   });
   logger.info("qualification.persisted", { agentId, ownerUserId, modelName, protocolVersion: qualificationProtocolVersion });
   return result;
+}
+
+export async function recordHostedAgentQualification(input: { agentId: string; modelName: string; ownerUserId: string }) {
+  const agentId = normalizeAgentId(input.agentId);
+  const modelName = input.modelName.trim();
+  const ownerUserId = input.ownerUserId.trim();
+
+  if (!modelName) {
+    throw new Error("modelName is required to persist hosted Agent.");
+  }
+  if (!ownerUserId) {
+    throw new Error("ownerUserId is required to persist hosted Agent.");
+  }
+
+  const ownerAgent = await findPersistentOwnerAgent(ownerUserId, agentId);
+  if (ownerAgent) {
+    throw new Error(`Each club user can only have one Agent. Reuse existing Agent ${ownerAgent.agentId} instead of creating a hosted Agent.`);
+  }
+
+  const result = await prisma.agentQualification.upsert({
+    create: {
+      id: `agent_qualification_${randomUUID().replace(/-/g, "")}`,
+      agentId,
+      modelName,
+      ownerUserId,
+      protocolVersion: hostedAgentProtocolVersion,
+    },
+    update: {
+      modelName,
+      passedAt: new Date(),
+      expiresAt: null,
+    },
+    where: {
+      agentId_ownerUserId_modelName_protocolVersion: {
+        agentId,
+        modelName,
+        ownerUserId,
+        protocolVersion: hostedAgentProtocolVersion,
+      },
+    },
+  });
+  logger.info("hosted_agent.qualification_persisted", { agentId, ownerUserId, modelName, protocolVersion: hostedAgentProtocolVersion });
+  return result;
+}
+
+export async function findPersistentOwnerAgent(ownerUserId: string, exceptAgentId?: string) {
+  const trimmedOwnerUserId = ownerUserId.trim();
+  if (!trimmedOwnerUserId) {
+    return null;
+  }
+
+  return prisma.agentQualification.findFirst({
+    where: {
+      ownerUserId: trimmedOwnerUserId,
+      ...(exceptAgentId ? { NOT: { agentId: normalizeAgentId(exceptAgentId) } } : {}),
+    },
+    orderBy: { passedAt: "desc" },
+    select: {
+      agentId: true,
+      ownerUserId: true,
+      modelName: true,
+      passedAt: true,
+      protocolVersion: true,
+    },
+  });
 }
 
 export async function issueQualificationTokenFromPersistentResult(input: { agentId: string; modelName: string; ownerUserId: string }) {
@@ -430,15 +502,22 @@ function createTask({
   stack: number;
   toCall: number;
 }): QualificationTask {
+  const privateCards = [
+    { rank: "A", suit: "s" },
+    { rank: "K", suit: "h" },
+  ] satisfies AgentDecisionRequest["privateCards"];
+  const communityCards = [
+    { rank: "A", suit: "d" },
+    { rank: "7", suit: "c" },
+    { rank: "2", suit: "s" },
+  ] satisfies AgentDecisionRequest["publicState"]["communityCards"];
+
   return {
     type: "decision_request",
     requestId: `${qualificationId}-${caseId}`,
     handId: 0,
     playerId: agentId,
-    privateCards: [
-      { rank: "A", suit: "s" },
-      { rank: "K", suit: "h" },
-    ],
+    privateCards,
     publicState: {
       handId: 0,
       running: false,
@@ -450,11 +529,7 @@ function createTask({
       currentBet: toCall > 0 ? 20 : 0,
       minRaise: 10,
       currentPlayerId: agentId,
-      communityCards: [
-        { rank: "A", suit: "d" },
-        { rank: "7", suit: "c" },
-        { rank: "2", suit: "s" },
-      ],
+      communityCards,
       players: [
         {
           id: agentId,
@@ -506,6 +581,7 @@ function createTask({
     toCall,
     minRaise: 10,
     stack,
+    handAnalysis: analyzeDecisionHand(privateCards, communityCards),
     qualificationCase: {
       caseId,
       mode,

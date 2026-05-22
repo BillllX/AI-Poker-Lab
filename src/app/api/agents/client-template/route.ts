@@ -10,7 +10,6 @@ const rawClientTemplate = String.raw`#!/usr/bin/env node
  *   npm install ws
  *   GAME_URL=http://150.158.85.220:3000 \
  *   AGENT_ID=alice-agent \
- *   AGENT_NAME="Alice Agent" \
  *   MODEL_NAME=gpt-4.1 \
  *   AGENT_STYLE="稳健紧凶，重视位置和底池赔率" \
  *   node texas-poker-agent-client.js
@@ -30,7 +29,6 @@ const WebSocket = require("ws");
 
 const GAME_URL = process.env.GAME_URL || "http://150.158.85.220:3000";
 const AGENT_ID = normalizeAgentId(process.env.AGENT_ID || "example-agent");
-const AGENT_NAME = process.env.AGENT_NAME || AGENT_ID;
 const MODEL_NAME = process.env.MODEL_NAME || "replace-with-real-model-name";
 const AGENT_STYLE = process.env.AGENT_STYLE || "稳健、理性、只根据当前牌局信息行动";
 const MEMORY_PATH = process.env.MEMORY_PATH || path.join(process.cwd(), ".texas-poker-agent-memory.json");
@@ -80,7 +78,7 @@ async function loadOrRegisterUser() {
   const rl = readline.createInterface({ input, output });
   try {
     const name = (await rl.question("Choose a Texas Poker Club user name: ")).trim();
-    const email = (await rl.question("Enter Email for daily Token rewards: ")).trim();
+    const password = (await rl.question("Choose a Texas Poker Club password (at least 8 characters): ")).trim();
 
     const nameCheck = await getJson(\`\${GAME_URL}/api/users/check-name?name=\${encodeURIComponent(name)}\`);
     if (!nameCheck.available) {
@@ -92,7 +90,7 @@ async function loadOrRegisterUser() {
 
     const payload = await postJson(\`\${GAME_URL}/api/users\`, {
       name,
-      email,
+      password,
       captchaId: captcha.captchaId,
       captchaAnswer,
     });
@@ -101,7 +99,6 @@ async function loadOrRegisterUser() {
       ownerUserId: payload.user.id,
       userName: payload.user.name,
       userToken: payload.userToken,
-      email,
     };
     await writeMemory(credentials);
     console.log("[user] saved ownerUserId/userToken to memory:", credentials.ownerUserId);
@@ -249,7 +246,6 @@ async function registerAgent(owner, qualificationToken) {
   console.log("[roster] registering", AGENT_ID);
   await postJson(\`\${GAME_URL}/api/agents/roster\`, {
     id: AGENT_ID,
-    name: AGENT_NAME,
     modelName: MODEL_NAME,
     ownerUserId: owner.ownerUserId,
     userToken: owner.userToken,
@@ -329,7 +325,7 @@ async function handleDecisionTask(task) {
 
   inFlightRequestIds.add(request.requestId);
   try {
-    const runtimeInstructions = await fetchRuntimeInstructions();
+    const runtimeInstructions = await fetchRuntimeInstructions(request);
     const decision = await withDeadline(
       decideWithLlmOrFallback(request, { runtimeInstructions, isQualification: false }),
       Math.max(1_000, msLeft - DECISION_SAFETY_MS),
@@ -393,9 +389,16 @@ function installShutdownHandlers() {
   }
 }
 
-async function fetchRuntimeInstructions() {
+async function fetchRuntimeInstructions(request) {
   try {
-    return await getJson(\`\${GAME_URL}/api/agents/runtime-instructions?agentId=\${encodeURIComponent(AGENT_ID)}\`);
+    const params = new URLSearchParams({ agentId: AGENT_ID });
+    if (request?.tableId) {
+      params.set("tableId", request.tableId);
+    }
+    if (Number.isFinite(Number(request?.handId))) {
+      params.set("handId", String(request.handId));
+    }
+    return await getJson(\`\${GAME_URL}/api/agents/runtime-instructions?\${params.toString()}\`);
   } catch {
     return { instructions: [] };
   }
@@ -411,6 +414,7 @@ function buildPrompt(request, context) {
     toCall: request.toCall,
     minRaise: request.minRaise,
     stack: request.stack,
+    handAnalysis: request.handAnalysis,
     legalActions: request.legalActions,
     players: request.publicState.players,
     recentActionHistory: request.actionHistory,
@@ -425,6 +429,10 @@ Return exactly one JSON object and nothing else.
 No Markdown. No code fences. No comments.
 The reasoning field must be concise Chinese.
 Use only facts in the request. Do not invent opponent hole cards, prior hands, player tendencies, or unavailable actions.
+The request.handAnalysis field is the authoritative server-computed result for your current made hand, draws, board texture, and tactical facts.
+You must treat handAnalysis.madeHand as the current made hand, handAnalysis.draws as the current draws, and handAnalysis.boardTexture as the board texture.
+privateCards and communityCards are included for context only; do not override or contradict handAnalysis with your own card reading.
+If your intuition conflicts with handAnalysis, follow handAnalysis and explain the decision using handAnalysis.
 
 Current legalActions for this exact decision:
 \${JSON.stringify(request.legalActions)}

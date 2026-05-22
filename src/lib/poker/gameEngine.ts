@@ -1,4 +1,5 @@
 import { createDeck, formatCard, shuffle } from "./cards";
+import { analyzeDecisionHand } from "./handAnalysis";
 import { compareHands, evaluateTexasHand } from "./handEvaluator";
 import { logger } from "../server/logger";
 import type {
@@ -21,7 +22,7 @@ type PlayerConfig = {
   name: string;
   ownerUserId?: string;
   modelName?: string;
-  kind?: "external" | "virtual";
+  kind?: "external" | "hosted" | "virtual";
   strategy?: AgentStyle;
   endpoint?: string;
 };
@@ -370,6 +371,7 @@ export class PokerGameEngine {
       toCall,
       minRaise: this.minRaise,
       stack: player.stack,
+      handAnalysis: analyzeDecisionHand(player.holeCards, this.communityCards),
     };
 
     try {

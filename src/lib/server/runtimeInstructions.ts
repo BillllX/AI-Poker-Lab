@@ -6,6 +6,8 @@ export type RuntimeInstructionNote = {
   message: string;
   source: "operator" | "system";
   createdAt: string;
+  tableId?: string;
+  appliesFromHandId?: number;
 };
 
 export type RuntimeInstructions = {
@@ -35,9 +37,12 @@ const globalForRuntimeInstructions = globalThis as typeof globalThis & {
 const notes = (globalForRuntimeInstructions.__texasPokerRuntimeInstructionNotes ??= []);
 globalForRuntimeInstructions.__texasPokerRuntimeInstructionVersion ??= 1;
 
-export function getRuntimeInstructions(rawAgentId: string): RuntimeInstructions {
+export function getRuntimeInstructions(rawAgentId: string, context?: { tableId?: string; handId?: number }): RuntimeInstructions {
   const agentId = normalizeAgentId(rawAgentId);
-  const agentNotes = notes.filter((note) => note.agentId === agentId).slice(-20);
+  const agentNotes = notes
+    .filter((note) => note.agentId === agentId)
+    .filter((note) => isInstructionVisible(note, context))
+    .slice(-20);
 
   return {
     agentId,
@@ -48,7 +53,12 @@ export function getRuntimeInstructions(rawAgentId: string): RuntimeInstructions 
   };
 }
 
-export function addRuntimeInstruction(rawAgentId: string, message: string, source: RuntimeInstructionNote["source"] = "operator") {
+export function addRuntimeInstruction(
+  rawAgentId: string,
+  message: string,
+  source: RuntimeInstructionNote["source"] = "operator",
+  options: { tableId?: string; appliesFromHandId?: number } = {},
+) {
   const agentId = normalizeAgentId(rawAgentId);
   const normalizedMessage = normalizeMessage(message);
   const note: RuntimeInstructionNote = {
@@ -57,6 +67,8 @@ export function addRuntimeInstruction(rawAgentId: string, message: string, sourc
     message: normalizedMessage,
     source,
     createdAt: new Date().toISOString(),
+    tableId: options.tableId,
+    appliesFromHandId: options.appliesFromHandId,
   };
 
   notes.push(note);
@@ -78,4 +90,17 @@ function normalizeMessage(message: string) {
   }
 
   return normalized;
+}
+
+function isInstructionVisible(note: RuntimeInstructionNote, context?: { tableId?: string; handId?: number }) {
+  if (!note.appliesFromHandId) {
+    return true;
+  }
+  if (note.tableId && context?.tableId && note.tableId !== context.tableId) {
+    return false;
+  }
+  if (typeof context?.handId !== "number") {
+    return false;
+  }
+  return context.handId >= note.appliesFromHandId;
 }

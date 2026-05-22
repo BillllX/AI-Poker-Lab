@@ -385,11 +385,29 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   display: grid;
   gap: 16px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: start;
+  grid-template-rows: auto auto auto;
   min-width: 0;
   overflow: hidden;
   padding: 18px;
   position: relative;
+}
+
+.clubHeroImage {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.28);
+  min-height: 260px;
+  overflow: hidden;
+  position: relative;
+}
+
+.clubHeroAsset {
+  display: block;
+  height: 100%;
+  min-height: 260px;
+  object-fit: cover;
+  width: 100%;
 }
 
 .tablePreviewHeader {
@@ -418,6 +436,35 @@
   font-size: 14px;
   line-height: 1.6;
   margin: 0;
+}
+
+.matchStatGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+  position: relative;
+  z-index: 1;
+}
+
+.matchStatGrid article {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 12px 14px;
+}
+
+.matchStatGrid strong {
+  color: var(--text);
+  display: block;
+  font-size: 15px;
+}
+
+.matchStatGrid span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 5px;
 }
 
 .tablePreviewLink {
@@ -464,6 +511,23 @@
   gap: 14px;
 }
 
+.registrationCard + .registrationCard {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 18px;
+}
+
+.registrationCard h3 {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.registrationCard p {
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
 .registrationCard label {
   color: var(--muted);
   display: grid;
@@ -484,6 +548,33 @@
 
 .registrationCard button {
   white-space: nowrap;
+}
+
+.authTabs {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+  padding: 4px;
+}
+
+.authTabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 10px 14px;
+}
+
+.authTabs .activeAuthTab {
+  background: var(--accent);
+  color: #052014;
 }
 
 .inlineField {
@@ -607,7 +698,7 @@
   align-items: stretch;
   display: grid;
   gap: 18px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0 auto;
   max-width: 1360px;
   padding: 18px 24px 24px;
@@ -656,6 +747,28 @@
   padding: 14px;
 }
 
+.championRow {
+  background:
+    linear-gradient(90deg, rgba(250, 204, 21, 0.16), rgba(255, 255, 255, 0.055)),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(250, 204, 21, 0.42);
+  box-shadow: 0 14px 36px rgba(250, 204, 21, 0.09);
+}
+
+.runnerUpRow {
+  background:
+    linear-gradient(90deg, rgba(226, 232, 240, 0.13), rgba(255, 255, 255, 0.05)),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(226, 232, 240, 0.32);
+}
+
+.thirdPlaceRow {
+  background:
+    linear-gradient(90deg, rgba(217, 119, 6, 0.13), rgba(255, 255, 255, 0.05)),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(217, 119, 6, 0.32);
+}
+
 .rank {
   align-items: center;
   background: rgba(250, 204, 21, 0.13);
@@ -666,6 +779,43 @@
   height: 42px;
   justify-content: center;
   width: 42px;
+}
+
+.championRank,
+.runnerUpRank,
+.thirdPlaceRank {
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 999px;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  color: #1c1304;
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  height: 50px;
+  position: static;
+  width: 50px;
+}
+
+.championRank {
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.6), transparent 16px),
+    linear-gradient(145deg, #fff1a8, #facc15 48%, #b77906);
+}
+
+.runnerUpRank {
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.7), transparent 16px),
+    linear-gradient(145deg, #ffffff, #cbd5e1 48%, #64748b);
+  color: #111827;
+}
+
+.thirdPlaceRank {
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.46), transparent 16px),
+    linear-gradient(145deg, #fed7aa, #d97706 48%, #7c2d12);
+  color: #241006;
 }
 
 .leaderboardRow strong,
@@ -935,6 +1085,47 @@
   max-width: 600px;
 }
 
+.engagementShowcase {
+  align-items: center;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(250, 204, 21, 0.16), transparent 18rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(220px, 0.38fr) minmax(0, 1fr);
+  margin-bottom: 16px;
+  overflow: hidden;
+  padding: 18px;
+}
+
+.playerCardImage {
+  border: 1px solid rgba(250, 204, 21, 0.24);
+  border-radius: 24px;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+}
+
+.playerCardAsset {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.engagementShowcase h3 {
+  font-size: clamp(24px, 3vw, 38px);
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  margin: 0 0 12px;
+}
+
+.engagementShowcase p:not(.agentAccessEyebrow) {
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 0;
+}
+
 .featureGrid {
   display: grid;
   gap: 16px;
@@ -1107,25 +1298,28 @@
 
   .tablePreviewPanel {
     gap: 14px;
-    grid-template-columns: minmax(0, 0.78fr) minmax(320px, 1fr);
-    grid-template-rows: auto auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
     padding: 18px;
   }
 
   .tablePreviewHeader {
-    grid-column: 1;
+    grid-column: auto;
     grid-template-columns: 1fr;
   }
 
-  .tablePreviewPanel .tableCard {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    width: min(100%, 430px);
+  .clubHeroImage {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .tablePreviewLink {
     align-self: end;
-    grid-column: 1;
+    grid-column: auto;
+  }
+
+  .matchStatGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .leaderboardsSection {
@@ -1136,10 +1330,6 @@
 
   .leaderboardCard {
     min-height: 300px;
-  }
-
-  .leaderboardCard:last-child {
-    grid-column: 1 / -1;
   }
 
   .leaderboardHeader {
@@ -1217,24 +1407,27 @@
   }
 
   .tablePreviewPanel {
-    grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
-    grid-template-rows: auto auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
   }
 
   .tablePreviewHeader {
-    grid-column: 1;
+    grid-column: auto;
     grid-template-columns: 1fr;
   }
 
-  .tablePreviewPanel .tableCard {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    width: min(100%, 460px);
+  .clubHeroImage {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .tablePreviewLink {
     align-self: end;
-    grid-column: 1;
+    grid-column: auto;
+  }
+
+  .matchStatGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .tablePreviewPanel .tableCard {
@@ -1247,6 +1440,14 @@
 
   .leaderboardsSection {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .engagementShowcase {
+    grid-template-columns: 1fr;
+  }
+
+  .playerCardImage {
+    max-width: 420px;
   }
 
   .activityCard {
@@ -1405,11 +1606,12 @@
   .tablePreviewPanel {
     border-radius: 22px;
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto auto auto;
     padding: 18px;
   }
 
   .tablePreviewHeader,
+  .clubHeroImage,
   .tablePreviewLink,
   .tablePreviewPanel .tableCard {
     grid-column: auto;
@@ -1423,6 +1625,10 @@
   .tablePreviewPanel .tableCard {
     border-width: 10px;
     width: min(100%, 390px);
+  }
+
+  .matchStatGrid {
+    grid-template-columns: 1fr;
   }
 
   .tableCenter {

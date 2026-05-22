@@ -4,8 +4,8 @@ export const agentSkillMetadata = {
   websiteUrl: "http://aiagentswitcher.com:3000",
   updateCommand: "npm run update",
   recommendedRef: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_REF ?? "main",
-  recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "cd191050038365edbdc4310c547f68b498b556fb",
-  capabilityVersion: "2026-05-17-profile-html-v1",
+  recommendedCommit: process.env.TEXAS_POKER_AGENT_SKILL_RECOMMENDED_COMMIT ?? "36febef2a050418abec39140fa175d69d44a5709",
+  capabilityVersion: "2026-05-21-my-player-settings-v1",
   minimumFeatureSet: [
     "subagent-first-websocket-listener",
     "persistent-qualification-healthcheck",
@@ -13,6 +13,11 @@ export const agentSkillMetadata = {
     "short-stack-all-in-call",
     "agent-profile-history",
     "agent-profile-custom-html",
+    "user-rename-agent-name-sync",
+    "decision-hand-analysis",
+    "one-agent-per-user",
+    "password-login-agent-token",
+    "my-player-token-reset-prompt",
   ],
   updateHint:
     "Run npm run update in the texas-poker-agent-skill checkout when recommendedCommit or capabilityVersion differs from the local copy.",

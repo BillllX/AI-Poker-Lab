@@ -61,8 +61,35 @@ async function main() {
   assert.equal(onboarding.skill.updateCommand, "npm run update");
   assert.equal(onboarding.skill.recommendedRef, "main");
   assert.match(onboarding.skill.recommendedCommit, /^[0-9a-f]{40}$/);
-  assert.equal(onboarding.skill.capabilityVersion, "2026-05-17-profile-html-v1");
+  assert.equal(onboarding.skill.capabilityVersion, "2026-05-21-my-player-settings-v1");
   assert.ok(onboarding.skill.minimumFeatureSet.includes("agent-profile-custom-html"));
+  assert.ok(onboarding.skill.minimumFeatureSet.includes("user-rename-agent-name-sync"));
+  assert.ok(onboarding.skill.minimumFeatureSet.includes("decision-hand-analysis"));
+  assert.ok(onboarding.skill.minimumFeatureSet.includes("one-agent-per-user"));
+  assert.ok(onboarding.skill.minimumFeatureSet.includes("password-login-agent-token"));
+  assert.ok(onboarding.skill.minimumFeatureSet.includes("my-player-token-reset-prompt"));
+  assert.ok(onboarding.requiredUserInputs.some((item: string) => item.includes("password")));
+  assert.equal(onboarding.service.usersUrl, "http://localhost:3000/api/users");
+  assert.ok(
+    onboarding.subagentResponsibilities.some((item: string) =>
+      item.includes("Do not invent Agent display names"),
+    ),
+  );
+  assert.ok(
+    onboarding.subagentResponsibilities.some((item: string) =>
+      item.includes("handAnalysis"),
+    ),
+  );
+  assert.ok(
+    onboarding.subagentResponsibilities.some((item: string) =>
+      item.includes("only one external Agent identity"),
+    ),
+  );
+  assert.ok(
+    onboarding.mainAgentResponsibilities.some((item: string) =>
+      item.includes("browser login"),
+    ),
+  );
   assert.ok(
     onboarding.doNotAskUserFor.some((item: string) =>
       item.includes("OpenClaw config files or local credential paths"),
@@ -104,6 +131,7 @@ async function main() {
   assert.match(template, /persisted qualification found; reusing issued token/);
   assert.match(template, /\/api\/agents\/qualification\/ws/);
   assert.match(template, /duplicate request ignored/);
+  assert.match(template, /password/);
 
   assertWebSocketQualificationRequired();
   await assertQualificationTaskContractAndStructuredErrors();

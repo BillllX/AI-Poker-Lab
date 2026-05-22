@@ -11,7 +11,7 @@ type AgentProfile = {
     name: string;
     ownerUserId?: string;
     modelName?: string;
-    kind: "external" | "virtual";
+    kind: "external" | "hosted" | "virtual";
     strategy?: string;
     registeredAt: string;
     lastSeenAt?: string;
@@ -72,9 +72,9 @@ type AgentProfile = {
 
 const copy = {
   zh: {
-    backLobby: "返回大厅",
+    backLobby: "返回比赛大厅",
     home: "首页",
-    eyebrow: "Agent Profile",
+    eyebrow: "AI 牌手主页",
     status: "状态",
     liveStatus: "在线状态",
     model: "模型",
@@ -89,37 +89,37 @@ const copy = {
     playerCard: "AI 牌手卡",
     defaultCard: "默认模板",
     customCard: "自定义 HTML",
-    historyTitle: "历史战绩",
+    historyTitle: "牌手战绩",
     sessions: "参赛场次",
     bestProfit: "最佳单场",
     lastSettledAt: "最近结算",
-    recentResults: "最近参赛记录",
-    noRecentResults: "暂无历史战绩。完成一次入桌并结算后，这里会自动出现记录。",
+    recentResults: "最近比赛记录",
+    noRecentResults: "暂无比赛记录。完成一次入桌并结算后，这里会自动沉淀可复盘的战绩。",
     buyIn: "买入",
     finalStack: "结算筹码",
     stack: "当前筹码",
     currentTable: "当前牌桌",
-    noTable: "当前离线或未入座；仍可查看用户、模型、准入和积分信息。",
+    noTable: "当前离线或未入座；仍可查看身份、模型、战绩和积分信息。",
     openTable: "进入观战",
-    shareTitle: "分享文案",
-    copyShare: "复制分享文案",
+    shareTitle: "分享这名 AI 牌手",
+    copyShare: "复制分享内容",
     copied: "已复制",
     refreshing: "正在刷新",
     lastUpdated: "最近更新",
     winRate: "胜率",
-    performance: "牌手表现",
+    performance: "牌手亮点",
     netProfit: "累计盈亏",
     liveNow: "实时在线",
     offline: "离线",
-    nextStepTitle: "下一步",
-    nextStep: "后续可以为这个 Agent 增加 Coach Card 和长期训练笔记，让它从单纯参赛变成可培养的 AI 牌手。",
-    loading: "加载 Agent Profile...",
-    notFound: "没有找到这个 Agent。",
+    nextStepTitle: "如何继续参与",
+    nextStep: "下一步会把 Coach Card、关键手牌和赛后复盘接入这里，让用户不只是看结果，还能理解它为什么输赢，并为下一场给出策略建议。",
+    loading: "加载 AI 牌手主页...",
+    notFound: "没有找到这名 AI 牌手。",
   },
   en: {
-    backLobby: "Back to Lobby",
+    backLobby: "Back to Match Lobby",
     home: "Home",
-    eyebrow: "Agent Profile",
+    eyebrow: "AI Player Profile",
     status: "Status",
     liveStatus: "Live Status",
     model: "Model",
@@ -134,32 +134,32 @@ const copy = {
     playerCard: "AI Player Card",
     defaultCard: "Default Template",
     customCard: "Custom HTML",
-    historyTitle: "History",
+    historyTitle: "Player History",
     sessions: "Sessions",
     bestProfit: "Best Session",
     lastSettledAt: "Last Settled",
-    recentResults: "Recent Results",
-    noRecentResults: "No history yet. Records will appear after a seated Agent settles a game.",
+    recentResults: "Recent Matches",
+    noRecentResults: "No match history yet. Reviewable records will appear after this player settles a seated game.",
     buyIn: "Buy-in",
     finalStack: "Final Stack",
     stack: "Stack",
     currentTable: "Current Table",
-    noTable: "Offline or not seated. Identity, model, qualification, and points are still available.",
+    noTable: "Offline or not seated. Identity, model, history, and points are still available.",
     openTable: "Spectate",
-    shareTitle: "Share Copy",
-    copyShare: "Copy share text",
+    shareTitle: "Share This AI Player",
+    copyShare: "Copy share copy",
     copied: "Copied",
     refreshing: "Refreshing",
     lastUpdated: "Last Updated",
     winRate: "Win Rate",
-    performance: "Performance",
+    performance: "Player Highlights",
     netProfit: "Net Profit",
     liveNow: "Live Now",
     offline: "Offline",
-    nextStepTitle: "Next Step",
-    nextStep: "Next, this Agent can get Coach Cards and long-term training notes, turning it from a bot into a trainable AI poker player.",
-    loading: "Loading Agent Profile...",
-    notFound: "Agent was not found.",
+    nextStepTitle: "How to Stay Involved",
+    nextStep: "Next, Coach Cards, key hands, and post-game reviews can live here so users understand why the player won or lost and can give better advice before the next match.",
+    loading: "Loading AI player profile...",
+    notFound: "AI player was not found.",
   },
 };
 
@@ -191,7 +191,7 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
     }
     const hands = history?.handsPlayed ?? stats?.handsPlayed ?? 0;
     const profit = formatSigned(history?.profit ?? stats?.profit ?? 0);
-    return `我的 AI 牌手 ${displayName ?? profile.agent.name} 正在 Texas Poker Club 参赛：${hands} 手，盈亏 ${profit}，模型 ${modelName ?? "Unknown Model"}。Real fun, without real money.`;
+    return `我的 AI 牌手 ${displayName ?? profile.agent.name} 正在 Texas Poker Club 参赛：${hands} 手，累计盈亏 ${profit}，模型 ${modelName ?? "Unknown Model"}。围观、复盘、继续调教它：Real fun, without real money.`;
   }, [displayName, history, modelName, profile, stats]);
 
   const loadProfile = useCallback(

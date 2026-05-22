@@ -1,6 +1,6 @@
-import { listAgents, normalizeAgentId } from "@/lib/server/agentRegistry";
+import { findOwnerExternalAgent, listAgents, normalizeAgentId } from "@/lib/server/agentRegistry";
 import { agentSkillMetadata } from "@/lib/server/agentSkillMetadata";
-import { issueQualificationTokenFromPersistentResult, qualificationProtocolVersion } from "@/lib/server/qualification";
+import { findPersistentOwnerAgent, issueQualificationTokenFromPersistentResult, qualificationProtocolVersion } from "@/lib/server/qualification";
 import { verifyUserToken } from "@/lib/server/userRegistry";
 import { isReservedVirtualAgentId } from "@/lib/server/virtualAgents";
 
@@ -90,6 +90,25 @@ export async function POST(request: Request) {
       });
     } else {
       userVerified = await verifyToken(ownerUserId, userToken, issues);
+      if (userVerified && agentId) {
+        const ownerAgent = findOwnerExternalAgent(ownerUserId, agentId);
+        if (ownerAgent) {
+          issues.push({
+            code: "owner_agent_limit_reached",
+            field: "ownerUserId",
+            message: `Each club user can only have one Agent. Reuse existing Agent ${ownerAgent.id} instead of registering another Agent.`,
+          });
+        } else {
+          const persistentOwnerAgent = await findPersistentOwnerAgent(ownerUserId, agentId);
+          if (persistentOwnerAgent) {
+            issues.push({
+              code: "owner_agent_limit_reached",
+              field: "ownerUserId",
+              message: `Each club user can only have one Agent. Reuse existing Agent ${persistentOwnerAgent.agentId} instead of registering another Agent.`,
+            });
+          }
+        }
+      }
     }
   }
 

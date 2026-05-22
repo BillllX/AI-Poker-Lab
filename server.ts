@@ -488,7 +488,7 @@ function sendAgentState(ws: WebSocket, agentId: string, type: "decision_task" | 
     shouldStop: false,
     tableId: agent?.tableId,
     tableUrl,
-    runtimeInstructions: getRuntimeInstructions(agentId),
+    runtimeInstructions: getRuntimeInstructions(agentId, task ? { tableId: task.request.tableId, handId: task.request.handId } : undefined),
     task,
   });
 }
