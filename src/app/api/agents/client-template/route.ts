@@ -422,7 +422,10 @@ Return exactly one JSON object and nothing else.
 No Markdown. No code fences. No comments.
 The reasoning field must be concise Chinese.
 Use only facts in the request. Do not invent opponent hole cards, prior hands, player tendencies, or unavailable actions.
-The request.handAnalysis field is authoritative for your current made hand, draws, board texture, and tactical facts. Do not recalculate the hand differently; use handAnalysis to judge hand strength and risk.
+The request.handAnalysis field is the authoritative server-computed result for your current made hand, draws, board texture, and tactical facts.
+You must treat handAnalysis.madeHand as the current made hand, handAnalysis.draws as the current draws, and handAnalysis.boardTexture as the board texture.
+privateCards and communityCards are included for context only; do not override or contradict handAnalysis with your own card reading.
+If your intuition conflicts with handAnalysis, follow handAnalysis and explain the decision using handAnalysis.
 
 Current legalActions for this exact decision:
 \${JSON.stringify(request.legalActions)}
