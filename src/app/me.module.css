@@ -1,16 +1,361 @@
 .page {
   background:
-    radial-gradient(circle at 16% 8%, rgba(110, 231, 168, 0.15), transparent 28rem),
-    radial-gradient(circle at 86% 12%, rgba(250, 204, 21, 0.1), transparent 24rem);
+    radial-gradient(circle at 16% 8%, rgba(34, 211, 238, 0.16), transparent 28rem),
+    radial-gradient(circle at 86% 10%, rgba(250, 204, 21, 0.12), transparent 24rem),
+    linear-gradient(180deg, #020617 0%, #07111f 52%, #03100d 100%);
   min-height: 100vh;
+  overflow: hidden;
   padding: 24px;
+  position: relative;
+}
+
+/* Unified club theme overrides. */
+.page {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(118, 228, 170, 0.13), transparent 30rem),
+    radial-gradient(circle at 88% 8%, rgba(245, 200, 75, 0.08), transparent 24rem),
+    linear-gradient(180deg, var(--background), #071a12 56%, var(--background));
+  overflow-x: hidden;
+}
+
+.page::before {
+  background:
+    linear-gradient(rgba(220, 252, 231, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220, 252, 231, 0.024) 1px, transparent 1px);
+  opacity: 0.32;
+}
+
+.playerHero,
+.trainingCard,
+.sidePanel,
+.card,
+.statCard,
+.creationCard,
+.advancedCard,
+.emptyState,
+.playerCard {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.055), transparent 14rem),
+    linear-gradient(180deg, rgba(18, 54, 38, 0.82), rgba(11, 33, 24, 0.72));
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow,
+.badges span {
+  color: var(--accent);
+}
+
+.badges span,
+.powerBar,
+.heroMetrics div,
+.detailList div,
+.credentialList div,
+.resultRow,
+.stylePicker {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: var(--border);
+}
+
+.primaryLink,
+.promptFooter button,
+.creationCard button {
+  background: linear-gradient(135deg, var(--accent), #b8f5cf);
+  color: var(--button-text);
+}
+
+.secondaryLink,
+.cardHeader button,
+.credentialList button,
+.actionRow button {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border);
+}
+
+.avatarOrb {
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.86), transparent 24px),
+    radial-gradient(circle, var(--accent) 0%, #1f8f5a 62%, #092117 100%);
+  border-color: rgba(118, 228, 170, 0.44);
+  box-shadow: 0 0 46px rgba(52, 211, 153, 0.24);
+}
+
+.powerBar span {
+  background: linear-gradient(90deg, var(--warning), var(--accent));
+}
+
+/* Visual system polish: cleaner surfaces and consistent rhythm. */
+.page {
+  padding: var(--space-page);
+}
+
+.playerHero,
+.trainingCard,
+.card,
+.statCard,
+.creationCard,
+.advancedCard,
+.emptyState,
+.playerCard {
+  background: var(--surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+}
+
+.trainingCard,
+.card,
+.creationCard,
+.advancedCard,
+.emptyState {
+  padding: var(--space-card);
+}
+
+.heroMetrics > div,
+.detailList > div,
+.credentialList > div,
+.resultRow,
+.badges span,
+.stylePicker,
+.heroStatus {
+  background: var(--surface-2);
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+}
+
+.promptEditor {
+  background: rgba(5, 18, 13, 0.58);
+  border-color: var(--border);
+}
+
+@media (max-width: 640px) {
+  .playerHero,
+  .trainingCard,
+  .card,
+  .statCard,
+  .creationCard,
+  .advancedCard,
+  .emptyState,
+  .playerCard {
+    box-shadow: none;
+  }
+}
+/* Final desktop layout correction after removing the Next Action side panel. */
+.trainingLayout {
+  display: block;
+  width: 100%;
+}
+
+.trainingCard {
+  width: 100%;
+}
+
+.promptEditor {
+  min-height: 260px;
+}
+
+@media (min-width: 900px) {
+  .trainingCard {
+    padding: 28px;
+  }
+}
+
+/* Final desktop layout correction after removing the Next Action side panel. */
+.trainingLayout {
+  display: block;
+  width: 100%;
+}
+
+.trainingCard {
+  width: 100%;
+}
+
+.promptEditor {
+  min-height: 260px;
+}
+
+@media (min-width: 900px) {
+  .trainingCard {
+    padding: 28px;
+  }
+}
+
+/* Final desktop layout correction after removing the Next Action side panel. */
+.trainingLayout {
+  display: block;
+  width: 100%;
+}
+
+.trainingCard {
+  width: 100%;
+}
+
+.promptEditor {
+  min-height: 260px;
+}
+
+@media (min-width: 900px) {
+  .trainingCard {
+    padding: 28px;
+  }
+}
+
+/* Final desktop layout correction after removing the Next Action side panel. */
+.trainingLayout {
+  display: block;
+  width: 100%;
+}
+
+.trainingCard {
+  width: 100%;
+}
+
+.promptEditor {
+  min-height: 260px;
+}
+
+@media (min-width: 900px) {
+  .trainingCard {
+    padding: 28px;
+  }
+}
+
+/* Final layout correction after removing the Next Action side panel. */
+.trainingLayout {
+  display: block;
+  width: 100%;
+}
+
+.trainingCard {
+  width: 100%;
+}
+
+.promptEditor {
+  min-height: 260px;
+}
+
+@media (min-width: 900px) {
+  .trainingCard {
+    padding: 28px;
+  }
+}
+
+.trainingLayout {
+  grid-template-columns: 1fr;
+}
+
+.heroStatus {
+  background: rgba(118, 228, 170, 0.1);
+  border: 1px solid rgba(118, 228, 170, 0.22);
+  border-radius: 16px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+}
+
+.logoutPanel {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 8px 0 0;
+}
+
+.logoutPanel button {
+  background: rgba(251, 113, 133, 0.12);
+  border: 1px solid rgba(251, 113, 133, 0.28);
+  border-radius: 999px;
+  color: var(--danger);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 10px 18px;
+}
+
+.logoutPanel button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.stylePicker {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stylePicker strong,
+.stylePicker span {
+  grid-column: 1 / -1;
+}
+
+.stylePicker span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .stylePicker {
+    grid-template-columns: 1fr;
+  }
+}
+
+.trainingLayout {
+  grid-template-columns: 1fr;
+}
+
+.heroStatus {
+  background: rgba(118, 228, 170, 0.1);
+  border: 1px solid rgba(118, 228, 170, 0.22);
+  border-radius: 16px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+}
+
+.stylePicker {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stylePicker strong,
+.stylePicker span {
+  grid-column: 1 / -1;
+}
+
+.stylePicker span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .stylePicker {
+    grid-template-columns: 1fr;
+  }
+}
+
+.page::before {
+  background:
+    linear-gradient(rgba(125, 211, 252, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.04) 1px, transparent 1px);
+  background-size: 42px 42px;
+  content: "";
+  inset: 0;
+  opacity: 0.7;
+  pointer-events: none;
+  position: absolute;
 }
 
 .shell {
   display: grid;
   gap: 18px;
   margin: 0 auto;
-  max-width: 1220px;
+  max-width: 1240px;
+  position: relative;
+  z-index: 1;
 }
 
 .nav {
@@ -20,7 +365,8 @@
 }
 
 .nav div,
-.actionRow {
+.actionRow,
+.heroActions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -29,12 +375,12 @@
 .nav a,
 .primaryLink,
 .secondaryLink,
-.identityCard button,
 .cardHeader button,
-.tokenButton,
 .credentialList button,
 .promptFooter button,
-.actionRow button {
+.actionRow button,
+.heroActions button,
+.creationCard button {
   border-radius: 999px;
   color: var(--text);
   cursor: pointer;
@@ -46,45 +392,74 @@
 
 .nav a,
 .secondaryLink,
-.identityCard button,
 .cardHeader button,
-.tokenButton,
 .credentialList button,
-.promptFooter button,
 .actionRow button {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(125, 211, 252, 0.18);
 }
 
-.primaryLink {
-  background: var(--accent);
-  color: #052014;
+.primaryLink,
+.promptFooter button,
+.creationCard button {
+  background: linear-gradient(135deg, #a7f3d0, #67e8f9 56%, #60a5fa);
+  border: 0;
+  color: #03131f;
   display: inline-flex;
+  justify-content: center;
 }
 
-.hero,
+.playerHero,
+.trainingCard,
+.sidePanel,
 .card,
 .statCard,
-.emptyState,
-.futureCard {
+.creationCard,
+.advancedCard,
+.emptyState {
   background:
-    radial-gradient(circle at 100% 0%, rgba(110, 231, 168, 0.09), transparent 16rem),
-    linear-gradient(180deg, var(--panel-strong), var(--panel));
-  border: 1px solid var(--border);
-  border-radius: 28px;
-  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.22);
+    radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.12), transparent 18rem),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.66));
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 30px;
+  box-shadow:
+    0 24px 90px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.hero {
+.playerHero {
   align-items: stretch;
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.38fr);
-  padding: 26px;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.3fr);
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(16px, 3vw, 24px);
+  position: relative;
+}
+
+.heroCopy {
+  align-content: center;
+  display: grid;
+}
+
+.heroActions {
+  align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.heroActions .primaryLink,
+.heroActions .secondaryLink,
+.heroActions button {
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  text-align: center;
 }
 
 .eyebrow {
-  color: var(--accent);
+  color: #67e8f9;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.18em;
@@ -92,28 +467,21 @@
   text-transform: uppercase;
 }
 
-.hero h1 {
-  font-size: clamp(42px, 7vw, 82px);
-  letter-spacing: -0.07em;
-  line-height: 0.95;
-  margin: 0;
-}
-
 .subtitle,
 .muted,
 .statCard span,
-.identityCard span,
+.heroMetrics span,
 .detailList span,
 .resultRow span,
 .resultRow small,
-.futureCard p,
-.futureCard span {
-  color: var(--muted);
+.credentialList span {
+  color: rgba(226, 232, 240, 0.66);
 }
 
 .subtitle {
-  line-height: 1.65;
-  margin: 14px 0 0;
+  font-size: 17px;
+  line-height: 1.7;
+  margin: 18px 0 0;
   max-width: 720px;
 }
 
@@ -121,124 +489,194 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 18px;
+  margin: 0 0 18px;
 }
 
 .badges span {
-  background: rgba(110, 231, 168, 0.1);
-  border: 1px solid rgba(110, 231, 168, 0.22);
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(34, 211, 238, 0.22);
   border-radius: 999px;
-  color: var(--accent);
+  color: #67e8f9;
   font-size: 12px;
   font-weight: 900;
   padding: 7px 10px;
 }
 
-.identityCard {
-  align-content: start;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid var(--border);
-  border-radius: 20px;
+.playerCard {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(250, 204, 21, 0.18), transparent 16rem),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.72));
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  border-radius: 28px;
   display: grid;
-  gap: 10px;
-  padding: 18px;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-items: start;
+  min-width: 0;
+  padding: 16px;
 }
 
-.identityCard strong {
+.avatarOrb {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.9), transparent 24px),
+    radial-gradient(circle, #67e8f9 0%, #2563eb 58%, #0f172a 100%);
+  border: 1px solid rgba(165, 243, 252, 0.7);
+  border-radius: 999px;
+  box-shadow:
+    0 0 70px rgba(34, 211, 238, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  color: #03131f;
+  display: flex;
+  font-size: 34px;
+  font-weight: 1000;
+  height: 82px;
+  justify-content: center;
+  width: 82px;
+}
+
+.playerCardBody {
+  min-width: 0;
+}
+
+.playerCardBody span {
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.playerCardBody strong {
+  display: block;
+  font-size: clamp(28px, 4vw, 46px);
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playerCardBody p {
+  color: rgba(226, 232, 240, 0.62);
+  margin: 8px 0 0;
   overflow-wrap: anywhere;
 }
 
-.statGrid {
+.powerBar {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  height: 12px;
+  overflow: hidden;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.powerBar span {
+  background: linear-gradient(90deg, #facc15, #67e8f9);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.heroMetrics,
+.statusStrip,
+.growthStats {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.statCard {
-  display: grid;
-  gap: 6px;
-  padding: 18px;
+.heroMetrics {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
 }
 
-.statCard strong {
+.statCard,
+.heroMetrics > div,
+.detailList > div,
+.credentialList > div,
+.resultRow {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(125, 211, 252, 0.13);
+  border-radius: 18px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.statCard strong,
+.heroMetrics strong {
   color: var(--text);
-  font-size: clamp(26px, 4vw, 40px);
+  font-size: clamp(18px, 2.4vw, 30px);
   letter-spacing: -0.04em;
 }
 
 .accent {
-  color: var(--accent) !important;
+  color: #67e8f9 !important;
 }
 
 .danger {
   color: #fb7185 !important;
 }
 
-.agentGrid,
-.contentGrid {
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.72fr);
+.trainingLayout {
+  display: block;
+  width: 100%;
 }
 
+.growthGrid {
+  display: grid;
+  gap: 18px;
+}
+
+.trainingCard,
+.sidePanel,
 .card,
-.emptyState,
-.futureCard {
+.creationCard,
+.advancedCard,
+.emptyState {
   padding: 22px;
 }
 
-.card h2,
-.emptyState h1,
-.emptyState h2,
-.futureCard h3 {
-  margin: 0 0 10px;
+.trainingCard {
+  width: 100%;
 }
 
 .cardHeader {
-  align-items: start;
+  align-items: flex-start;
   display: flex;
   gap: 14px;
   justify-content: space-between;
 }
 
-.detailList,
-.credentialList,
-.hostedGrid,
-.resultList {
-  display: grid;
-  gap: 10px;
-  margin: 16px 0;
-}
-
-.detailList > div,
-.credentialList > div,
-.hostedGrid > div,
-.resultRow {
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  display: grid;
-  gap: 5px;
-  padding: 13px;
-}
-
-.credentialList code {
-  color: var(--text);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+.cardHeader h2,
+.sidePanel h2,
+.trainingCard h2,
+.creationCard h2,
+.emptyState h1,
+.emptyState h2 {
+  font-size: clamp(28px, 4vw, 46px);
+  letter-spacing: -0.055em;
+  line-height: 1;
+  margin: 0 0 10px;
 }
 
 .promptEditor {
-  background: rgba(2, 6, 23, 0.52);
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.66);
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 22px;
   box-sizing: border-box;
   color: var(--text);
   font: inherit;
-  line-height: 1.55;
-  min-height: 190px;
-  padding: 14px;
+  line-height: 1.6;
+  margin-top: 16px;
+  min-height: 260px;
+  padding: 16px;
   resize: vertical;
   width: 100%;
 }
@@ -257,18 +695,56 @@
   font-weight: 800;
 }
 
-.credentialList button:disabled,
-.promptFooter button:disabled,
-.actionRow button:disabled {
-  cursor: wait;
-  opacity: 0.62;
+.detailList,
+.credentialList,
+.resultList {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
 }
 
-.hostedGrid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.stylePicker {
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  border-radius: 18px;
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+}
+
+.stylePicker strong {
+  color: var(--warning);
+  font-size: 13px;
+}
+
+.stylePicker button {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 9px 12px;
+}
+
+.credentialList code {
+  color: var(--text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.creationCard {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
 }
 
 .resultRow {
+  align-items: center;
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
@@ -276,30 +752,30 @@
   display: block;
 }
 
-.profileFrame {
-  background: transparent;
-  border: 0;
-  border-radius: 22px;
-  display: block;
-  margin-top: 14px;
-  overflow: hidden;
-  width: 100%;
-}
-
-.futureGrid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.futureCard {
-  opacity: 0.82;
-}
-
-.futureCard span {
-  font-size: 12px;
+.advancedSummary {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  list-style: none;
+  padding: 10px 14px;
+}
+
+.advancedSummary::-webkit-details-marker {
+  display: none;
+}
+
+.credentialList button:disabled,
+.promptFooter button:disabled,
+.actionRow button:disabled,
+.heroActions button:disabled,
+.creationCard button:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .emptyState {
@@ -310,27 +786,177 @@
   max-width: 820px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .page {
-    padding: 14px;
+    padding: 10px;
   }
 
-  .hero,
-  .agentGrid,
-  .contentGrid,
-  .futureGrid,
-  .hostedGrid,
-  .statGrid {
+  .playerHero,
+  .trainingLayout,
+  .growthGrid,
+  .growthStats {
     grid-template-columns: 1fr;
   }
 
-  .nav {
-    align-items: flex-start;
-    gap: 12px;
+  .playerHero {
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .playerCard {
+    align-items: center;
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: start;
+    padding: 12px;
+    row-gap: 10px;
+  }
+
+  .avatarOrb {
+    font-size: 26px;
+    height: 64px;
+    width: 64px;
+  }
+
+  .playerCardBody span {
+    font-size: 10px;
+  }
+
+  .playerCardBody strong {
+    font-size: clamp(24px, 9vw, 34px);
+  }
+
+  .powerBar,
+  .heroMetrics {
+    grid-column: 1 / -1;
+  }
+
+  .heroMetrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+
+  .heroMetrics > div {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    display: inline-flex;
+    gap: 4px;
+    padding: 0;
+  }
+
+  .heroMetrics strong {
+    font-size: 14px;
+    letter-spacing: -0.01em;
+  }
+
+  .heroMetrics span {
+    font-size: 12px;
+  }
+
+  .powerBar {
+    height: 7px;
+  }
+
+  .badges {
+    margin-bottom: 12px;
+  }
+
+  .heroActions {
+    gap: 8px;
   }
 
   .cardHeader,
+  .creationCard,
   .nav {
+    align-items: flex-start;
     flex-direction: column;
   }
+
+  .creationCard button,
+  .actionRow .primaryLink,
+  .actionRow .secondaryLink,
+  .actionRow button {
+    text-align: center;
+    width: 100%;
+  }
+
+  .resultRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Final unified club theme overrides. */
+.page {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(118, 228, 170, 0.13), transparent 30rem),
+    radial-gradient(circle at 88% 8%, rgba(245, 200, 75, 0.08), transparent 24rem),
+    linear-gradient(180deg, var(--background), #071a12 56%, var(--background));
+  overflow-x: hidden;
+}
+
+.page::before {
+  background:
+    linear-gradient(rgba(220, 252, 231, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220, 252, 231, 0.024) 1px, transparent 1px);
+  opacity: 0.32;
+}
+
+.playerHero,
+.trainingCard,
+.sidePanel,
+.card,
+.statCard,
+.creationCard,
+.advancedCard,
+.emptyState,
+.playerCard {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.055), transparent 14rem),
+    linear-gradient(180deg, rgba(18, 54, 38, 0.82), rgba(11, 33, 24, 0.72));
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow,
+.badges span {
+  color: var(--accent);
+}
+
+.badges span,
+.powerBar,
+.heroMetrics div,
+.detailList div,
+.credentialList div,
+.resultRow,
+.stylePicker {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: var(--border);
+}
+
+.primaryLink,
+.promptFooter button,
+.creationCard button {
+  background: linear-gradient(135deg, var(--accent), #b8f5cf);
+  color: var(--button-text);
+}
+
+.secondaryLink,
+.cardHeader button,
+.credentialList button,
+.actionRow button {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border);
+}
+
+.avatarOrb {
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.86), transparent 24px),
+    radial-gradient(circle, var(--accent) 0%, #1f8f5a 62%, #092117 100%);
+  border-color: rgba(118, 228, 170, 0.44);
+  box-shadow: 0 0 46px rgba(52, 211, 153, 0.24);
+}
+
+.powerBar span {
+  background: linear-gradient(90deg, var(--warning), var(--accent));
 }

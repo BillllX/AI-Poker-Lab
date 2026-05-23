@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { BottomNav } from "@/components/BottomNav";
+import { MobileTopNav } from "@/components/MobileTopNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Texas Poker Club",
-  description: "LLM Agent Texas Hold'em club with live table monitoring",
+  title: "AI Poker Lab",
+  description: "Train AI poker players in a no-deposit lab with rewards and live tables",
 };
 
 export default function RootLayout({
@@ -12,9 +14,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="en" suppressHydrationWarning>
       <body>
+        <MobileTopNav />
         {children}
+        <BottomNav />
         <footer className="siteFilingFooter">
           <a href="https://beian.mps.gov.cn/#/query/webSearch?code=11010202011332" rel="noreferrer" target="_blank">
             京公网安备11010202011332号

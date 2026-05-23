@@ -167,6 +167,24 @@
   padding: 24px;
 }
 
+.tableInfoBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.tableInfoBar span {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
 .table {
   background:
     radial-gradient(ellipse at center, rgba(110, 231, 168, 0.22), transparent 20%),
@@ -287,6 +305,16 @@
   color: #dc2626;
 }
 
+.cardBack {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(118, 228, 170, 0.32), transparent 42%),
+    linear-gradient(135deg, #123626, #071a12);
+  border: 1px solid rgba(118, 228, 170, 0.32);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.04),
+    0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
 .seat {
   backdrop-filter: blur(12px);
   background:
@@ -364,6 +392,24 @@
   color: var(--accent);
   font-size: 12px;
   padding: 4px 8px;
+}
+
+.streetAction {
+  background: rgba(245, 200, 75, 0.12);
+  border: 1px solid rgba(245, 200, 75, 0.22);
+  border-radius: 999px;
+  color: var(--warning);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  justify-content: center;
+  margin-top: 8px;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 4px 8px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .seatBadges .thinkingBadge {
@@ -513,11 +559,35 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.tableFocus,
+.coachingNotice {
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: 999px;
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 900;
+  margin-top: 10px;
+  padding: 8px 10px;
+}
+
+.coachingNotice {
+  border-radius: 14px;
+  margin: 0 0 10px;
+}
+
 .myPlayerPanel {
   border-color: rgba(110, 231, 168, 0.34);
+  display: grid;
+  gap: 12px;
   box-shadow:
     0 18px 54px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(110, 231, 168, 0.16);
+}
+
+.myPlayerPanel h2,
+.myPlayerPanel .muted {
+  margin: 0;
 }
 
 .myPlayerSummary {
@@ -528,7 +598,6 @@
   display: flex;
   gap: 12px;
   justify-content: space-between;
-  margin-bottom: 12px;
   padding: 14px;
 }
 
@@ -554,7 +623,6 @@
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: 14px;
 }
 
 .myPlayerStats span {
@@ -583,7 +651,7 @@
   color: var(--text);
   font: inherit;
   line-height: 1.5;
-  min-height: 96px;
+  min-height: 118px;
   padding: 12px;
   resize: vertical;
 }
@@ -612,7 +680,6 @@
   background: rgba(251, 113, 133, 0.13);
   border-color: rgba(251, 113, 133, 0.28);
   color: var(--danger);
-  margin-top: 10px;
   width: 100%;
 }
 
@@ -627,6 +694,154 @@
   gap: 14px;
   margin: 18px auto 0;
   max-width: 1500px;
+}
+
+.winnerOverlay {
+  align-items: center;
+  animation: overlayFadeIn 260ms ease-out both;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(245, 200, 75, 0.24), transparent 18rem),
+    rgba(2, 8, 6, 0.58);
+  backdrop-filter: blur(8px);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: 24px;
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 80;
+}
+
+.winnerCard {
+  animation: winnerPop 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(245, 200, 75, 0.2), transparent 15rem),
+    linear-gradient(180deg, rgba(28, 72, 49, 0.96), rgba(8, 24, 17, 0.96));
+  border: 1px solid rgba(245, 200, 75, 0.32);
+  border-radius: 32px;
+  box-shadow:
+    0 30px 110px rgba(0, 0, 0, 0.46),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  max-width: 420px;
+  overflow: hidden;
+  padding: 28px;
+  position: relative;
+  text-align: center;
+  width: min(100%, 420px);
+}
+
+.winnerCard::before,
+.winnerCard::after {
+  background: rgba(245, 200, 75, 0.8);
+  border-radius: 999px;
+  content: "";
+  height: 10px;
+  opacity: 0.65;
+  position: absolute;
+  top: 24px;
+  width: 10px;
+}
+
+.winnerCard::before {
+  box-shadow:
+    38px 42px rgba(118, 228, 170, 0.7),
+    250px 18px rgba(245, 200, 75, 0.6),
+    310px 74px rgba(255, 255, 255, 0.45);
+  left: 34px;
+}
+
+.winnerCard::after {
+  box-shadow:
+    -46px 48px rgba(245, 200, 75, 0.6),
+    -172px 16px rgba(118, 228, 170, 0.65),
+    -290px 84px rgba(255, 255, 255, 0.42);
+  right: 34px;
+}
+
+.trophy {
+  align-items: center;
+  animation: trophyBounce 900ms ease-in-out both;
+  background: rgba(245, 200, 75, 0.13);
+  border: 1px solid rgba(245, 200, 75, 0.28);
+  border-radius: 24px;
+  display: inline-flex;
+  font-size: 56px;
+  height: 92px;
+  justify-content: center;
+  margin-bottom: 14px;
+  width: 92px;
+}
+
+.winnerCard h2 {
+  font-size: clamp(30px, 6vw, 46px);
+  letter-spacing: -0.06em;
+  line-height: 1;
+  margin: 4px 0 18px;
+}
+
+.winnerList {
+  display: grid;
+  gap: 10px;
+}
+
+.winnerList article {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.075);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.winnerList strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.winnerList span {
+  color: var(--warning);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes winnerPop {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes trophyBounce {
+  0% {
+    transform: translateY(-12px) rotate(-6deg) scale(0.82);
+  }
+  55% {
+    transform: translateY(4px) rotate(3deg) scale(1.08);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
 }
 
 .joinForm {
@@ -692,7 +907,7 @@
 @media (max-width: 760px) {
   .page {
     overflow-x: hidden;
-    padding: 14px 14px 92px;
+    padding: 12px 12px 172px;
   }
 
   .header,
@@ -707,12 +922,24 @@
     border: 0;
     box-shadow: none;
     flex-direction: column;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     padding: 0;
   }
 
   .header h1 {
-    font-size: clamp(34px, 13vw, 48px);
+    font-size: clamp(26px, 9vw, 36px);
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+
+  .subtitle {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 12px;
+    margin-top: 8px;
+    padding: 7px 10px;
   }
 
   .controls {
@@ -780,21 +1007,21 @@
   }
 
   .tableArea {
-    border-radius: 22px;
+    border-radius: 20px;
     margin-inline: -4px;
     min-height: auto;
     overflow: hidden;
-    padding: 10px;
+    padding: 8px;
   }
 
   .table {
     border-width: 10px;
     border-radius: 48% / 52%;
     display: block;
-    height: min(92vw, 430px);
+    height: min(82vw, 390px);
     max-height: none;
     max-width: 100%;
-    min-height: 360px;
+    min-height: 320px;
     min-width: 0;
     padding: 0;
     width: 100%;
@@ -806,23 +1033,27 @@
 
   .tableCenter {
     border-radius: 20px;
-    gap: 8px;
+    gap: 6px;
     left: 50%;
-    min-width: min(190px, 54vw);
-    padding: 12px;
+    min-width: min(142px, 44vw);
+    padding: 9px;
     position: absolute;
     top: 50%;
     transform: translate(-50%, -50%);
   }
 
   .pot {
-    font-size: 24px;
+    font-size: 20px;
+  }
+
+  .phase {
+    font-size: 10px;
   }
 
   .playingCard {
-    font-size: 15px;
-    height: 42px;
-    min-width: 32px;
+    font-size: 14px;
+    height: 38px;
+    min-width: 29px;
   }
 
   .smallCard {
@@ -832,12 +1063,13 @@
   }
 
   .seat {
+    backdrop-filter: blur(8px);
     border-radius: 16px;
     min-width: 0;
     padding: 7px;
     position: absolute;
     transform: translate(-50%, -50%);
-    width: 112px;
+    width: 108px;
   }
 
   .currentSeat {
@@ -851,7 +1083,7 @@
   .seatHeader {
     align-items: center;
     display: grid;
-    gap: 5px;
+    gap: 3px;
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
@@ -866,9 +1098,13 @@
     white-space: nowrap;
   }
 
+  .playerProfileLink small {
+    display: none;
+  }
+
   .seatBadges {
     display: flex;
-    gap: 5px;
+    gap: 4px;
     justify-content: center;
   }
 
@@ -881,15 +1117,29 @@
     display: none;
   }
 
+  .streetAction {
+    font-size: 10px;
+    justify-content: center;
+    margin: 4px auto 0;
+    max-width: 92px;
+    padding: 3px 6px;
+  }
+
   .seatMeta {
     display: none;
   }
 
   .holeCards {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     justify-content: center;
-    margin-top: 6px;
+    margin-top: 5px;
+  }
+
+  .holeCards .smallCard {
+    font-size: 10px;
+    height: 26px;
+    min-width: 19px;
   }
 
   .chipDelta {
@@ -901,15 +1151,55 @@
   }
 
   .sidePanel {
-    gap: 12px;
+    gap: 10px;
+    margin: 10px 0 42px;
   }
 
-  .sidePanel .panel:nth-child(n + 3) {
-    display: none;
+  .tableInfoBar {
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .tableInfoBar span {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .winnerOverlay {
+    padding: 18px;
+  }
+
+  .winnerCard {
+    border-radius: 26px;
+    padding: 22px 16px 18px;
+  }
+
+  .trophy {
+    font-size: 44px;
+    height: 76px;
+    width: 76px;
+  }
+
+  .winnerList article {
+    border-radius: 16px;
+    padding: 10px 12px;
+  }
+
+  .sidePanel .panel:nth-child(1) {
+    order: 1;
+  }
+
+  .sidePanel .panel:nth-child(2) {
+    order: 2;
+  }
+
+  .sidePanel .panel:nth-child(3) {
+    order: 3;
   }
 
   .chipRow {
     grid-template-columns: minmax(0, 1fr) auto;
+    padding: 10px;
   }
 
   .chipRow span {
@@ -918,12 +1208,49 @@
 
   .panel,
   .joinPanel {
-    border-radius: 20px;
-    padding: 14px;
+    border-radius: 18px;
+    padding: 13px;
   }
 
   .logList {
-    max-height: 320px;
+    gap: 8px;
+    max-height: none;
+  }
+
+  .logItem {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 9px;
+  }
+
+  .logItem:nth-child(n + 4) {
+    display: none;
+  }
+
+  .myPlayerPanel {
+    border-color: rgba(118, 228, 170, 0.34);
+  }
+
+  .myPlayerSummary {
+    border-radius: 16px;
+    margin-bottom: 10px;
+    padding: 11px;
+  }
+
+  .myPlayerStats {
+    gap: 7px;
+    grid-template-columns: 1fr 1fr;
+    margin-bottom: 10px;
+  }
+
+  .myPlayerStats span {
+    border-radius: 12px;
+    padding: 8px;
+  }
+
+  .coachingForm textarea {
+    min-height: 104px;
   }
 
   .joinPanel {
@@ -935,5 +1262,102 @@
   .instructionForm select,
   .instructionForm button {
     width: 100%;
+  }
+}
+
+/* Unified club theme overrides. */
+.page {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(118, 228, 170, 0.13), transparent 30rem),
+    radial-gradient(circle at 88% 8%, rgba(245, 200, 75, 0.08), transparent 24rem),
+    linear-gradient(180deg, var(--background), #071a12 56%, var(--background));
+}
+
+.header,
+.tableArea,
+.panel,
+.joinPanel {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.055), transparent 14rem),
+    linear-gradient(180deg, rgba(18, 54, 38, 0.82), rgba(11, 33, 24, 0.72));
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow,
+.playerProfileLink:hover,
+.seatBadges span {
+  color: var(--accent);
+}
+
+.table {
+  border-color: #4a2c1c;
+  box-shadow:
+    inset 0 0 0 8px rgba(245, 200, 75, 0.12),
+    inset 0 0 70px rgba(0, 0, 0, 0.42),
+    0 28px 86px rgba(0, 0, 0, 0.36);
+}
+
+.controls button:not(.activeLanguage):not(.danger),
+.lifecycleStatus,
+.seatBadges span {
+  background: rgba(118, 228, 170, 0.12);
+  border-color: rgba(118, 228, 170, 0.24);
+  color: var(--accent);
+}
+
+.phase,
+.playerProfileLink small,
+.seatBadges .thinkingBadge {
+  background: rgba(245, 200, 75, 0.14);
+  border-color: rgba(245, 200, 75, 0.24);
+  color: var(--warning);
+}
+
+/* Visual system polish: cleaner surfaces and consistent rhythm. */
+.page {
+  padding: var(--space-page);
+}
+
+.header,
+.tableArea,
+.panel,
+.joinPanel {
+  background: var(--surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+}
+
+.panel,
+.joinPanel {
+  padding: var(--space-card);
+}
+
+.controls a,
+.controls button,
+.tableCenter,
+.seat,
+.logItem,
+.chipRow,
+.seatBadges span,
+.phase,
+.playerProfileLink small {
+  border-color: var(--border);
+}
+
+.controls a,
+.tableCenter,
+.tableInfoBar span,
+.logItem,
+.chipRow {
+  background: var(--surface-2);
+}
+
+@media (max-width: 640px) {
+  .header,
+  .tableArea,
+  .panel,
+  .joinPanel {
+    box-shadow: none;
   }
 }

@@ -409,3 +409,79 @@
     font-size: 22px;
   }
 }
+
+/* Unified club theme overrides. */
+.page {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(118, 228, 170, 0.13), transparent 30rem),
+    radial-gradient(circle at 88% 8%, rgba(245, 200, 75, 0.08), transparent 24rem),
+    linear-gradient(180deg, var(--background), #071a12 56%, var(--background));
+}
+
+.hero,
+.performanceCard,
+.card {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.055), transparent 14rem),
+    linear-gradient(180deg, rgba(18, 54, 38, 0.82), rgba(11, 33, 24, 0.72));
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow,
+.onlinePill {
+  color: var(--accent);
+}
+
+.onlinePill,
+.tableLink,
+.resultRow {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: var(--border);
+}
+
+.tableLink {
+  color: var(--accent);
+}
+
+.resultRow em,
+.performanceCard strong {
+  color: var(--warning);
+}
+
+/* Visual system polish: cleaner surfaces and consistent rhythm. */
+.page {
+  padding: var(--space-page);
+}
+
+.hero,
+.performanceCard,
+.card {
+  background: var(--surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+}
+
+.card,
+.performanceCard,
+.hero {
+  padding: var(--space-card);
+}
+
+.onlinePill,
+.offlinePill,
+.tableLink,
+.resultRow,
+.performanceCard > div {
+  background: var(--surface-2);
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 640px) {
+  .hero,
+  .performanceCard,
+  .card {
+    box-shadow: none;
+  }
+}

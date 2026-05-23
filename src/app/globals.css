@@ -1,14 +1,28 @@
 :root {
   color-scheme: dark;
-  --background: #06130e;
-  --panel: #0d2118;
-  --panel-strong: #123524;
-  --text: #eef8f1;
-  --muted: #9db9aa;
-  --accent: #6ee7a8;
+  --background: #05120d;
+  --panel: #0b2118;
+  --panel-strong: #123626;
+  --panel-soft: rgba(255, 255, 255, 0.055);
+  --text: #f2fbf4;
+  --muted: #9fb7aa;
+  --accent: #76e4aa;
+  --accent-strong: #34d399;
   --danger: #fb7185;
-  --warning: #facc15;
-  --border: rgba(255, 255, 255, 0.1);
+  --warning: #f5c84b;
+  --border: rgba(220, 252, 231, 0.12);
+  --border-strong: rgba(118, 228, 170, 0.28);
+  --shadow: 0 22px 70px rgba(0, 0, 0, 0.24);
+  --shadow-soft: 0 14px 38px rgba(0, 0, 0, 0.18);
+  --button-text: #04150d;
+  --surface-1: linear-gradient(180deg, rgba(18, 54, 38, 0.86), rgba(11, 33, 24, 0.74));
+  --surface-2: rgba(255, 255, 255, 0.055);
+  --surface-3: rgba(255, 255, 255, 0.035);
+  --radius-xl: 28px;
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --space-page: 24px;
+  --space-card: 22px;
 }
 
 * {
@@ -18,20 +32,31 @@
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(46, 204, 113, 0.16), transparent 36rem),
+    radial-gradient(circle at 18% 0%, rgba(118, 228, 170, 0.13), transparent 34rem),
+    radial-gradient(circle at 88% 12%, rgba(245, 200, 75, 0.08), transparent 26rem),
     var(--background);
   color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
+  padding-bottom: 108px;
 }
 
 button {
   border: 0;
   border-radius: 999px;
   background: var(--accent);
-  color: #052014;
+  color: var(--button-text);
   cursor: pointer;
   font-weight: 700;
   padding: 0.75rem 1rem;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 button.secondary {
@@ -94,9 +119,23 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
+  :root {
+    --radius-xl: 22px;
+    --radius-lg: 18px;
+    --radius-md: 14px;
+    --space-page: 14px;
+    --space-card: 16px;
+  }
+
   .siteFilingFooter {
     font-size: 11px;
     line-height: 1.6;
     padding: 20px 16px calc(112px + env(safe-area-inset-bottom));
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(118, 228, 170, 0.09), transparent 22rem),
+      var(--background);
   }
 }

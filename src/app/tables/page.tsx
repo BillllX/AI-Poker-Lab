@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./tables.module.css";
@@ -19,9 +20,15 @@ type AgentSummary = {
   id: string;
   name: string;
   kind?: "external" | "hosted" | "virtual";
+  ownerUserId?: string;
   strategy?: string;
   assignmentStatus: string;
   tableId?: string;
+};
+
+type ClubUser = {
+  id: string;
+  name: string;
 };
 
 const copy = {
@@ -53,6 +60,19 @@ const copy = {
     unseated: "未入座",
     virtualAgent: "BOT",
     realAgent: "真人",
+    myPlayer: "我的牌手",
+    myPlayerPlaying: "你的 AI 牌手正在比赛，继续进入牌桌观战和 Coaching。",
+    myPlayerIdle: "还没有正在比赛的牌手，去 My Player 创建托管牌手并加入比赛。",
+    myPlayerGuest: "可以先观战，也可以回首页快速创建自己的 AI 牌手。",
+    continueWatching: "继续观看我的牌手",
+    launchMyPlayer: "快速开赛",
+    launchFromHome: "回首页快速开赛",
+    quickPlayStarting: "正在进入牌桌...",
+    quickPlayFailed: "快速开赛失败。",
+    mineBadge: "我的牌手在这桌",
+    enter: "进入",
+    rosterDetails: "等待队列与牌手名册",
+    rosterDetailsText: "用于查看当前入场顺序和所有在线 AI 牌手。",
   },
   en: {
     home: "Home",
@@ -82,17 +102,36 @@ const copy = {
     unseated: "Unseated",
     virtualAgent: "BOT",
     realAgent: "Human",
+    myPlayer: "My Player",
+    myPlayerPlaying: "Your AI player is seated. Continue watching and coach from the table.",
+    myPlayerIdle: "No active player yet. Open My Player to create a hosted player and join a match.",
+    myPlayerGuest: "Spectate freely, or return home to quickly create your own AI player.",
+    continueWatching: "Continue Watching My Player",
+    launchMyPlayer: "Play Now",
+    launchFromHome: "Start From Home",
+    quickPlayStarting: "Entering table...",
+    quickPlayFailed: "Quick play failed.",
+    mineBadge: "My player is here",
+    enter: "Enter",
+    rosterDetails: "Queue and Player Roster",
+    rosterDetailsText: "Check entry order and all online AI players.",
   },
 };
 
 export default function TablesPage() {
   const { language } = useLanguage();
+  const router = useRouter();
   const t = copy[language];
   const [tables, setTables] = useState<TableSummary[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [queuedAgents, setQueuedAgents] = useState<AgentSummary[]>([]);
+  const [me, setMe] = useState<ClubUser | null>();
+  const [quickPlayBusy, setQuickPlayBusy] = useState(false);
+  const [quickPlayError, setQuickPlayError] = useState<string>();
   const runningTables = tables.filter((table) => table.running).length;
   const seatedAgents = agents.filter((agent) => agent.tableId).length;
+  const myAgent = me ? agents.find((agent) => agent.ownerUserId === me.id) : undefined;
+  const myTable = myAgent?.tableId ? tables.find((table) => table.id === myAgent.tableId) : undefined;
 
   async function refresh() {
     const response = await fetch("/api/tables", { cache: "no-store" });
@@ -102,8 +141,41 @@ export default function TablesPage() {
     setQueuedAgents(Array.isArray(payload.queuedAgents) ? payload.queuedAgents : []);
   }
 
+  async function refreshMe() {
+    const response = await fetch("/api/users/me", { cache: "no-store" });
+    if (!response.ok) {
+      setMe(null);
+      return;
+    }
+    const payload = await response.json();
+    setMe(payload.user ?? null);
+  }
+
+  async function startQuickPlay() {
+    setQuickPlayBusy(true);
+    setQuickPlayError(undefined);
+    try {
+      const response = await fetch("/api/users/quick-play", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setQuickPlayError(payload.error ?? t.quickPlayFailed);
+        return;
+      }
+      router.push(payload.tableUrl ?? (payload.tableId ? `/tables/${encodeURIComponent(payload.tableId)}` : "/tables"));
+    } finally {
+      setQuickPlayBusy(false);
+    }
+  }
+
   useEffect(() => {
-    const initial = setTimeout(() => void refresh(), 0);
+    const initial = setTimeout(() => {
+      void refresh();
+      void refreshMe();
+    }, 0);
     const timer = setInterval(() => void refresh(), 5_000);
     return () => {
       clearTimeout(initial);
@@ -113,19 +185,8 @@ export default function TablesPage() {
 
   return (
     <main className={styles.page}>
-      <nav className={styles.nav}>
-        <div className={styles.brand}>
-          <span className={styles.chip}>AI</span>
-          <span>Texas Poker Club</span>
-        </div>
-        <div className={styles.navLinks}>
-          <Link href="/">{t.home}</Link>
-          <a href="/api/agents/skill">{t.agentRules}</a>
-        </div>
-      </nav>
-
       <section className={styles.hero}>
-        <div>
+        <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>{t.eyebrow}</p>
           <h1>{t.title}</h1>
           <p>{t.subtitle}</p>
@@ -150,6 +211,23 @@ export default function TablesPage() {
         </div>
       </section>
 
+      <section className={styles.myPlayerBanner}>
+        <div>
+          <p className={styles.eyebrow}>{t.myPlayer}</p>
+          <h2>{myTable ? t.myPlayerPlaying : me ? t.myPlayerIdle : t.myPlayerGuest}</h2>
+          {quickPlayError && <p className={styles.bannerError}>{quickPlayError}</p>}
+        </div>
+        {myTable ? (
+          <Link href={`/tables/${myTable.id}`}>{t.continueWatching}</Link>
+        ) : me ? (
+          <button disabled={quickPlayBusy} type="button" onClick={() => void startQuickPlay()}>
+            {quickPlayBusy ? t.quickPlayStarting : t.launchMyPlayer}
+          </button>
+        ) : (
+          <Link href="/">{t.launchFromHome}</Link>
+        )}
+      </section>
+
       <section className={styles.tablesSection}>
         <div className={styles.sectionTitle}>
           <div>
@@ -161,10 +239,13 @@ export default function TablesPage() {
 
         <div className={styles.tableGrid}>
           {tables.map((table) => (
-            <Link className={styles.tableCard} href={`/tables/${table.id}`} key={table.id}>
+            <Link className={`${styles.tableCard} ${myAgent?.tableId === table.id ? styles.myTableCard : ""}`} href={`/tables/${table.id}`} key={table.id}>
               <div className={styles.tableCardHeader}>
-                <span className={table.running ? styles.liveBadge : styles.waitingBadge}>{table.running ? "LIVE" : t.waiting}</span>
-                <small>{t.hand} #{table.handId}</small>
+                <div className={styles.tableStatusLine}>
+                  <span className={table.running ? styles.liveBadge : styles.waitingBadge}>{table.running ? "LIVE" : t.waiting}</span>
+                  <small>{t.hand} #{table.handId}</small>
+                </div>
+                {myAgent?.tableId === table.id ? <strong className={styles.mineBadge}>{t.mineBadge}</strong> : null}
               </div>
               <div className={styles.feltTable} aria-hidden="true">
                 <span className={styles.tableSeat} />
@@ -172,7 +253,7 @@ export default function TablesPage() {
                 <span className={styles.tableSeat} />
                 <div>
                   <strong>{table.playerCount}/{table.maxPlayers}</strong>
-                  <small>{table.phase}</small>
+                  <small>{formatPhase(table.phase, language)}</small>
                 </div>
               </div>
               <div className={styles.tableCardFooter}>
@@ -180,7 +261,10 @@ export default function TablesPage() {
                   <strong>{table.name}</strong>
                   <small>{table.playerCount >= table.maxPlayers ? t.full : t.seatsLeft.replace("{count}", String(table.maxPlayers - table.playerCount))}</small>
                 </div>
-                <span>{t.enterSpectate}</span>
+                <div className={styles.tableMeta}>
+                  <span>{formatPhase(table.phase, language)}</span>
+                  <b>{t.enter}</b>
+                </div>
               </div>
             </Link>
           ))}
@@ -193,58 +277,81 @@ export default function TablesPage() {
         </div>
       </section>
 
-      <section className={styles.rosterGrid}>
-        <article className={styles.rosterCard}>
-          <header>
-            <div>
-              <p className={styles.eyebrow}>Queue</p>
-              <h2>{t.queue}</h2>
-            </div>
-            <span>{queuedAgents.length}</span>
-          </header>
-          <div className={styles.rosterList}>
-            {queuedAgents.map((agent, index) => (
-              <div className={styles.rosterRow} key={agent.id}>
-                <span>#{index + 1}</span>
-                <div>
-                  <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
-                    {agent.name}
-                  </Link>
-                  <small>{agent.id}</small>
-                </div>
-                <em>{agent.kind === "virtual" ? t.virtualAgent : agent.assignmentStatus}</em>
-              </div>
-            ))}
-            {queuedAgents.length === 0 && <p className={styles.emptyStateCompact}>{t.noQueuedAgents}</p>}
+      <section className={styles.rosterSection}>
+        <div className={styles.rosterSectionTitle}>
+          <div>
+            <p className={styles.eyebrow}>Details</p>
+            <h2>{t.rosterDetails}</h2>
           </div>
-        </article>
+          <span>{t.rosterDetailsText}</span>
+        </div>
+        <div className={styles.rosterGrid}>
+          <article className={styles.rosterCard}>
+            <header>
+              <div>
+                <p className={styles.eyebrow}>Queue</p>
+                <h2>{t.queue}</h2>
+              </div>
+              <span>{queuedAgents.length}</span>
+            </header>
+            <div className={styles.rosterList}>
+              {queuedAgents.map((agent, index) => (
+                <div className={styles.rosterRow} key={agent.id}>
+                  <span>#{index + 1}</span>
+                  <div>
+                    <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
+                      {agent.name}
+                    </Link>
+                    <small>{agent.id}</small>
+                  </div>
+                  <em>{agent.kind === "virtual" ? t.virtualAgent : agent.assignmentStatus}</em>
+                </div>
+              ))}
+              {queuedAgents.length === 0 && <p className={styles.emptyStateCompact}>{t.noQueuedAgents}</p>}
+            </div>
+          </article>
 
-        <article className={styles.rosterCard}>
-          <header>
-            <div>
-              <p className={styles.eyebrow}>Roster</p>
-              <h2>{t.roster}</h2>
-            </div>
-            <span>{agents.length}</span>
-          </header>
-          <div className={styles.rosterList}>
-            {agents.map((agent) => (
-              <div className={styles.rosterRow} key={agent.id}>
-                <span>{agent.tableId ? t.tableLabel : "-"}</span>
-                <div>
-                  <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
-                    {agent.name}
-                    {agent.kind === "virtual" && <b>{t.virtualAgent}</b>}
-                  </Link>
-                  <small>{agent.kind === "virtual" ? agent.strategy ?? "virtual" : agent.tableId ?? t.unseated}</small>
-                </div>
-                <em>{agent.assignmentStatus}</em>
+          <article className={styles.rosterCard}>
+            <header>
+              <div>
+                <p className={styles.eyebrow}>Roster</p>
+                <h2>{t.roster}</h2>
               </div>
-            ))}
-            {agents.length === 0 && <p className={styles.emptyStateCompact}>{t.noAgents}</p>}
-          </div>
-        </article>
+              <span>{agents.length}</span>
+            </header>
+            <div className={styles.rosterList}>
+              {agents.map((agent) => (
+                <div className={styles.rosterRow} key={agent.id}>
+                  <span>{agent.tableId ? t.tableLabel : "-"}</span>
+                  <div>
+                    <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
+                      {agent.name}
+                      {agent.kind === "virtual" && <b>{t.virtualAgent}</b>}
+                    </Link>
+                    <small>{agent.kind === "virtual" ? agent.strategy ?? "virtual" : agent.tableId ?? t.unseated}</small>
+                  </div>
+                  <em>{agent.assignmentStatus}</em>
+                </div>
+              ))}
+              {agents.length === 0 && <p className={styles.emptyStateCompact}>{t.noAgents}</p>}
+            </div>
+          </article>
+        </div>
       </section>
     </main>
   );
+}
+
+function formatPhase(phase: string, language: "zh" | "en") {
+  const normalized = phase.toLowerCase();
+  if (language === "en") {
+    return normalized;
+  }
+  return {
+    preflop: "翻前",
+    flop: "翻牌",
+    turn: "转牌",
+    river: "河牌",
+    showdown: "摊牌",
+  }[normalized] ?? phase;
 }

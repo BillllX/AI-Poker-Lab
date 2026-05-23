@@ -139,7 +139,7 @@ async function buildAgentProfilePayload(profile: ResolvedProfile, origin: string
       settledAt: result.settledAt.toISOString(),
     })),
     modelStat: modelStat ?? null,
-    profileUrl: `${origin}/agents/${encodeURIComponent(agent.id)}`,
+    profileUrl: `/agents/${encodeURIComponent(agent.id)}`,
     stats: stats
       ? {
           handsPlayed: stats.handsPlayed,
@@ -152,7 +152,7 @@ async function buildAgentProfilePayload(profile: ResolvedProfile, origin: string
     table: tableSummary
       ? {
           ...tableSummary,
-          url: `${origin}/tables/${tableSummary.id}`,
+          url: `/tables/${encodeURIComponent(tableSummary.id)}`,
         }
       : null,
   };

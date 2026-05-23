@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/client/i18n";
 import type { Card, GameSnapshot } from "@/lib/poker/types";
 import styles from "../../table/table.module.css";
@@ -25,6 +25,7 @@ const copy = {
     action: "动作",
     waiting: "等待",
     actionLog: "行动日志",
+    recentActions: "最近动作",
     noActions: "还没有行动。",
     virtualAgent: "BOT",
     currentBet: "当前注额",
@@ -42,9 +43,19 @@ const copy = {
     leaveTable: "离开牌桌并结算",
     leaveFailed: "离开牌桌失败。",
     leaving: "离开中...",
+    coachingSending: "发送中...",
+    loadingLogin: "正在读取登录状态...",
+    leaveSettled: "已离开牌桌并结算。",
+    leaveNoPlayer: "当前没有需要离开的牌手。",
     hostedAgent: "托管 Agent",
     externalAgent: "本地 Agent",
     coachingHint: "Coaching 只从下一手开始生效，不会改变当前手已经开始的决策。托管 Agent 会由服务器模型读取；本地 Agent 需要保持连接并读取 runtime instructions。",
+    spectatorMode: "观战模式",
+    currentHandReadonly: "当前手只能观看，Coaching 下一手生效。",
+    thinking: "正在思考",
+    preparingHand: "准备发牌",
+    handWinners: "本局赢家",
+    wonChips: "赢得筹码",
   },
   en: {
     eyebrow: "Texas Poker Table",
@@ -63,6 +74,7 @@ const copy = {
     action: "Action",
     waiting: "Waiting",
     actionLog: "Action Log",
+    recentActions: "Recent Actions",
     noActions: "No actions yet.",
     virtualAgent: "BOT",
     currentBet: "Current bet",
@@ -80,13 +92,37 @@ const copy = {
     leaveTable: "Leave table and settle",
     leaveFailed: "Failed to leave table.",
     leaving: "Leaving...",
+    coachingSending: "Sending...",
+    loadingLogin: "Reading login status...",
+    leaveSettled: "Left table and settled.",
+    leaveNoPlayer: "No player needs to leave right now.",
     hostedAgent: "Hosted Agent",
     externalAgent: "Local Agent",
     coachingHint: "Coaching applies from the next hand only. Hosted Agents read it on the server. Local Agents must stay connected and read runtime instructions.",
+    spectatorMode: "Spectator mode",
+    currentHandReadonly: "Current hand is watch-only. Coaching applies next hand.",
+    thinking: "Thinking",
+    preparingHand: "Preparing cards",
+    handWinners: "Hand Winners",
+    wonChips: "Won chips",
   },
 };
 
 const initialStack = 1_000;
+const actionSoundPaths = {
+  "all-in": "/audio/actions/all-in.wav",
+  bet: "/audio/actions/bet.wav",
+  blind: "/audio/actions/blind.wav",
+  call: "/audio/actions/call.wav",
+  check: "/audio/actions/check.wav",
+  fold: "/audio/actions/fold.wav",
+  raise: "/audio/actions/raise.wav",
+};
+
+type WinnerReveal = {
+  handId: number;
+  winners: Array<{ amount: number; name: string; playerId: string }>;
+};
 
 type ClubUser = {
   id: string;
@@ -102,18 +138,53 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const [coachingMessage, setCoachingMessage] = useState("");
   const [controlStatus, setControlStatus] = useState<string>();
   const [controlBusy, setControlBusy] = useState<"coaching" | "leave">();
+  const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
+  const announcedActionIdsRef = useRef<Set<string>>(new Set());
+  const actionSoundReadyRef = useRef(false);
+  const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
+  const winnerRevealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const players = state?.players ?? [];
   const myPlayer = me ? players.find((player) => player.ownerUserId === me.id) : undefined;
+  const myPlayerSeatIndex = myPlayer ? players.findIndex((player) => player.id === myPlayer.id) : -1;
+  const activePlayer = players.find((player) => player.id === state?.currentPlayerId);
+  const waitingForFirstDeal = Boolean(state?.running && state.handId === 0 && players.length >= 2 && players.every((player) => (player.holeCards?.length ?? 0) === 0));
+  const streetActions = currentStreetActions(state);
+  const handWinners = winnerReveal?.winners ?? [];
+
+  function revealWinnersForSnapshot(snapshot: GameSnapshot) {
+    if (snapshot.handId === lastWinnerRevealHandIdRef.current) {
+      return;
+    }
+
+    const winners = handWinnerSummaries(snapshot);
+    if (winners.length === 0) {
+      return;
+    }
+
+    lastWinnerRevealHandIdRef.current = snapshot.handId;
+    setWinnerReveal({ handId: snapshot.handId, winners });
+    if (winnerRevealTimerRef.current) {
+      clearTimeout(winnerRevealTimerRef.current);
+    }
+    winnerRevealTimerRef.current = setTimeout(() => {
+      setWinnerReveal(undefined);
+      winnerRevealTimerRef.current = undefined;
+    }, 3_000);
+  }
 
   useEffect(() => {
     const events = new EventSource(`/api/tables/${tableId}/events`);
     events.addEventListener("snapshot", (event) => {
-      setState(JSON.parse((event as MessageEvent<string>).data) as GameSnapshot);
+      const nextState = JSON.parse((event as MessageEvent<string>).data) as GameSnapshot;
+      setState(nextState);
+      revealWinnersForSnapshot(nextState);
     });
     events.onerror = async () => {
       const response = await fetch(`/api/tables/${tableId}/state`, { cache: "no-store" });
       if (response.ok) {
-        setState(await response.json());
+        const nextState = (await response.json()) as GameSnapshot;
+        setState(nextState);
+        revealWinnersForSnapshot(nextState);
       }
     };
     return () => events.close();
@@ -140,10 +211,48 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     };
   }, []);
 
+  useEffect(() => {
+    if (!state) {
+      return;
+    }
+
+    const actionIds = new Set(state.actionHistory.map((item) => item.id));
+    if (!actionSoundReadyRef.current) {
+      announcedActionIdsRef.current = actionIds;
+      actionSoundReadyRef.current = true;
+      return;
+    }
+
+    for (const item of state.actionHistory) {
+      if (announcedActionIdsRef.current.has(item.id)) {
+        continue;
+      }
+      const soundPath = soundPathForAction(item, state);
+      if (soundPath) {
+        void playActionSound(soundPath);
+      }
+      announcedActionIdsRef.current.add(item.id);
+    }
+
+    if (announcedActionIdsRef.current.size > 200) {
+      announcedActionIdsRef.current = actionIds;
+    }
+  }, [state]);
+
+  useEffect(() => {
+    return () => {
+      if (winnerRevealTimerRef.current) {
+        clearTimeout(winnerRevealTimerRef.current);
+      }
+    };
+  }, []);
+
   async function refreshTableState() {
     const response = await fetch(`/api/tables/${tableId}/state`, { cache: "no-store" });
     if (response.ok) {
-      setState(await response.json());
+      const nextState = (await response.json()) as GameSnapshot;
+      setState(nextState);
+      revealWinnersForSnapshot(nextState);
     }
   }
 
@@ -191,7 +300,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
         setControlStatus(payload.error ?? t.leaveFailed);
         return;
       }
-      setControlStatus(payload.removed ? "已离开牌桌并结算。" : "当前没有需要离开的牌手。");
+      setControlStatus(payload.removed ? t.leaveSettled : t.leaveNoPlayer);
       await refreshTableState();
     } finally {
       setControlBusy(undefined);
@@ -208,10 +317,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
             {state?.running ? t.running : t.waitingStart} · {players.length}/6 {t.seats} · {t.hand} #{state?.handId ?? 0}
           </p>
         </div>
-        <div className={styles.controls}>
-          <Link className="secondary" href="/">{t.home}</Link>
-          <Link className="secondary" href="/tables">{t.backLobby}</Link>
-        </div>
       </section>
 
       <section className={styles.layout}>
@@ -219,16 +324,12 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
           <div className={styles.table}>
             <div className={styles.tableCenter}>
               <div className={styles.phase}>{state?.phase ?? "preflop"}</div>
-              <div className={styles.pot}>{t.pot} {state?.pot ?? 0}</div>
               <div className={styles.cards}>
                 {state?.communityCards.length ? (
                   state.communityCards.map((card, index) => <PlayingCard card={card} key={`${card.rank}${card.suit}${index}`} />)
                 ) : (
-                  <span className={styles.emptyCards}>{t.waitingCommunity}</span>
+                  <span className={styles.emptyCards}>{waitingForFirstDeal ? t.preparingHand : t.waitingCommunity}</span>
                 )}
-              </div>
-              <div className={styles.meta}>
-                {t.hand} #{state?.handId ?? 0} · {t.currentBet} {state?.currentBet ?? 0}
               </div>
             </div>
 
@@ -238,7 +339,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                 <article
                   className={`${styles.seat} ${player.id === state?.currentPlayerId ? styles.currentSeat : ""} ${styles[`status_${player.status.replace("-", "_")}`] ?? ""}`}
                   key={player.id}
-                  style={seatStyle(index, 6)}
+                  style={seatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6)}
                 >
                   <div className={styles.seatHeader}>
                     <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
@@ -250,6 +351,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                       <span>{player.status}</span>
                     </div>
                   </div>
+                  <div className={styles.streetAction}>{streetActions.get(player.id) ?? (player.id === state?.currentPlayerId ? t.thinking : t.waiting)}</div>
                   <div className={styles.seatMeta}>
                     <span>{t.stack} {player.stack}</span>
                     <span>{t.bet} {player.currentBet}</span>
@@ -261,11 +363,17 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                     {player.holeCards?.map((card, cardIndex) => (
                       <PlayingCard card={card} key={`${player.id}-${card.rank}${card.suit}-${cardIndex}`} small />
                     ))}
+                    {(player.holeCards?.length ?? 0) === 0 && player.stack > 0 ? (
+                      <>
+                        <PlayingCardBack />
+                        <PlayingCardBack />
+                      </>
+                    ) : null}
                   </div>
                   <p>{t.action}: {player.lastAction ?? t.waiting}</p>
                 </article>
               ) : (
-                <article className={`${styles.seat} ${styles.emptySeatCard}`} key={`empty-${index}`} style={seatStyle(index, 6)}>
+                <article className={`${styles.seat} ${styles.emptySeatCard}`} key={`empty-${index}`} style={seatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6)}>
                   <div className={styles.seatHeader}>
                     <strong>{t.emptySeat}</strong>
                     <span>{t.waitingAssign}</span>
@@ -274,6 +382,12 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
               );
             })}
           </div>
+          <div className={styles.tableInfoBar}>
+            <span>{t.pot} {state?.pot ?? 0}</span>
+            <span>{t.hand} #{state?.handId ?? 0}</span>
+            <span>{t.currentBet} {state?.currentBet ?? 0}</span>
+            <span>{waitingForFirstDeal ? t.preparingHand : activePlayer ? `${activePlayer.name} ${t.thinking}` : t.spectatorMode}</span>
+          </div>
         </div>
 
         <aside className={styles.sidePanel}>
@@ -281,6 +395,22 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
             <h2>{t.myPlayer}</h2>
             {myPlayer ? (
               <>
+                <p className={styles.coachingNotice}>{t.currentHandReadonly}</p>
+                <form className={styles.coachingForm} onSubmit={submitCoaching}>
+                  <label>
+                    {t.coaching}
+                    <textarea
+                      onChange={(event) => setCoachingMessage(event.target.value)}
+                      placeholder={t.coachingPlaceholder}
+                      value={coachingMessage}
+                    />
+                  </label>
+                  <button disabled={controlBusy === "coaching" || !coachingMessage.trim()} type="submit">
+                    {controlBusy === "coaching" ? t.coachingSending : t.sendCoaching}
+                  </button>
+                </form>
+                {controlStatus ? <p className={styles.muted}>{controlStatus}</p> : null}
+                <p className={styles.muted}>{t.coachingHint}</p>
                 <div className={styles.myPlayerSummary}>
                   <div>
                     <strong>{myPlayer.name}</strong>
@@ -292,29 +422,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                   <span>{t.stack} {myPlayer.stack}</span>
                   <span>{t.bet} {myPlayer.currentBet}</span>
                   <span>{t.action} {myPlayer.lastAction ?? t.waiting}</span>
-                  <span>{myPlayer.id === state?.currentPlayerId ? t.waiting : myPlayer.status}</span>
+                  <span>{myPlayer.id === state?.currentPlayerId ? t.thinking : myPlayer.status}</span>
                 </div>
-                <form className={styles.coachingForm} onSubmit={submitCoaching}>
-                  <label>
-                    {t.coaching}
-                    <textarea
-                      onChange={(event) => setCoachingMessage(event.target.value)}
-                      placeholder={t.coachingPlaceholder}
-                      value={coachingMessage}
-                    />
-                  </label>
-                  <button disabled={controlBusy === "coaching" || !coachingMessage.trim()} type="submit">
-                    {controlBusy === "coaching" ? "发送中..." : t.sendCoaching}
-                  </button>
-                </form>
-                <p className={styles.muted}>{t.coachingHint}</p>
                 <button className={styles.dangerAction} disabled={controlBusy === "leave"} type="button" onClick={() => void leaveMyPlayer()}>
                   {controlBusy === "leave" ? t.leaving : t.leaveTable}
                 </button>
-                {controlStatus ? <p className={styles.muted}>{controlStatus}</p> : null}
               </>
             ) : (
-              <p className={styles.muted}>{me === undefined ? "正在读取登录状态..." : t.loginToCoach}</p>
+              <p className={styles.muted}>{me === undefined ? t.loadingLogin : t.loginToCoach}</p>
             )}
           </section>
 
@@ -341,7 +456,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
           </section>
 
           <section className={styles.panel}>
-            <h2>{t.actionLog}</h2>
+            <h2>{t.recentActions}</h2>
             <div className={styles.logList}>
               {state?.logs.map((log) => (
                 <article className={styles.logItem} key={log.id}>
@@ -354,17 +469,133 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
           </section>
         </aside>
       </section>
+      {handWinners.length > 0 ? (
+        <section className={styles.winnerOverlay} aria-live="polite">
+          <div className={styles.winnerCard}>
+            <div className={styles.trophy} aria-hidden="true">🏆</div>
+            <p className={styles.eyebrow}>{t.handWinners}</p>
+            <h2>{t.hand} #{winnerReveal?.handId ?? state?.handId ?? 0}</h2>
+            <div className={styles.winnerList}>
+              {handWinners.map((winner) => (
+                <article key={winner.playerId}>
+                  <strong>{winner.name}</strong>
+                  <span>{t.wonChips} +{winner.amount.toLocaleString()}</span>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }
 
 function seatStyle(index: number, totalSeats: number) {
+  const fixedSeats = [
+    { left: 50, top: 8 },
+    { left: 84, top: 28 },
+    { left: 84, top: 72 },
+    { left: 50, top: 92 },
+    { left: 16, top: 72 },
+    { left: 16, top: 28 },
+  ];
+
+  if (totalSeats === fixedSeats.length) {
+    return {
+      left: `${fixedSeats[index]?.left ?? 50}%`,
+      top: `${fixedSeats[index]?.top ?? 50}%`,
+    };
+  }
+
   const angle = -90 + (360 / totalSeats) * index;
   const radius = 43;
   return {
     left: `${50 + radius * Math.cos((angle * Math.PI) / 180)}%`,
     top: `${50 + radius * Math.sin((angle * Math.PI) / 180)}%`,
   };
+}
+
+function visualSeatIndex(logicalIndex: number, ownSeatIndex: number, totalSeats: number) {
+  if (ownSeatIndex < 0) {
+    return logicalIndex;
+  }
+
+  const bottomSeatIndex = Math.floor(totalSeats / 2);
+  return (logicalIndex - ownSeatIndex + bottomSeatIndex + totalSeats) % totalSeats;
+}
+
+function currentStreetActions(state?: GameSnapshot) {
+  const actions = new Map<string, string>();
+  if (!state) {
+    return actions;
+  }
+
+  for (const item of state.actionHistory) {
+    if (item.handId !== state.handId || item.round !== state.phase || item.action === "deal" || item.action === "win") {
+      continue;
+    }
+    actions.set(item.playerId, formatStreetAction(item));
+  }
+
+  return actions;
+}
+
+function handWinnerSummaries(state?: GameSnapshot) {
+  if (!state) {
+    return [];
+  }
+
+  const winners = new Map<string, { amount: number; name: string; playerId: string }>();
+  for (const item of state.actionHistory) {
+    if (item.handId !== state.handId || item.action !== "win") {
+      continue;
+    }
+    const current = winners.get(item.playerId);
+    winners.set(item.playerId, {
+      amount: (current?.amount ?? 0) + (item.amount ?? 0),
+      name: item.playerName,
+      playerId: item.playerId,
+    });
+  }
+
+  return [...winners.values()].sort((left, right) => right.amount - left.amount);
+}
+
+function formatStreetAction(item: GameSnapshot["actionHistory"][number]) {
+  if (item.action === "post-blind") {
+    return item.amount ? `blind ${item.amount}` : "blind";
+  }
+  if (item.amount !== undefined && (item.action === "bet" || item.action === "raise" || item.action === "call")) {
+    return `${item.action} ${item.amount}`;
+  }
+  return item.action;
+}
+
+function soundPathForAction(item: GameSnapshot["actionHistory"][number], state: GameSnapshot) {
+  if (item.action === "deal" || item.action === "win") {
+    return undefined;
+  }
+
+  const player = state.players.find((entry) => entry.id === item.playerId);
+  if ((item.action === "bet" || item.action === "raise" || item.action === "call") && player?.status === "all-in") {
+    return actionSoundPaths["all-in"];
+  }
+
+  if (item.action === "post-blind") {
+    return actionSoundPaths.blind;
+  }
+
+  return actionSoundPaths[item.action];
+}
+
+async function playActionSound(path: string) {
+  try {
+    const audio = new Audio(path);
+    audio.volume = 0.72;
+    await audio.play();
+  } catch {
+    // Browsers may block audio until the viewer interacts with the page.
+  }
 }
 
 function positionLabel(index: number, dealerIndex: number, playerCount: number) {
@@ -385,6 +616,10 @@ function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {
   const red = card.suit === "h" || card.suit === "d";
   const suit = { s: "♠", h: "♥", d: "♦", c: "♣" }[card.suit];
   return <span className={`${styles.playingCard} ${small ? styles.smallCard : ""} ${red ? styles.redCard : ""}`}>{`${card.rank}${suit}`}</span>;
+}
+
+function PlayingCardBack() {
+  return <span className={`${styles.playingCard} ${styles.smallCard} ${styles.cardBack}`} aria-label="card pending" />;
 }
 
 function formatDelta(delta: number) {

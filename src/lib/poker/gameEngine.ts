@@ -201,6 +201,7 @@ export class PokerGameEngine {
       currentPlayerId: this.currentPlayerId,
       communityCards: this.communityCards,
       players: this.players.map((player) => ({ ...player })),
+      actionHistory: this.publicActionHistoryForCurrentHand().slice(-80),
       logs: this.logs.slice(-80).reverse(),
       stats: this.stats,
       modelStats: this.modelStats(),
@@ -521,6 +522,7 @@ export class PokerGameEngine {
     if (contenders.length === 1) {
       const wonAmount = this.pot;
       this.payWinner(contenders[0].id, wonAmount);
+      this.recordAction(contenders[0], "win", { amount: wonAmount });
       handWinners.add(contenders[0].id);
       this.log(contenders[0].id, `${contenders[0].name} 赢得底池 ${wonAmount}。`);
       logger.info("poker.pot_awarded", {
@@ -604,6 +606,7 @@ export class PokerGameEngine {
 
       for (const { winner, wonAmount } of awards) {
         this.payWinner(winner.player.id, wonAmount);
+        this.recordAction(winner.player, "win", { amount: wonAmount });
         handWinners.add(winner.player.id);
         this.log(
           winner.player.id,

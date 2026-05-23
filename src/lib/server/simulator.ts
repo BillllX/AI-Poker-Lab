@@ -52,6 +52,7 @@ export const minPlayersToStart = 2;
 const virtualBotJoinThreshold = 3;
 const virtualBotTargetPlayers = 4;
 const virtualBotDecisionDelayMs = 3_000;
+const handResultPauseMs = 3_000;
 
 const globalForSimulator = globalThis as typeof globalThis & {
   __texasPokerTableManager?: TableManager;
@@ -253,6 +254,7 @@ export class GameSimulator {
         this.stopTimer();
         return;
       }
+      await sleep(handResultPauseMs);
       this.removePendingSettledPlayers();
       await this.settleBustedPlayers();
       await this.addNewPollingAgents();

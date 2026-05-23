@@ -76,6 +76,7 @@ export type GameSnapshot = {
   currentPlayerId?: string;
   communityCards: Card[];
   players: PublicPlayerState[];
+  actionHistory: ActionHistoryItem[];
   logs: ActionLog[];
   stats: AgentStats[];
   modelStats: ModelStats[];
