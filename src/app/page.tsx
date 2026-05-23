@@ -44,6 +44,12 @@ type AgentSummary = {
   assignmentStatus: string;
 };
 
+type MyAgentSettingsResponse = {
+  privateSettings?: {
+    agentPrompt?: string;
+  };
+};
+
 const agentAccessPrompt = `Install and use this skill:
 https://github.com/BillllX/texas-poker-agent-skill
 Read SKILL.md first, then follow README.md.
@@ -73,7 +79,7 @@ const copy = {
     quickPlayFailed: "快速开赛失败。",
     quickPlayLoggedInText: "系统会直接创建或复用你的云端 AI 牌手，并跳转到它所在的实时牌桌。",
     quickPlayStyleTitle: "先选择一个打法风格",
-    quickPlayStyleText: "这个风格会保存到你的 AI 牌手 Prompt，进入牌桌后会影响托管 AI 的后续决策。",
+    quickPlayStyleText: "点击一个风格后会立即保存到你的 AI 牌手 Prompt，并进入牌桌。",
     quickPlayStyleRequired: "请选择一个打法风格，再进入牌桌。",
     quickPlayPromptEditHint: "之后可以在「我的牌手」页面随时修改这个 Prompt。",
     quickPlayStyles: [
@@ -165,6 +171,7 @@ const copy = {
     loginText: "登录不会自动轮换 Agent userToken；如需查看或重置，请进入「我的牌手」。",
     loginUser: "登录",
     loginFailed: "登录失败。",
+    noAccountRegister: "还没有账号？去注册",
     loggedInAs: "当前登录",
     logout: "退出登录",
     logoutFailed: "退出登录失败。",
@@ -234,7 +241,7 @@ const copy = {
     quickPlayFailed: "Quick play failed.",
     quickPlayLoggedInText: "The lab will create or reuse your cloud AI player and jump to its live table.",
     quickPlayStyleTitle: "Choose a playing style first",
-    quickPlayStyleText: "This style is saved to your AI player's Prompt and shapes future hosted AI decisions at the table.",
+    quickPlayStyleText: "Tap a style to save it to your AI player's Prompt and enter the table immediately.",
     quickPlayStyleRequired: "Choose a playing style before entering the table.",
     quickPlayPromptEditHint: "You can edit this Prompt anytime from My Player.",
     quickPlayStyles: [
@@ -326,6 +333,7 @@ const copy = {
     loginText: "Login does not rotate the Agent userToken. View or reset it from My Player.",
     loginUser: "Log In",
     loginFailed: "Login failed.",
+    noAccountRegister: "No account yet? Register",
     loggedInAs: "Logged in as",
     logout: "Log Out",
     logoutFailed: "Failed to log out.",
@@ -397,15 +405,16 @@ export default function Home() {
   const [registrationModalOpen, setRegistrationModalOpen] = useState(() => shouldOpenAuthModal());
   const [quickPlayModalOpen, setQuickPlayModalOpen] = useState(false);
   const [continueQuickPlayAfterLogin, setContinueQuickPlayAfterLogin] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "register">("login");
+  const [authTab, setAuthTab] = useState<"login" | "register">(() => initialAuthTab());
   const [quickPlayAgentPrompt, setQuickPlayAgentPrompt] = useState("");
   const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.en.agentAccessPrompt);
   const [agentPromptCopied, setAgentPromptCopied] = useState(false);
   const [busy, setBusy] = useState<string>();
 
-  async function startQuickPlay(event?: React.FormEvent<HTMLFormElement>) {
+  async function startQuickPlay(event?: React.FormEvent<HTMLFormElement>, options: { agentPrompt?: string; requireStyle?: boolean } = {}) {
     event?.preventDefault();
-    if (!quickPlayAgentPrompt.trim()) {
+    const agentPrompt = (options.agentPrompt ?? quickPlayAgentPrompt).trim();
+    if (options.requireStyle !== false && !agentPrompt) {
       setRegistrationError(t.quickPlayStyleRequired);
       return;
     }
@@ -414,11 +423,11 @@ export default function Home() {
 
     try {
       const body = authUser
-        ? { agentPrompt: quickPlayAgentPrompt }
+        ? (agentPrompt ? { agentPrompt } : {})
         : {
             name: userName,
             password,
-            agentPrompt: quickPlayAgentPrompt,
+            agentPrompt,
           };
       const response = await fetch("/api/users/quick-play", {
         method: "POST",
@@ -443,6 +452,12 @@ export default function Home() {
     } finally {
       setBusy(undefined);
     }
+  }
+
+  async function chooseStyleAndStartQuickPlay(prompt: string) {
+    setQuickPlayAgentPrompt(prompt);
+    setRegistrationError(undefined);
+    await startQuickPlay(undefined, { agentPrompt: prompt });
   }
 
   async function refreshCaptcha() {
@@ -551,7 +566,8 @@ export default function Home() {
       await refreshLeaderboard();
       if (continueQuickPlayAfterLogin) {
         setContinueQuickPlayAfterLogin(false);
-        await startQuickPlay();
+        setQuickPlayModalOpen(true);
+        setRegistrationModalOpen(false);
       }
     } finally {
       setBusy(undefined);
@@ -580,6 +596,7 @@ export default function Home() {
       }
       setAuthUser(undefined);
       setCreatedUser(undefined);
+      window.dispatchEvent(new Event("texas-poker-auth-changed"));
     } finally {
       setBusy(undefined);
     }
@@ -643,8 +660,7 @@ export default function Home() {
               key={style.name}
               type="button"
               onClick={() => {
-                setQuickPlayAgentPrompt(style.prompt);
-                setRegistrationError(undefined);
+                void chooseStyleAndStartQuickPlay(style.prompt);
               }}
             >
               <strong>{style.name}</strong>
@@ -657,16 +673,36 @@ export default function Home() {
     );
   }
 
-  function openQuickPlayModal() {
+  async function openQuickPlayModal() {
+    setRegistrationError(undefined);
+    setNameStatus(undefined);
     if (authUser) {
-      void startQuickPlay();
-      return;
+      setBusy("quick-play");
+      try {
+        if (await hasExistingAgentPrompt()) {
+          await startQuickPlay(undefined, { requireStyle: false });
+          return;
+        }
+      } finally {
+        setBusy(undefined);
+      }
     }
 
     setQuickPlayModalOpen(true);
     setRegistrationModalOpen(false);
-    setRegistrationError(undefined);
-    setNameStatus(undefined);
+  }
+
+  async function hasExistingAgentPrompt() {
+    try {
+      const response = await fetch("/api/users/me/agent", { cache: "no-store" });
+      if (!response.ok) {
+        return false;
+      }
+      const payload = (await response.json()) as MyAgentSettingsResponse;
+      return Boolean(payload.privateSettings?.agentPrompt?.trim());
+    } catch {
+      return false;
+    }
   }
 
   function openLoginForQuickPlay() {
@@ -705,10 +741,28 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (window.location.search.includes("auth=login")) {
+    if (window.location.search.includes("auth=login") || window.location.search.includes("auth=register")) {
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, []);
+
+  useEffect(() => {
+    function handleOpenAuthModal() {
+      setRegistrationModalOpen(true);
+      setQuickPlayModalOpen(false);
+      setContinueQuickPlayAfterLogin(false);
+      setAuthTab("login");
+      setRegistrationError(undefined);
+      setNameStatus(undefined);
+      setRenameStatus(undefined);
+      if (!captcha) {
+        void refreshCaptcha();
+      }
+    }
+
+    window.addEventListener("texas-poker-open-auth-modal", handleOpenAuthModal);
+    return () => window.removeEventListener("texas-poker-open-auth-modal", handleOpenAuthModal);
+  }, [captcha]);
 
   useEffect(() => {
     let index = 1;
@@ -751,7 +805,7 @@ export default function Home() {
           <p className={styles.eyebrow}>{t.heroEyebrow}</p>
           <h1 className={styles.title}>{t.heroTitle}</h1>
           <div className={styles.actions}>
-            <button className={styles.primaryLink} disabled={busy === "quick-play"} type="button" onClick={openQuickPlayModal}>
+            <button className={styles.primaryLink} disabled={busy === "quick-play"} type="button" onClick={() => void openQuickPlayModal()}>
               {busy === "quick-play" ? t.quickPlayStarting : t.quickStart}
             </button>
             <Link className={styles.secondaryLink} href="/tables">{t.watchMatches}</Link>
@@ -876,9 +930,7 @@ export default function Home() {
               <div className={styles.registrationCard}>
                 {renderQuickPlayStylePicker()}
                 {registrationError && <p className={styles.formError}>{registrationError}</p>}
-                <button disabled={busy === "quick-play"} type="button" onClick={() => void startQuickPlay()}>
-                  {busy === "quick-play" ? t.quickPlayStarting : t.quickPlaySubmit}
-                </button>
+                {busy === "quick-play" ? <p className={styles.formHint}>{t.quickPlayStarting}</p> : null}
               </div>
             ) : (
               <form className={styles.registrationCard} onSubmit={startQuickPlay}>
@@ -909,9 +961,7 @@ export default function Home() {
                 </label>
                 {renderQuickPlayStylePicker()}
                 {registrationError && <p className={styles.formError}>{registrationError}</p>}
-                <button disabled={busy === "quick-play"} type="submit">
-                  {busy === "quick-play" ? t.quickPlayStarting : t.quickPlaySubmit}
-                </button>
+                <p className={styles.formHint}>{busy === "quick-play" ? t.quickPlayStarting : t.quickPlayStyleText}</p>
                 <button className={styles.textButton} type="button" onClick={openLoginForQuickPlay}>
                   {t.quickPlayExisting}
                 </button>
@@ -1004,6 +1054,9 @@ export default function Home() {
                 {registrationError && <p className={styles.formError}>{registrationError}</p>}
                 <button disabled={busy === "login-user"} type="submit">
                   {t.loginUser}
+                </button>
+                <button className={styles.textButton} type="button" onClick={() => switchAuthTab("register")}>
+                  {t.noAccountRegister}
                 </button>
               </form>
             )}
@@ -1142,7 +1195,18 @@ function honorLabel(index: number) {
 }
 
 function shouldOpenAuthModal() {
-  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("auth") === "login";
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const auth = new URLSearchParams(window.location.search).get("auth");
+  return auth === "login" || auth === "register";
+}
+
+function initialAuthTab(): "login" | "register" {
+  if (typeof window === "undefined") {
+    return "login";
+  }
+  return new URLSearchParams(window.location.search).get("auth") === "register" ? "register" : "login";
 }
 
 function rankLabel(index: number, t: typeof copy.zh | typeof copy.en) {

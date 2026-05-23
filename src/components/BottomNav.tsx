@@ -30,12 +30,14 @@ const copy = {
   },
 };
 
+const authChangedEvent = "texas-poker-auth-changed";
+
 export function BottomNav() {
   const { language } = useLanguage();
   const pathname = usePathname();
   const t = copy[language];
   const [user, setUser] = useState<SessionUser | null>();
-  const profileHref = user ? "/me" : "/?auth=login";
+  const profileHref = user ? "/me" : "/login";
   const profileLabel = user ? t.myPlayer : t.login;
   const navItems = [
     {
@@ -77,9 +79,11 @@ export function BottomNav() {
 
     void loadSession();
     window.addEventListener("focus", loadSession);
+    window.addEventListener(authChangedEvent, loadSession);
     return () => {
       cancelled = true;
       window.removeEventListener("focus", loadSession);
+      window.removeEventListener(authChangedEvent, loadSession);
     };
   }, []);
 

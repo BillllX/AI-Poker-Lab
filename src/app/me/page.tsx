@@ -460,6 +460,7 @@ export default function MyAgentPage() {
         setLogoutError(t.logoutFailed);
         return;
       }
+      window.dispatchEvent(new Event("texas-poker-auth-changed"));
       router.push("/");
       router.refresh();
     } finally {

@@ -12,6 +12,8 @@
 
 .hero {
   background:
+    linear-gradient(90deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.84) 48%, rgba(13, 33, 24, 0.34) 100%),
+    url("/images/landing/leaderboard-trophy-podium.png") right center / cover no-repeat,
     radial-gradient(circle at 12% 0%, rgba(250, 204, 21, 0.2), transparent 18rem),
     linear-gradient(135deg, rgba(13, 33, 24, 0.94), rgba(10, 27, 20, 0.72));
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -128,6 +130,9 @@
   }
 
   .hero {
+    background:
+      linear-gradient(180deg, rgba(13, 33, 24, 0.94) 0%, rgba(13, 33, 24, 0.72) 100%),
+      url("/images/landing/leaderboard-trophy-podium.png") center top / cover no-repeat;
     border-radius: 28px;
     padding: 28px 20px;
   }
@@ -195,6 +200,22 @@
   background: var(--surface-1);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-soft);
+}
+
+.hero {
+  background:
+    linear-gradient(90deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.84) 48%, rgba(13, 33, 24, 0.34) 100%),
+    url("/images/landing/leaderboard-trophy-podium.png") right center / cover no-repeat,
+    var(--surface-1);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    background:
+      linear-gradient(180deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.78) 100%),
+      url("/images/landing/leaderboard-trophy-podium.png") center top / cover no-repeat,
+      var(--surface-1);
+  }
 }
 
 .row,

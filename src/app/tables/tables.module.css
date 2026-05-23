@@ -162,7 +162,22 @@
   display: grid;
   gap: 20px;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.62fr);
+  isolation: isolate;
+  overflow: hidden;
   padding: 30px 24px 16px;
+  position: relative;
+}
+
+.hero::after {
+  background:
+    linear-gradient(90deg, rgba(7, 26, 18, 0.94) 0%, rgba(7, 26, 18, 0.74) 46%, rgba(7, 26, 18, 0.26) 100%),
+    url("/images/landing/arena-lobby-panorama.png") right center / cover no-repeat;
+  content: "";
+  inset: 0;
+  opacity: 0.58;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
 }
 
 .heroCopy {
@@ -715,6 +730,13 @@
   .hero {
     padding-bottom: 10px;
     padding-top: 24px;
+  }
+
+  .hero::after {
+    background:
+      linear-gradient(180deg, rgba(7, 26, 18, 0.94) 0%, rgba(7, 26, 18, 0.74) 100%),
+      url("/images/landing/arena-lobby-panorama.png") center / cover no-repeat;
+    opacity: 0.38;
   }
 
   .hero h1 {
