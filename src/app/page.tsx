@@ -72,6 +72,27 @@ const copy = {
     quickPlayStarting: "正在创建 AI 牌手并进入牌桌...",
     quickPlayFailed: "快速开赛失败。",
     quickPlayLoggedInText: "系统会直接创建或复用你的云端 AI 牌手，并跳转到它所在的实时牌桌。",
+    quickPlayStyleTitle: "先选择一个打法风格",
+    quickPlayStyleText: "这个风格会保存到你的 AI 牌手 Prompt，进入牌桌后会影响托管 AI 的后续决策。",
+    quickPlayStyleRequired: "请选择一个打法风格，再进入牌桌。",
+    quickPlayPromptEditHint: "之后可以在「我的牌手」页面随时修改这个 Prompt。",
+    quickPlayStyles: [
+      {
+        name: "稳健型",
+        description: "少犯错、控底池、强牌再扩大投入。",
+        prompt: "稳健紧凶，避免边缘 all-in；翻后优先控制底池，只在强牌、强听牌或赔率合适时扩大底池。",
+      },
+      {
+        name: "激进型",
+        description: "主动施压，争取主动权和弃牌率。",
+        prompt: "主动施压，优先争取主动权；有位置优势或强听牌时可以半诈唬，但遇到明显反击要控制风险。",
+      },
+      {
+        name: "学习型",
+        description: "优先解释清楚，保守处理不确定局面。",
+        prompt: "优先做可解释、低失误决策；不确定时选择保守线路，并在 reasoning 中说明风险和下一次需要改进的点。",
+      },
+    ],
     startSteps: ["输入昵称和密码", "云端 AI 自动入桌", "观战、Coaching、复盘"],
     flowEyebrow: "HOW IT WORKS",
     flowTitle: "三步开始训练",
@@ -212,6 +233,27 @@ const copy = {
     quickPlayStarting: "Creating your AI player and entering the table...",
     quickPlayFailed: "Quick play failed.",
     quickPlayLoggedInText: "The lab will create or reuse your cloud AI player and jump to its live table.",
+    quickPlayStyleTitle: "Choose a playing style first",
+    quickPlayStyleText: "This style is saved to your AI player's Prompt and shapes future hosted AI decisions at the table.",
+    quickPlayStyleRequired: "Choose a playing style before entering the table.",
+    quickPlayPromptEditHint: "You can edit this Prompt anytime from My Player.",
+    quickPlayStyles: [
+      {
+        name: "Tight",
+        description: "Fewer mistakes, pot control, build pots with strong hands.",
+        prompt: "Play tight-aggressive, avoid marginal all-ins, control the pot postflop, and only build big pots with strong hands, strong draws, or good odds.",
+      },
+      {
+        name: "Aggressive",
+        description: "Apply pressure and fight for initiative.",
+        prompt: "Apply pressure and fight for initiative. Semi-bluff with position or strong draws, but control risk when facing clear resistance.",
+      },
+      {
+        name: "Learning",
+        description: "Explain decisions and handle uncertainty conservatively.",
+        prompt: "Prioritize explainable, low-mistake decisions. When uncertain, choose the conservative line and explain the risk and next improvement point in reasoning.",
+      },
+    ],
     startSteps: ["Enter name and password", "Cloud AI auto-seats", "Watch, coach, review"],
     flowEyebrow: "HOW IT WORKS",
     flowTitle: "Start training in three steps",
@@ -356,21 +398,27 @@ export default function Home() {
   const [quickPlayModalOpen, setQuickPlayModalOpen] = useState(false);
   const [continueQuickPlayAfterLogin, setContinueQuickPlayAfterLogin] = useState(false);
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
+  const [quickPlayAgentPrompt, setQuickPlayAgentPrompt] = useState("");
   const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.en.agentAccessPrompt);
   const [agentPromptCopied, setAgentPromptCopied] = useState(false);
   const [busy, setBusy] = useState<string>();
 
   async function startQuickPlay(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
+    if (!quickPlayAgentPrompt.trim()) {
+      setRegistrationError(t.quickPlayStyleRequired);
+      return;
+    }
     setBusy("quick-play");
     setRegistrationError(undefined);
 
     try {
       const body = authUser
-        ? {}
+        ? { agentPrompt: quickPlayAgentPrompt }
         : {
             name: userName,
             password,
+            agentPrompt: quickPlayAgentPrompt,
           };
       const response = await fetch("/api/users/quick-play", {
         method: "POST",
@@ -581,6 +629,34 @@ export default function Home() {
     }
   }
 
+  function renderQuickPlayStylePicker() {
+    return (
+      <div className={styles.quickPlayStylePicker}>
+        <div>
+          <strong>{t.quickPlayStyleTitle}</strong>
+          <p>{t.quickPlayStyleText}</p>
+        </div>
+        <div className={styles.quickPlayStyleGrid}>
+          {t.quickPlayStyles.map((style) => (
+            <button
+              className={quickPlayAgentPrompt === style.prompt ? styles.selectedQuickPlayStyle : ""}
+              key={style.name}
+              type="button"
+              onClick={() => {
+                setQuickPlayAgentPrompt(style.prompt);
+                setRegistrationError(undefined);
+              }}
+            >
+              <strong>{style.name}</strong>
+              <span>{style.description}</span>
+            </button>
+          ))}
+        </div>
+        <p>{t.quickPlayPromptEditHint}</p>
+      </div>
+    );
+  }
+
   function openQuickPlayModal() {
     if (authUser) {
       void startQuickPlay();
@@ -764,20 +840,15 @@ export default function Home() {
               width={1024}
             />
           </div>
-          <div>
+          <div className={styles.growthCopy}>
             <p className={styles.agentAccessEyebrow}>{t.showcaseEyebrow}</p>
-            <h3>{t.showcaseTitle}</h3>
             <p>{t.showcaseText}</p>
+            <div className={styles.growthSteps}>
+              {t.features.slice(0, 3).map((feature) => (
+                <span key={feature.eyebrow}>{feature.eyebrow}</span>
+              ))}
+            </div>
           </div>
-        </div>
-        <div className={styles.featureGrid}>
-          {t.features.map((feature) => (
-            <article className={styles.featureCard} key={feature.title}>
-              <span>{feature.eyebrow}</span>
-              <h3>{feature.title}</h3>
-              <p>{feature.text}</p>
-            </article>
-          ))}
         </div>
       </section>
 
@@ -803,6 +874,7 @@ export default function Home() {
 
             {authUser ? (
               <div className={styles.registrationCard}>
+                {renderQuickPlayStylePicker()}
                 {registrationError && <p className={styles.formError}>{registrationError}</p>}
                 <button disabled={busy === "quick-play"} type="button" onClick={() => void startQuickPlay()}>
                   {busy === "quick-play" ? t.quickPlayStarting : t.quickPlaySubmit}
@@ -835,6 +907,7 @@ export default function Home() {
                     value={password}
                   />
                 </label>
+                {renderQuickPlayStylePicker()}
                 {registrationError && <p className={styles.formError}>{registrationError}</p>}
                 <button disabled={busy === "quick-play"} type="submit">
                   {busy === "quick-play" ? t.quickPlayStarting : t.quickPlaySubmit}

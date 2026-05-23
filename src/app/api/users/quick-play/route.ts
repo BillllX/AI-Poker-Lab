@@ -1,4 +1,5 @@
 import { createOrJoinHostedAgent, getHostedAgentStatus, hostedAgentTableLink } from "@/lib/server/hostedAgents";
+import { updateAgentPrivateSettings } from "@/lib/server/agentPrivateSettings";
 import { createUser, createUserSessionSetCookie, getUserFromSessionCookie } from "@/lib/server/userRegistry";
 
 export async function POST(request: Request) {
@@ -7,6 +8,9 @@ export async function POST(request: Request) {
     const body = await safeJson(request);
     const existingUser = await getUserFromSessionCookie(request.headers.get("cookie"));
     const userResult = existingUser ? { user: existingUser, userToken: null } : await createUser(body);
+    if (typeof body.agentPrompt === "string" && body.agentPrompt.trim()) {
+      await updateAgentPrivateSettings(userResult.user.id, { agentPrompt: body.agentPrompt });
+    }
     const agent = await createOrJoinHostedAgent({
       ownerName: userResult.user.name,
       ownerUserId: userResult.user.id,

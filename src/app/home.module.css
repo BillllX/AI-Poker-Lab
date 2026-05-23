@@ -695,7 +695,63 @@
 }
 
 .quickPlayModal {
-  max-width: 520px;
+  max-width: 620px;
+}
+
+.quickPlayStylePicker {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.quickPlayStylePicker strong {
+  display: block;
+}
+
+.quickPlayStylePicker p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.quickPlayStyleGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quickPlayStyleGrid button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+  min-height: 92px;
+  padding: 10px;
+  text-align: left;
+  white-space: normal;
+}
+
+.quickPlayStyleGrid button strong {
+  color: var(--accent);
+}
+
+.quickPlayStyleGrid button span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.quickPlayStyleGrid .selectedQuickPlayStyle {
+  background: rgba(118, 228, 170, 0.14);
+  border-color: rgba(118, 228, 170, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .authTabs {
@@ -1368,6 +1424,28 @@
   margin: 0;
 }
 
+.growthCopy {
+  display: grid;
+  gap: 14px;
+}
+
+.growthSteps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.growthSteps span {
+  background: rgba(118, 228, 170, 0.1);
+  border: 1px solid rgba(118, 228, 170, 0.22);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 7px 10px;
+}
+
 .featureGrid {
   display: grid;
   gap: 16px;
@@ -2019,6 +2097,14 @@
     max-height: calc(100vh - 80px);
   }
 
+  .quickPlayStyleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .quickPlayStyleGrid button {
+    min-height: 0;
+  }
+
   .modalHeader {
     gap: 12px;
   }
@@ -2180,6 +2266,40 @@
   background: linear-gradient(135deg, var(--accent), #b8f5cf);
   box-shadow: 0 12px 34px rgba(52, 211, 153, 0.18);
   color: var(--button-text);
+}
+
+.registrationCard .quickPlayStyleGrid button {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.035)),
+    rgba(7, 26, 18, 0.72);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+  color: var(--text);
+}
+
+.registrationCard .quickPlayStyleGrid button:hover {
+  background:
+    linear-gradient(180deg, rgba(118, 228, 170, 0.11), rgba(255, 255, 255, 0.04)),
+    rgba(7, 26, 18, 0.84);
+  border-color: rgba(118, 228, 170, 0.3);
+}
+
+.registrationCard .quickPlayStyleGrid .selectedQuickPlayStyle {
+  background:
+    linear-gradient(180deg, rgba(118, 228, 170, 0.17), rgba(118, 228, 170, 0.07)),
+    rgba(7, 26, 18, 0.9);
+  border-color: rgba(118, 228, 170, 0.56);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+.registrationCard .quickPlayStyleGrid button strong {
+  color: var(--accent);
+}
+
+.registrationCard .quickPlayStyleGrid button span {
+  color: rgba(242, 251, 244, 0.68);
 }
 
 .secondaryLink,
@@ -2455,6 +2575,19 @@
   .engagementShowcase p:not(.agentAccessEyebrow) {
     font-size: 14px;
     line-height: 1.55;
+  }
+
+  .growthCopy {
+    gap: 10px;
+  }
+
+  .growthSteps {
+    gap: 6px;
+  }
+
+  .growthSteps span {
+    font-size: 11px;
+    padding: 6px 8px;
   }
 
   .featureGrid {
