@@ -24,7 +24,7 @@ export type PlayerState = {
   name: string;
   ownerUserId?: string;
   modelName?: string;
-  kind?: "external" | "hosted" | "virtual";
+  kind?: "external" | "hosted" | "human" | "virtual";
   strategy?: AgentStyle;
   endpoint?: string;
   stack: number;
@@ -56,6 +56,8 @@ export type ActionHistoryItem = {
   playerName: string;
   action: LegalAction | "post-blind" | "deal" | "win";
   amount?: number;
+  handRank?: HandRank;
+  handLabel?: string;
   targetBet?: number;
   potAfter: number;
   createdAt: string;

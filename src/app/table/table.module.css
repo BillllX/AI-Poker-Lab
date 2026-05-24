@@ -428,6 +428,28 @@
   width: fit-content;
 }
 
+.winBadge {
+  background: linear-gradient(135deg, rgba(245, 200, 75, 0.98), rgba(255, 255, 255, 0.86));
+  border: 1px solid rgba(245, 200, 75, 0.58);
+  border-radius: 999px;
+  box-shadow: 0 0 22px rgba(245, 200, 75, 0.42);
+  color: #2c1705;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 1000;
+  justify-content: center;
+  letter-spacing: 0.12em;
+  margin: 7px auto 0;
+  padding: 5px 12px;
+}
+
+.winningSeat {
+  border-color: rgba(245, 200, 75, 0.72);
+  box-shadow:
+    0 0 0 2px rgba(245, 200, 75, 0.2),
+    0 0 36px rgba(245, 200, 75, 0.34);
+}
+
 .seatBadges .thinkingBadge {
   animation: pulseGlow 1.2s ease-in-out infinite;
   background: rgba(250, 204, 21, 0.18);
@@ -700,8 +722,20 @@
   resize: vertical;
 }
 
+.textInput {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text);
+  font: inherit;
+  min-height: 44px;
+  padding: 0 12px;
+  width: 100%;
+}
+
 .coachingForm button,
-.dangerAction {
+.dangerAction,
+.primaryAction {
   align-items: center;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -712,9 +746,11 @@
   justify-content: center;
   min-height: 42px;
   padding: 10px 14px;
+  text-decoration: none;
 }
 
-.coachingForm button {
+.coachingForm button,
+.primaryAction {
   background: rgba(110, 231, 168, 0.14);
   border-color: rgba(110, 231, 168, 0.28);
   color: var(--accent);
@@ -733,11 +769,152 @@
   opacity: 0.56;
 }
 
+.actionPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.actionDock {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  min-width: min(520px, 100%);
+}
+
+.actionStatus {
+  background: rgba(245, 200, 75, 0.12);
+  border: 1px solid rgba(245, 200, 75, 0.26);
+  border-radius: 999px;
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 10px;
+  text-align: center;
+}
+
+.actionPanel label {
+  color: var(--muted);
+  display: grid;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.actionGrid {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.actionGrid button {
+  flex: 1 0 auto;
+  min-width: 82px;
+}
+
 .joinPanel {
   display: grid;
   gap: 14px;
   margin: 18px auto 0;
   max-width: 1500px;
+}
+
+.statsOverlay {
+  align-items: center;
+  background: rgba(2, 8, 6, 0.68);
+  backdrop-filter: blur(8px);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: 24px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 90;
+}
+
+.statsDialog {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(110, 231, 168, 0.12), transparent 18rem),
+    linear-gradient(180deg, rgba(18, 54, 38, 0.97), rgba(7, 23, 16, 0.97));
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.38);
+  max-height: min(760px, 86vh);
+  max-width: 920px;
+  overflow: auto;
+  padding: 20px;
+  width: min(920px, 100%);
+}
+
+.statsHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.statsHeader h2,
+.statsHeader p {
+  margin: 0;
+}
+
+.statsHeader button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 24px;
+  height: 40px;
+  justify-content: center;
+  line-height: 1;
+  width: 40px;
+}
+
+.statsList {
+  display: grid;
+  gap: 10px;
+}
+
+.statsCard {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(140px, 1fr) repeat(3, minmax(92px, auto)) auto;
+  padding: 12px;
+}
+
+.activeStatsCard {
+  border-color: rgba(110, 231, 168, 0.34);
+}
+
+.statsCard strong,
+.statsCard span,
+.statsCard small,
+.statsCard b {
+  display: block;
+}
+
+.statsCard small,
+.statsCard > div span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.statsCard em {
+  border-radius: 999px;
+  font-style: normal;
+  font-weight: 900;
+  padding: 7px 10px;
+  text-align: center;
 }
 
 .winnerOverlay {
@@ -832,13 +1009,13 @@
 }
 
 .winnerList article {
-  align-items: center;
+  align-items: flex-start;
   background: rgba(255, 255, 255, 0.075);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
-  display: flex;
+  display: grid;
   gap: 12px;
-  justify-content: space-between;
+  grid-template-columns: minmax(0, 1fr) auto;
   padding: 12px 14px;
   text-align: left;
 }
@@ -854,6 +1031,12 @@
   color: var(--warning);
   font-weight: 900;
   white-space: nowrap;
+}
+
+.winnerList small {
+  color: var(--muted);
+  font-size: 12px;
+  grid-column: 1 / -1;
 }
 
 @keyframes overlayFadeIn {
@@ -951,7 +1134,7 @@
 @media (max-width: 760px) {
   .page {
     overflow-x: hidden;
-    padding: 12px 12px 172px;
+    padding: 12px 12px 306px;
   }
 
   .header,
@@ -994,7 +1177,7 @@
       radial-gradient(circle at 50% 0%, rgba(110, 231, 168, 0.24), transparent 16rem);
     border: 1px solid rgba(110, 231, 168, 0.2);
     border-radius: 28px 28px 0 0;
-    bottom: 0;
+    bottom: calc(82px + env(safe-area-inset-bottom));
     box-shadow:
       0 -24px 70px rgba(0, 0, 0, 0.48),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -1007,7 +1190,7 @@
     position: fixed;
     right: 8px;
     width: auto;
-    z-index: 30;
+    z-index: 70;
   }
 
   .controls a,
@@ -1024,6 +1207,21 @@
     min-height: 44px;
     padding: 9px 10px;
     width: 100%;
+  }
+
+  .actionDock {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .actionDock .actionGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    overflow: visible;
+  }
+
+  .actionDock .actionGrid button {
+    min-width: 0;
   }
 
   .controls a:hover,
@@ -1317,6 +1515,31 @@
 
   .coachingForm textarea {
     min-height: 104px;
+  }
+
+  .actionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statsOverlay {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .statsDialog {
+    border-radius: 24px;
+    max-height: 82vh;
+    padding: 16px;
+  }
+
+  .statsCard {
+    align-items: stretch;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .statsCard > div,
+  .statsCard em {
+    grid-column: 1 / -1;
   }
 
   .joinPanel {

@@ -169,6 +169,8 @@ const copy = {
     resetDone: "已重置",
     resetToken: "重置 userToken",
     viewSkill: "查看本地 Agent Skill",
+    humanTable: "真人牌桌",
+    humanTableText: "创建或加入一张只允许真人操作的牌桌。",
     logout: "退出登录",
     loggingOut: "退出中...",
     logoutFailed: "退出登录失败。",
@@ -256,6 +258,8 @@ const copy = {
     resetDone: "Reset",
     resetToken: "Reset userToken",
     viewSkill: "View Local Agent Skill",
+    humanTable: "Human Table",
+    humanTableText: "Create or join a table where every action is made by a real player.",
     logout: "Log Out",
     loggingOut: "Logging out...",
     logoutFailed: "Failed to log out.",
@@ -664,11 +668,17 @@ export default function MyAgentPage() {
           </div>
         </details>
 
-        <section className={styles.logoutPanel}>
-          <button type="button" disabled={logoutBusy} onClick={() => void logout()}>
-            {logoutBusy ? t.loggingOut : t.logout}
-          </button>
-          {logoutError ? <p className={styles.muted}>{logoutError}</p> : null}
+        <section className={styles.bottomActionGrid}>
+          <Link className={styles.humanTablePanel} href="/human-table">
+            <strong>{t.humanTable}</strong>
+            <span>{t.humanTableText}</span>
+          </Link>
+          <div className={styles.logoutPanel}>
+            <button type="button" disabled={logoutBusy} onClick={() => void logout()}>
+              {logoutBusy ? t.loggingOut : t.logout}
+            </button>
+            {logoutError ? <p className={styles.muted}>{logoutError}</p> : null}
+          </div>
         </section>
       </div>
     </main>

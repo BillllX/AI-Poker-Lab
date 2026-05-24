@@ -276,11 +276,41 @@
   padding: 10px 12px;
 }
 
+.bottomActionGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 8px 0 0;
+}
+
+.humanTablePanel,
 .logoutPanel {
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
   display: grid;
   gap: 10px;
   justify-items: center;
-  padding: 8px 0 0;
+  min-height: 112px;
+  padding: 18px;
+  text-align: center;
+}
+
+.humanTablePanel {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.humanTablePanel strong,
+.humanTablePanel span {
+  display: block;
+}
+
+.humanTablePanel span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .logoutPanel button {
@@ -897,9 +927,14 @@
   .creationCard button,
   .actionRow .primaryLink,
   .actionRow .secondaryLink,
-  .actionRow button {
+  .actionRow button,
+  .bottomActionGrid {
     text-align: center;
     width: 100%;
+  }
+
+  .bottomActionGrid {
+    grid-template-columns: 1fr;
   }
 
   .resultRow {
