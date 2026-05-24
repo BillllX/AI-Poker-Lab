@@ -323,7 +323,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
         <div className={styles.tableArea}>
           <div className={styles.table}>
             <div className={styles.tableCenter}>
-              <div className={styles.phase}>{state?.phase ?? "preflop"}</div>
+              <div className={styles.centerStats}>
+                <span className={styles.phase}>{state?.phase ?? "preflop"}</span>
+                <span className={styles.centerPot}>{t.pot} {state?.pot ?? 0}</span>
+              </div>
               <div className={styles.cards}>
                 {state?.communityCards.length ? (
                   state.communityCards.map((card, index) => <PlayingCard card={card} key={`${card.rank}${card.suit}${index}`} />)
@@ -353,8 +356,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                   </div>
                   <div className={styles.streetAction}>{streetActions.get(player.id) ?? (player.id === state?.currentPlayerId ? t.thinking : t.waiting)}</div>
                   <div className={styles.seatMeta}>
-                    <span>{t.stack} {player.stack}</span>
-                    <span>{t.bet} {player.currentBet}</span>
+                    <span><small>{t.stack}</small><strong>{player.stack}</strong></span>
                   </div>
                   <div className={`${styles.chipDelta} ${deltaClass(player.stack - initialStack)}`}>
                     {t.profit} {formatDelta(player.stack - initialStack)}
@@ -370,7 +372,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                       </>
                     ) : null}
                   </div>
-                  <p>{t.action}: {player.lastAction ?? t.waiting}</p>
                 </article>
               ) : (
                 <article className={`${styles.seat} ${styles.emptySeatCard}`} key={`empty-${index}`} style={seatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6)}>
@@ -492,12 +493,12 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
 
 function seatStyle(index: number, totalSeats: number) {
   const fixedSeats = [
-    { left: 50, top: 8 },
-    { left: 84, top: 28 },
-    { left: 84, top: 72 },
-    { left: 50, top: 92 },
-    { left: 16, top: 72 },
-    { left: 16, top: 28 },
+    { left: 50, top: 14 },
+    { left: 82, top: 30 },
+    { left: 82, top: 70 },
+    { left: 50, top: 86 },
+    { left: 18, top: 70 },
+    { left: 18, top: 30 },
   ];
 
   if (totalSeats === fixedSeats.length) {

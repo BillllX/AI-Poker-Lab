@@ -246,7 +246,15 @@
   z-index: 2;
 }
 
-.phase {
+.centerStats {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.phase,
+.centerPot {
   background: rgba(250, 204, 21, 0.18);
   border-radius: 999px;
   color: var(--warning);
@@ -255,6 +263,12 @@
   letter-spacing: 0.12em;
   padding: 6px 12px;
   text-transform: uppercase;
+}
+
+.centerPot {
+  background: rgba(110, 231, 168, 0.12);
+  color: var(--accent);
+  letter-spacing: 0.04em;
 }
 
 .pot {
@@ -395,21 +409,23 @@
 }
 
 .streetAction {
+  align-items: center;
   background: rgba(245, 200, 75, 0.12);
   border: 1px solid rgba(245, 200, 75, 0.22);
   border-radius: 999px;
   color: var(--warning);
-  display: inline-flex;
+  display: flex;
   font-size: 11px;
   font-weight: 900;
   justify-content: center;
-  margin-top: 8px;
-  max-width: 100%;
+  margin: 8px auto 0;
+  max-width: calc(100% - 8px);
   overflow: hidden;
   padding: 4px 8px;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+  width: fit-content;
 }
 
 .seatBadges .thinkingBadge {
@@ -430,11 +446,39 @@
 }
 
 .seatMeta {
-  color: var(--muted);
   display: flex;
+  justify-content: center;
+  margin: 8px 0 0;
+}
+
+.seatMeta span {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+.seatMeta small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.seatMeta strong {
+  color: var(--text);
   font-size: 13px;
-  gap: 10px;
-  margin: 8px 0;
+  line-height: 1;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chipDelta {
@@ -1018,10 +1062,10 @@
     border-width: 10px;
     border-radius: 48% / 52%;
     display: block;
-    height: min(82vw, 390px);
+    height: min(94vw, 449px);
     max-height: none;
     max-width: 100%;
-    min-height: 320px;
+    min-height: 368px;
     min-width: 0;
     padding: 0;
     width: 100%;
@@ -1046,8 +1090,14 @@
     font-size: 20px;
   }
 
-  .phase {
+  .centerStats {
+    gap: 5px;
+  }
+
+  .phase,
+  .centerPot {
     font-size: 10px;
+    padding: 5px 7px;
   }
 
   .playingCard {
@@ -1069,7 +1119,7 @@
     padding: 7px;
     position: absolute;
     transform: translate(-50%, -50%);
-    width: 108px;
+    width: 116px;
   }
 
   .currentSeat {
@@ -1126,7 +1176,23 @@
   }
 
   .seatMeta {
-    display: none;
+    justify-content: center;
+    margin-top: 5px;
+  }
+
+  .seatMeta span {
+    border-radius: 10px;
+    gap: 4px;
+    padding: 4px 6px;
+  }
+
+  .seatMeta small {
+    display: inline;
+    font-size: 9px;
+  }
+
+  .seatMeta strong {
+    font-size: 11px;
   }
 
   .holeCards {
