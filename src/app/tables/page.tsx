@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./tables.module.css";
 
+const authChangedEvent = "texas-poker-auth-changed";
+
 type TableSummary = {
   id: string;
   name: string;
@@ -164,6 +166,12 @@ export default function TablesPage() {
       if (!response.ok) {
         setQuickPlayError(payload.error ?? t.quickPlayFailed);
         return;
+      }
+      if (payload.user) {
+        setMe(payload.user);
+        window.dispatchEvent(new Event(authChangedEvent));
+      } else {
+        await refreshMe();
       }
       router.push(payload.tableUrl ?? (payload.tableId ? `/tables/${encodeURIComponent(payload.tableId)}` : "/tables"));
     } finally {

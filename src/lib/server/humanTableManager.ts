@@ -41,6 +41,7 @@ type HumanTable = {
   engine: PokerGameEngine;
   id: string;
   name: string;
+  ownerUserId: string;
   participants: Map<string, HumanParticipant>;
   passwordHash: string;
 };
@@ -81,6 +82,7 @@ export type HumanTableSnapshot = {
     maxPlayers: number;
     needsCreate: boolean;
     needsJoin: boolean;
+    canEndGame?: boolean;
     playerCount: number;
     running: boolean;
     tableId?: string;
@@ -113,6 +115,7 @@ export class HumanTableManager {
       engine: new PokerGameEngine([player], { tableId: humanTableId, tableName: humanTableName }),
       id: humanTableId,
       name: humanTableName,
+      ownerUserId: user.id,
       participants: new Map(),
       passwordHash: hashPassword(normalizedPassword),
     };
@@ -197,6 +200,29 @@ export class HumanTableManager {
     return { left: true, tableClosed };
   }
 
+  endTable(userId: string) {
+    const table = this.activeTable;
+    if (!table) {
+      return { ended: false, tableClosed: false, snapshot: this.snapshot(userId) };
+    }
+    if (table.ownerUserId !== userId) {
+      throw new Error("Only the table creator can end this human table.");
+    }
+
+    this.rejectPending(new Error("Human table was ended by the creator."));
+    table.engine.refundUnsettledPot();
+    table.engine.setRunning(false);
+    this.stopTimer();
+    this.inFlight = false;
+    this.playersPendingRemoval.clear();
+    this.refreshParticipantStacks(table);
+    this.invalidateSnapshotCache();
+    const snapshot = this.snapshot(userId);
+    const tableClosed = this.closeTable(table, "owner_ended");
+    logger.info("human_table.ended_by_owner", { tableId: table.id, ownerUserId: userId });
+    return { ended: true, tableClosed, snapshot };
+  }
+
   snapshot(userId?: string): HumanTableSnapshot {
     const table = this.activeTable;
     if (!table) {
@@ -232,6 +258,7 @@ export class HumanTableManager {
         maxPlayers: maxHumanPlayers,
         needsCreate: false,
         needsJoin: Boolean(userId && !isSeated),
+        canEndGame: Boolean(userId && table.ownerUserId === userId),
         playerCount: rawGame.players.length,
         running: rawGame.running,
         tableId: table.id,
@@ -452,7 +479,7 @@ export class HumanTableManager {
     for (const participant of table.participants.values()) {
       const player = snapshot.players.find((item) => item.id === participant.playerId);
       if (player) {
-        participant.lastKnownEffectiveStack = player.stack + player.totalCommitted;
+        participant.lastKnownEffectiveStack = player.stack;
       }
     }
   }
@@ -492,6 +519,7 @@ export class HumanTableManager {
         const currentStack = player?.stack ?? participant.lastKnownEffectiveStack;
         const committedChips = player && game.pot > 0 ? player.totalCommitted : 0;
         const effectiveStack = player ? currentStack + committedChips : participant.lastKnownEffectiveStack;
+        const settledProfit = participant.lastKnownEffectiveStack - initialStack;
         return {
           committedChips,
           currentStack,
@@ -501,7 +529,7 @@ export class HumanTableManager {
           leftAt: participant.leftAt,
           name: player?.name ?? participant.name,
           playerId: participant.playerId,
-          profit: effectiveStack - initialStack,
+          profit: settledProfit,
           status: player?.status,
           userId: participant.userId,
         };
