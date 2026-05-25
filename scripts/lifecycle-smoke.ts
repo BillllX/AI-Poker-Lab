@@ -2,7 +2,15 @@ import { strict as assert } from "node:assert";
 import { analyzeDecisionHand } from "../src/lib/poker/handAnalysis";
 import type { AgentDecisionRequest, AgentDecisionResponse, Card, PlayerState } from "../src/lib/poker/types";
 import { enqueueDecision, submitDecision, subscribePendingDecision } from "../src/lib/server/decisionBroker";
-import { clearAgents, listAgents, registerAgent, subscribeAgentRegistry, type RegisteredAgent } from "../src/lib/server/agentRegistry";
+import {
+  assignAgentToTable,
+  clearAgents,
+  listAgents,
+  markAgentDisconnected,
+  registerAgent,
+  subscribeAgentRegistry,
+  type RegisteredAgent,
+} from "../src/lib/server/agentRegistry";
 import { GameSimulator, TableManager } from "../src/lib/server/simulator";
 import type { GameBuyIn, GameSettlement } from "../src/lib/server/userRegistry";
 import { initialStack, PokerGameEngine } from "../src/lib/poker/gameEngine";
@@ -37,6 +45,7 @@ async function main() {
   await assertNewPollingAgentJoinsNextHand();
   await assertBustedRealAgentSettlesAndLeaves();
   await assertDisconnectedLeaveRemovesEngineSeat();
+  await assertDisconnectedPlayingAgentSettlesAndLeaves();
   await assertMinimumRaiseTracksPreviousRaiseSize();
   await assertShortStackCallCommitsAllIn();
   await assertCommunityCardsAreCappedAtFive();
@@ -248,6 +257,70 @@ async function assertDisconnectedLeaveRemovesEngineSeat() {
     "leaving Agent should be removed from the engine snapshot",
   );
   assert.ok(listAgents().every((agent) => agent.id !== leavingAgent.id), "leaving Agent registration should be removed");
+  clearAgents();
+}
+
+async function assertDisconnectedPlayingAgentSettlesAndLeaves() {
+  clearAgents();
+  const disconnectedAgent = {
+    id: "disconnect-smoke-agent-a",
+    name: "Disconnect Smoke Agent A",
+    ownerUserId: "user-disconnect-a",
+    modelName: "test-model",
+    kind: "external" as const,
+    registeredAt: new Date().toISOString(),
+    assignmentStatus: "registered" as const,
+  };
+  const survivingAgent = {
+    id: "disconnect-smoke-agent-b",
+    name: "Disconnect Smoke Agent B",
+    ownerUserId: "user-disconnect-b",
+    modelName: "test-model",
+    kind: "external" as const,
+    registeredAt: new Date().toISOString(),
+    assignmentStatus: "playing" as const,
+  };
+  const harness = createHarness({ decisionMode: "pending", agents: [disconnectedAgent, survivingAgent] });
+  const simulator = new GameSimulator("http://localhost:3000", harness.deps, "disconnect-table", "Disconnect Table");
+  const simulatorInternals = simulator as unknown as SimulatorInternals;
+  const manager = new TableManager("http://localhost:3000");
+  const managerInternals = manager as unknown as TableManagerInternals;
+
+  registerAgent(disconnectedAgent);
+  assignAgentToTable(disconnectedAgent.id, "disconnect-table", "playing");
+  markAgentDisconnected(disconnectedAgent.id);
+  harness.agents.splice(0, harness.agents.length, survivingAgent);
+  simulatorInternals.activeBuyIns = [
+    {
+      agentId: disconnectedAgent.id,
+      amount: initialStack,
+      gameSessionId: "disconnect-smoke-session",
+      ownerUserId: disconnectedAgent.ownerUserId,
+    },
+    {
+      agentId: survivingAgent.id,
+      amount: initialStack,
+      gameSessionId: "disconnect-smoke-session",
+      ownerUserId: survivingAgent.ownerUserId,
+    },
+  ];
+  managerInternals.tables.set("disconnect-table", {
+    id: "disconnect-table",
+    name: "Disconnect Table",
+    createdAt: new Date().toISOString(),
+    runner: simulator,
+  });
+
+  const result = await manager.leaveAgent(disconnectedAgent.id);
+
+  assert.deepEqual(result, { removed: true, tableEnded: true }, "disconnected Agent should auto-leave its retained table");
+  assert.equal(harness.settleCalls.length, 1, "disconnected Agent auto-leave should settle the Agent");
+  assert.equal(harness.settleCalls[0][0].agentId, disconnectedAgent.id, "settlement should target the disconnected Agent");
+  assert.ok(
+    !simulatorInternals.engine.snapshot().players.some((player) => player.id === disconnectedAgent.id),
+    "disconnected Agent should be removed from the engine snapshot",
+  );
+  assert.ok(listAgents().every((agent) => agent.id !== disconnectedAgent.id), "disconnected Agent registration should be removed");
   clearAgents();
 }
 

@@ -21,6 +21,9 @@ const app = next({ dev: process.env.NODE_ENV !== "production", hostname, port })
 const handle = app.getRequestHandler();
 const wsPath = "/api/agents/ws";
 const qualificationWsPath = "/api/agents/qualification/ws";
+const disconnectedAgentLeaveGraceMs = 45_000;
+const disconnectedAgentTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const activeAgentConnections = new Map<string, symbol>();
 
 void main();
 
@@ -75,6 +78,9 @@ async function main() {
     }
 
     markAgentSeen(agentId);
+    clearDisconnectedAgentTimer(agentId);
+    const connectionId = Symbol(agentId);
+    activeAgentConnections.set(agentId, connectionId);
     logger.info("ws.connected", { agentId, origin, remoteAddress: request.socket.remoteAddress });
     void getTableManager(origin).handleAgentOnline(agentId).then(() => {
       sendAssignmentState(ws, agentId, undefined, origin);
@@ -122,6 +128,11 @@ async function main() {
         sendAgentState(ws, agentId, "decision_task", origin);
       }
     });
+    let awaitingPong = false;
+    ws.on("pong", () => {
+      awaitingPong = false;
+      markAgentSeen(agentId);
+    });
     const heartbeat = setInterval(() => {
       if (ws.readyState !== WebSocket.OPEN) {
         return;
@@ -130,7 +141,6 @@ async function main() {
       if (stopIfAgentRemoved()) {
         return;
       }
-
       markAgentSeen(agentId, { notify: false });
       send(ws, { type: "heartbeat", agentId, shouldStop: false, at: new Date().toISOString() });
     }, 5_000);
@@ -210,7 +220,10 @@ async function main() {
       unsubscribeAssignment();
       clearPendingDecisions("Agent WebSocket disconnected.", currentAssignment(agentId)?.tableId, agentId);
       markAgentDisconnected(agentId);
-      logger.info("ws.closed", { agentId });
+      const assignment = currentAssignment(agentId);
+      clearPendingDecisions("Agent WebSocket disconnected.", assignment?.tableId, agentId);
+      scheduleDisconnectedAgentLeave(agentId, origin);
+      logger.info("ws.closed", { agentId, assignment });
     });
   });
 
@@ -249,6 +262,41 @@ async function main() {
 
   process.once("SIGTERM", shutdown);
   process.once("SIGINT", shutdown);
+}
+
+function clearDisconnectedAgentTimer(agentId: string) {
+  const timer = disconnectedAgentTimers.get(agentId);
+  if (!timer) {
+    return;
+  }
+
+  clearTimeout(timer);
+  disconnectedAgentTimers.delete(agentId);
+  logger.info("agent.disconnected_leave_cancelled", { agentId });
+}
+
+function scheduleDisconnectedAgentLeave(agentId: string, origin: string) {
+  clearDisconnectedAgentTimer(agentId);
+  const timer = setTimeout(() => {
+    disconnectedAgentTimers.delete(agentId);
+    const agent = listAgents().find((item) => item.id === agentId);
+    if (!agent || agent.assignmentStatus !== "disconnected") {
+      logger.info("agent.disconnected_leave_skipped", { agentId, assignmentStatus: agent?.assignmentStatus });
+      return;
+    }
+
+    logger.warn("agent.disconnected_leave_started", { agentId, graceMs: disconnectedAgentLeaveGraceMs });
+    void getTableManager(origin)
+      .leaveAgent(agentId)
+      .then((result) => {
+        logger.warn("agent.disconnected_leave_completed", { agentId, ...result });
+      })
+      .catch((error: unknown) => {
+        logger.error("agent.disconnected_leave_failed", { agentId, error });
+      });
+  }, disconnectedAgentLeaveGraceMs);
+  disconnectedAgentTimers.set(agentId, timer);
+  logger.warn("agent.disconnected_leave_scheduled", { agentId, graceMs: disconnectedAgentLeaveGraceMs });
 }
 
 type AgentLeaveMessage = {
