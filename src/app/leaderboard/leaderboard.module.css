@@ -1,0 +1,242 @@
+.page {
+  color: #eef8f1;
+  min-height: 100vh;
+  padding: 32px min(5vw, 56px) 42px;
+}
+
+.hero,
+.board {
+  margin: 0 auto;
+  max-width: 960px;
+}
+
+.hero {
+  background:
+    linear-gradient(90deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.84) 48%, rgba(13, 33, 24, 0.34) 100%),
+    url("/images/landing/leaderboard-trophy-podium.png") right center / cover no-repeat,
+    radial-gradient(circle at 12% 0%, rgba(250, 204, 21, 0.2), transparent 18rem),
+    linear-gradient(135deg, rgba(13, 33, 24, 0.94), rgba(10, 27, 20, 0.72));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 34px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.24);
+  padding: clamp(28px, 6vw, 58px);
+}
+
+.eyebrow {
+  color: #6ee7a8;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  font-size: clamp(44px, 8vw, 82px);
+  letter-spacing: -0.07em;
+  line-height: 0.9;
+  margin: 0 0 18px;
+}
+
+.hero p:last-child {
+  color: rgba(238, 248, 241, 0.72);
+  font-size: clamp(16px, 2vw, 20px);
+  line-height: 1.7;
+  margin: 0;
+  max-width: 680px;
+}
+
+.board {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.row,
+.podiumRow,
+.empty {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 16px 18px;
+}
+
+.podiumRow {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(250, 204, 21, 0.16), transparent 12rem),
+    rgba(255, 255, 255, 0.08);
+  border-color: rgba(250, 204, 21, 0.24);
+}
+
+.rank {
+  align-items: center;
+  background: rgba(110, 231, 168, 0.12);
+  border: 1px solid rgba(110, 231, 168, 0.2);
+  border-radius: 999px;
+  color: #b8ffd4;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  justify-content: center;
+  min-width: 48px;
+  padding: 8px 10px;
+}
+
+.player {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.player a {
+  color: #f8fff9;
+  font-size: 18px;
+  font-weight: 900;
+  overflow: hidden;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player a:hover {
+  color: #6ee7a8;
+}
+
+.player small {
+  color: rgba(238, 248, 241, 0.58);
+  font-size: 12px;
+}
+
+.row strong,
+.podiumRow strong {
+  color: #facc15;
+  font-size: 18px;
+  text-align: right;
+}
+
+.empty {
+  color: rgba(238, 248, 241, 0.68);
+  display: block;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 18px 14px 28px;
+  }
+
+  .hero {
+    background:
+      linear-gradient(180deg, rgba(13, 33, 24, 0.94) 0%, rgba(13, 33, 24, 0.72) 100%),
+      url("/images/landing/leaderboard-trophy-podium.png") center top / cover no-repeat;
+    border-radius: 28px;
+    padding: 28px 20px;
+  }
+
+  .row,
+  .podiumRow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .row strong,
+  .podiumRow strong {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+/* Unified club theme overrides. */
+.page {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(118, 228, 170, 0.13), transparent 30rem),
+    radial-gradient(circle at 88% 8%, rgba(245, 200, 75, 0.08), transparent 24rem),
+    linear-gradient(180deg, var(--background), #071a12 56%, var(--background));
+}
+
+.hero,
+.row,
+.podiumRow,
+.empty {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.055), transparent 14rem),
+    linear-gradient(180deg, rgba(18, 54, 38, 0.82), rgba(11, 33, 24, 0.72));
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+
+.podiumRow {
+  border-color: rgba(245, 200, 75, 0.26);
+}
+
+.eyebrow,
+.player a:hover {
+  color: var(--accent);
+}
+
+.rank {
+  background: rgba(245, 200, 75, 0.14);
+  border-color: rgba(245, 200, 75, 0.24);
+  color: var(--warning);
+}
+
+.row strong,
+.podiumRow strong {
+  color: var(--warning);
+}
+
+/* Visual system polish: cleaner surfaces and consistent rhythm. */
+.page {
+  padding: calc(var(--space-page) + 8px) min(5vw, 56px) 42px;
+}
+
+.hero,
+.row,
+.podiumRow,
+.empty {
+  background: var(--surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero {
+  background:
+    linear-gradient(90deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.84) 48%, rgba(13, 33, 24, 0.34) 100%),
+    url("/images/landing/leaderboard-trophy-podium.png") right center / cover no-repeat,
+    var(--surface-1);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    background:
+      linear-gradient(180deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.78) 100%),
+      url("/images/landing/leaderboard-trophy-podium.png") center top / cover no-repeat,
+      var(--surface-1);
+  }
+}
+
+.row,
+.podiumRow,
+.empty {
+  border-radius: var(--radius-lg);
+}
+
+.rank {
+  background: rgba(245, 200, 75, 0.12);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--space-page);
+  }
+
+  .hero,
+  .row,
+  .podiumRow,
+  .empty {
+    box-shadow: none;
+  }
+}

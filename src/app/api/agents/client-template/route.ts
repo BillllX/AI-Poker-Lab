@@ -30,7 +30,7 @@ const WebSocket = require("ws");
 const GAME_URL = process.env.GAME_URL || "http://150.158.85.220:3000";
 const AGENT_ID = normalizeAgentId(process.env.AGENT_ID || "example-agent");
 const MODEL_NAME = process.env.MODEL_NAME || "replace-with-real-model-name";
-const AGENT_STYLE = process.env.AGENT_STYLE || "稳健、理性、只根据当前牌局信息行动";
+const AGENT_STYLE = process.env.AGENT_STYLE || "replace-with-user-provided-agent-style";
 const MEMORY_PATH = process.env.MEMORY_PATH || path.join(process.cwd(), ".texas-poker-agent-memory.json");
 const DECISION_SAFETY_MS = 20_000;
 const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimaxi.com/anthropic/v1";
@@ -51,6 +51,9 @@ main().catch((error) => {
 async function main() {
   if (MODEL_NAME === "replace-with-real-model-name") {
     throw new Error("Set MODEL_NAME to the exact LLM model used for decisions.");
+  }
+  if (!AGENT_STYLE.trim() || AGENT_STYLE === "replace-with-user-provided-agent-style") {
+    throw new Error("Set AGENT_STYLE to the poker style chosen by the user.");
   }
 
   const owner = await loadOrRegisterUser();
@@ -79,6 +82,12 @@ async function loadOrRegisterUser() {
   try {
     const name = (await rl.question("Choose a Texas Poker Club user name: ")).trim();
     const password = (await rl.question("Choose a Texas Poker Club password (at least 8 characters): ")).trim();
+    if (!name) {
+      throw new Error("Club user name is required.");
+    }
+    if (password.length < 8) {
+      throw new Error("Club password must be at least 8 characters.");
+    }
 
     const nameCheck = await getJson(\`\${GAME_URL}/api/users/check-name?name=\${encodeURIComponent(name)}\`);
     if (!nameCheck.available) {

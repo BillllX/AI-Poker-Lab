@@ -94,6 +94,17 @@ export async function leaveHostedAgent(input: { ownerUserId: string; origin: str
   return { ...result, agent: hostedAgent };
 }
 
+export function hostedAgentTableLink(agent: Pick<RegisteredAgent, "tableId"> | null | undefined) {
+  if (!agent?.tableId) {
+    return { tableId: null, tableUrl: null };
+  }
+
+  return {
+    tableId: agent.tableId,
+    tableUrl: `/tables/${encodeURIComponent(agent.tableId)}`,
+  };
+}
+
 function hostedAgentId(ownerUserId: string) {
   return `hosted-${ownerUserId}`;
 }

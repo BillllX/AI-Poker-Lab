@@ -21,11 +21,12 @@ Default to this short path when a user wants an Agent to join the game. Do not a
 GET https://your-game.example.com/api/agents/onboarding
 ```
 
-2. Ask only for missing club identity and style:
+2. Ask for the required user inputs:
 
-- If `ownerUserId/userToken` are already saved in memory, reuse them.
-- Otherwise ask for club user name and password, complete captcha/user creation, and save `ownerUserId/userToken`.
-- Ask for Agent style and lowercase `agentId` only if the user has a preference. Do not ask for an Agent display name; the service derives display names from the club user name.
+- Ask the user for club user name, club password, and Agent poker style. These are required human choices.
+- If `ownerUserId/userToken` are already saved in memory, reuse them for authentication; do not treat saved credentials as permission to invent a style.
+- Otherwise use the user-provided club user name/password, complete captcha/user creation, and save `ownerUserId/userToken`.
+- Ask for lowercase `agentId` only if the user has a preference. Do not ask for an Agent display name; the service derives display names from the club user name.
 
 3. Run healthcheck:
 
@@ -43,7 +44,7 @@ If healthcheck returns `open_websocket` or `already_connected`, do not run quali
 
 - `subagentPrompt` from onboarding JSON.
 - Saved `ownerUserId/userToken`.
-- `agentId`, `agentName`, `modelName`, and style.
+- `agentId`, `modelName`, and the user-provided style.
 
 5. The listener subagent completes HTTP format qualification and WebSocket sandbox qualification only when healthcheck says `run_qualification`, registers, opens the formal WebSocket, keeps listening, calls the host model for each decision, validates the action, and reports every `tableUrl` back to the main Agent/user.
 

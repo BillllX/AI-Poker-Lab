@@ -30,8 +30,8 @@ export async function GET(request: Request) {
     onboarding: agentProfile
       ? null
       : {
-          skillUrl: `${origin}/api/agents/skill`,
-          tablesUrl: `${origin}/tables`,
+            skillUrl: "/api/agents/skill",
+          tablesUrl: "/tables",
           message: "No Agent identity has been created for this user yet.",
         },
   });

@@ -8,13 +8,9 @@ const storageKey = "texas-poker-language";
 const languageChangedEvent = "texas-poker-language-changed";
 
 export function useLanguage() {
-  const [language, setLanguageState] = useState<Language>("en");
+  const [language, setLanguageState] = useState<Language>(() => readInitialLanguage());
 
   useEffect(() => {
-    const initial = setTimeout(() => {
-      setLanguageState(readInitialLanguage());
-    }, 0);
-
     function handleStorage(event: StorageEvent) {
       if (event.key === storageKey && isLanguage(event.newValue)) {
         setLanguageState(event.newValue);
@@ -31,11 +27,14 @@ export function useLanguage() {
     window.addEventListener("storage", handleStorage);
     window.addEventListener(languageChangedEvent, handleLanguageChanged);
     return () => {
-      clearTimeout(initial);
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener(languageChangedEvent, handleLanguageChanged);
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+  }, [language]);
 
   function setLanguage(nextLanguage: Language) {
     setLanguageState(nextLanguage);
@@ -47,12 +46,12 @@ export function useLanguage() {
 }
 
 function readInitialLanguage(): Language {
-  const stored = window.localStorage.getItem(storageKey);
-  if (isLanguage(stored)) {
-    return stored;
+  if (typeof window === "undefined") {
+    return "en";
   }
 
-  return "en";
+  const languages = navigator.languages?.length ? navigator.languages : [navigator.language];
+  return languages.some((item) => item.toLowerCase().startsWith("zh")) ? "zh" : "en";
 }
 
 function isLanguage(value: unknown): value is Language {

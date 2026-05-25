@@ -22,7 +22,7 @@ type PlayerConfig = {
   name: string;
   ownerUserId?: string;
   modelName?: string;
-  kind?: "external" | "hosted" | "virtual";
+  kind?: "external" | "hosted" | "human" | "virtual";
   strategy?: AgentStyle;
   endpoint?: string;
 };
@@ -201,6 +201,7 @@ export class PokerGameEngine {
       currentPlayerId: this.currentPlayerId,
       communityCards: this.communityCards,
       players: this.players.map((player) => ({ ...player })),
+      actionHistory: this.publicActionHistoryForCurrentHand().slice(-80),
       logs: this.logs.slice(-80).reverse(),
       stats: this.stats,
       modelStats: this.modelStats(),
@@ -521,6 +522,7 @@ export class PokerGameEngine {
     if (contenders.length === 1) {
       const wonAmount = this.pot;
       this.payWinner(contenders[0].id, wonAmount);
+      this.recordAction(contenders[0], "win", { amount: wonAmount, handLabel: "all opponents folded" });
       handWinners.add(contenders[0].id);
       this.log(contenders[0].id, `${contenders[0].name} 赢得底池 ${wonAmount}。`);
       logger.info("poker.pot_awarded", {
@@ -604,6 +606,11 @@ export class PokerGameEngine {
 
       for (const { winner, wonAmount } of awards) {
         this.payWinner(winner.player.id, wonAmount);
+        this.recordAction(winner.player, "win", {
+          amount: wonAmount,
+          handLabel: handRankLabel(winner.hand.rank),
+          handRank: winner.hand.rank,
+        });
         handWinners.add(winner.player.id);
         this.log(
           winner.player.id,
@@ -780,7 +787,7 @@ export class PokerGameEngine {
   private recordAction(
     player: Pick<PlayerState, "id" | "name">,
     action: ActionHistoryItem["action"],
-    details: { amount?: number; targetBet?: number } = {},
+    details: { amount?: number; handLabel?: string; handRank?: ActionHistoryItem["handRank"]; targetBet?: number } = {},
   ) {
     this.actionHistory.push({
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -790,6 +797,8 @@ export class PokerGameEngine {
       playerName: player.name,
       action,
       amount: details.amount,
+      handLabel: details.handLabel,
+      handRank: details.handRank,
       targetBet: details.targetBet,
       potAfter: this.pot,
       createdAt: new Date().toISOString(),
@@ -807,11 +816,28 @@ export class PokerGameEngine {
         playerName: item.playerName,
         action: item.action,
         amount: item.amount,
+        handLabel: item.handLabel,
+        handRank: item.handRank,
         targetBet: item.targetBet,
         potAfter: item.potAfter,
         createdAt: item.createdAt,
       }));
   }
+}
+
+function handRankLabel(rank: ActionHistoryItem["handRank"]) {
+  const labels: Record<NonNullable<ActionHistoryItem["handRank"]>, string> = {
+    flush: "flush",
+    "four-kind": "four of a kind",
+    "full-house": "full house",
+    "high-card": "high card",
+    pair: "pair",
+    "straight-flush": "straight flush",
+    straight: "straight",
+    "three-kind": "three of a kind",
+    "two-pair": "two pair",
+  };
+  return rank ? labels[rank] : undefined;
 }
 
 function fallbackAction(toCall: number): PokerAction {

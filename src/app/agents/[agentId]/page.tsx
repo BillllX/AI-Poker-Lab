@@ -276,11 +276,6 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        <nav className={styles.nav}>
-          <Link href="/">{t.home}</Link>
-          <Link href="/tables">{t.backLobby}</Link>
-        </nav>
-
         {loading && !profile && !error && <p className={styles.loading}>{t.loading}</p>}
         {error && <p className={styles.error}>{error}</p>}
 

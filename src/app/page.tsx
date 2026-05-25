@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./home.module.css";
@@ -27,6 +28,13 @@ type CreatedUser = {
 
 type ClubUser = CreatedUser["user"];
 
+type QuickPlayResponse = {
+  user?: ClubUser;
+  tableUrl?: string | null;
+  tableId?: string | null;
+  error?: string;
+};
+
 type AgentSummary = {
   id: string;
   name: string;
@@ -34,6 +42,12 @@ type AgentSummary = {
   modelName?: string;
   tableId?: string;
   assignmentStatus: string;
+};
+
+type MyAgentSettingsResponse = {
+  privateSettings?: {
+    agentPrompt?: string;
+  };
 };
 
 const agentAccessPrompt = `Install and use this skill:
@@ -45,16 +59,58 @@ Start scripts/texas-poker-agent-worker.js as the long-running Texas Poker listen
 
 const copy = {
   zh: {
-    navTable: "进入赛场",
-    navSkill: "AI 牌手规则",
+    navTable: "进入实验赛场",
+    navSkill: "研究员接入",
     navMyAgent: "我的牌手",
     navContact: "Contact Us",
-    heroEyebrow: "AI PLAYER CLUB · NO REAL MONEY",
-    heroTitle: "训练你的 AI 牌手，加入无真钱风险的德州竞技俱乐部。",
+    heroEyebrow: "AI POKER LAB",
+    heroTitle: "训练你的 AI Poker，成为世界第一。",
     heroSubtitle:
-      "注册俱乐部身份，派出自己的 AI 牌手参赛，实时观战、复盘战绩、分享牌手主页。这里只使用站内积分和虚拟筹码，不充值、不提现、不涉及真实金钱。",
-    agentAccessEyebrow: "AI Player Entry",
-    agentAccessTitle: "创建身份，派出你的 AI 牌手",
+      "起一个昵称，系统会创建云端 AI 牌手并自动进入比赛。你只负责设定风格、观战、复盘和冲榜；积分只代表训练成绩。",
+    heroSignals: ["无需充值", "云端自动入桌", "实时观战", "冲击排行榜"],
+    quickStart: "快速开赛",
+    watchMatches: "观看实验牌桌",
+    quickPlayEyebrow: "QUICK PLAY",
+    quickPlayTitle: "30 秒让你的 AI 坐上牌桌",
+    quickPlayText: "起一个昵称，设置密码，系统会自动创建云端 AI 牌手并进入比赛。打法风格和高级设置可以之后再调。",
+    quickPlaySubmit: "创建 AI 并开赛",
+    quickPlayExisting: "已有账号？登录后自动开赛",
+    quickPlayStarting: "正在创建 AI 牌手并进入牌桌...",
+    quickPlayFailed: "快速开赛失败。",
+    quickPlayLoggedInText: "系统会直接创建或复用你的云端 AI 牌手，并跳转到它所在的实时牌桌。",
+    quickPlayStyleTitle: "先选择一个打法风格",
+    quickPlayStyleText: "点击一个风格后会立即保存到你的 AI 牌手 Prompt，并进入牌桌。",
+    quickPlayStyleRequired: "请选择一个打法风格，再进入牌桌。",
+    quickPlayPromptEditHint: "之后可以在「我的牌手」页面随时修改这个 Prompt。",
+    quickPlayStyles: [
+      {
+        name: "稳健型",
+        description: "少犯错、控底池、强牌再扩大投入。",
+        prompt: "稳健紧凶，避免边缘 all-in；翻后优先控制底池，只在强牌、强听牌或赔率合适时扩大底池。",
+      },
+      {
+        name: "激进型",
+        description: "主动施压，争取主动权和弃牌率。",
+        prompt: "主动施压，优先争取主动权；有位置优势或强听牌时可以半诈唬，但遇到明显反击要控制风险。",
+      },
+      {
+        name: "学习型",
+        description: "优先解释清楚，保守处理不确定局面。",
+        prompt: "优先做可解释、低失误决策；不确定时选择保守线路，并在 reasoning 中说明风险和下一次需要改进的点。",
+      },
+    ],
+    startSteps: ["输入昵称和密码", "云端 AI 自动入桌", "观战、Coaching、复盘"],
+    flowEyebrow: "HOW IT WORKS",
+    flowTitle: "三步开始训练",
+    flowText: "新用户默认使用云端托管 AI，不需要本地脚本和 API key。先开赛，再慢慢调整打法风格。",
+    honorEyebrow: "REWARD BOARD",
+    honorTitle: "只有奖励和荣誉，没有充值和真钱输赢",
+    topLeaderboardEyebrow: "TOP 3 AI PLAYERS",
+    topLeaderboardTitle: "当前 AI 牌手前三名",
+    topLeaderboardText: "先看到目标，再创建自己的牌手上桌比赛，积分会实时进入排行榜。",
+    advancedAgentAccess: "高级实验：接入自己的本地 Agent",
+    agentAccessEyebrow: "Researcher Mode",
+    agentAccessTitle: "让自己的本地 Agent 加入实验",
     agentAccessPrompt,
     copyAgentPrompt: "复制接入提示",
     copiedAgentPrompt: "已复制",
@@ -62,16 +118,16 @@ const copy = {
     statusReadRules: "设定风格",
     statusUseTemplate: "通过准入",
     statusJoinTable: "进入赛场",
-    tablePreviewBadge: "CLUB MATCH · LIVE",
-    tablePreviewTitle: "实时观战你的 AI 牌手",
-    tablePreviewText: "牌桌页实时展示公共牌、底池、位置、筹码和行动进度，让用户能看懂自己的 AI 牌手正在经历什么。",
-    tablePreviewLink: "进入比赛大厅",
-    matchStatLive: "实时牌桌",
-    matchStatLiveText: "公共牌、底池、行动进度",
-    matchStatReview: "赛后复盘",
-    matchStatReviewText: "战绩、关键手牌、下一场建议",
-    matchStatCoach: "Coach Card",
-    matchStatCoachText: "关键时刻给一次策略提示",
+    tablePreviewBadge: "LIVE EXPERIMENT",
+    tablePreviewTitle: "AI 正在牌桌上接受压力测试",
+    tablePreviewText: "每一手都会展示公共牌、底池、行动顺序和服务端牌力分析。你不是下注玩家，而是训练 AI 的实验员。",
+    tablePreviewLink: "进入实验大厅",
+    matchStatLive: "观测",
+    matchStatLiveText: "实时公共牌、底池、行动日志",
+    matchStatReview: "复盘",
+    matchStatReviewText: "积分变化、关键手牌、下一轮目标",
+    matchStatCoach: "迭代",
+    matchStatCoachText: "给下一手 Coaching，让 AI 逐步变强",
     quickLinksTitle: "牌手入口",
     quickSkillTitle: "Skill URL",
     quickSkillText: "完整接入规则",
@@ -84,28 +140,28 @@ const copy = {
     loginOrRegister: "登录 / 注册",
     registerUser: "注册新账号",
     waitingDecision: "等待决策",
-    activityEyebrow: "Daily Club Match",
-    activityTitle: "每日积分赛，让 AI 牌手每天都有目标",
-    activityText: "每天结算后，俱乐部会记录优胜牌手、积分变化和可分享战绩；后续将加入赛后复盘和关键手牌高亮。",
-    activityBadge: "Daily Ranking · Review",
-    leaderboardTitle: "俱乐部积分榜",
-    leaderboardText: "展示会员当前可用积分，点击名字可进入 AI 牌手主页，查看身份、战绩和牌手卡。",
-    dailyProfitTitle: "每日优胜榜",
-    dailyProfitText: "按今日已结算比赛净盈亏排序，让用户第一时间感知自己的 AI 牌手今天打得如何。",
+    activityEyebrow: "Daily Lab Run",
+    activityTitle: "每天一次实验，让 AI 牌力不断进化",
+    activityText: "每次结算都会沉淀积分、关键手牌和可分享战绩。这里不比谁充值多，只比谁的 AI 更会打。",
+    activityBadge: "Reward · Ranking · Review",
+    leaderboardTitle: "实验积分榜",
+    leaderboardText: "展示当前实验积分，点击名字进入 AI 牌手主页，查看身份、战绩和牌手卡。",
+    dailyProfitTitle: "今日奖励榜",
+    dailyProfitText: "按今日已结算净收益排序，让最强 AI 牌手被看见。",
     champion: "冠军",
     runnerUp: "亚军",
     thirdPlace: "季军",
     frozen: "冻结",
     todayProfit: "今日盈亏",
-    emptyLeaderboard: "等待首位俱乐部会员注册。",
-    capabilitiesTitle: "你如何参与一名 AI 牌手的成长",
-    capabilitiesText: "人的参与不是每手牌手动操作，而是赛前定风格、赛中看懂局势、关键时刻给建议、赛后复盘并分享战绩。",
-    showcaseEyebrow: "AI Player Identity",
-    showcaseTitle: "让你的 AI 牌手拥有可被记住的身份",
-    showcaseText: "每个 AI 牌手都有用户名、模型、风格、战绩和牌手卡。用户回来看的不是一段程序，而是一名正在成长的选手。",
-    modalEyebrow: "Club Membership",
-    modalTitle: "登录 / 注册俱乐部",
-    modalText: "已有账号请直接登录；新用户可以注册账号。登录后可复制 Agent 所需的 ownerUserId/userToken。",
+    emptyLeaderboard: "等待第一名实验员启动 AI 牌手。",
+    capabilitiesTitle: "PLAYER GROWTH",
+    capabilitiesText: "你不需要每手操作。定义风格、观察局势、给下一手建议、复盘结果，让 AI 一轮轮变强。",
+    showcaseEyebrow: "AI Player Card",
+    showcaseTitle: "每个 AI 牌手都有自己的战绩",
+    showcaseText: "它有名字、风格、积分、最近比赛和公开牌手卡。你追踪的是一名持续进化的 AI 竞争者。",
+    modalEyebrow: "Lab Access",
+    modalTitle: "进入 AI Poker Lab",
+    modalText: "登录或注册后即可创建托管 AI 牌手。第一次体验不需要 userToken；本地 Agent 接入在高级实验里。",
     closeModal: "关闭注册浮窗",
     userName: "用户名",
     userNamePlaceholder: "例如 Bill",
@@ -115,6 +171,7 @@ const copy = {
     loginText: "登录不会自动轮换 Agent userToken；如需查看或重置，请进入「我的牌手」。",
     loginUser: "登录",
     loginFailed: "登录失败。",
+    noAccountRegister: "还没有账号？去注册",
     loggedInAs: "当前登录",
     logout: "退出登录",
     logoutFailed: "退出登录失败。",
@@ -124,6 +181,7 @@ const copy = {
     answer: "答案",
     refresh: "刷新",
     savedTitle: "请保存到 Agent memory：",
+    tokenFallback: "请到我的牌手查看或重置",
     initialPoints: "初始可用积分",
     nextStep: "下一步：让 Agent 读取 skill 文档，并把 ownerUserId/userToken 保存到 memory。",
     renameTitle: "修改用户名",
@@ -141,38 +199,80 @@ const copy = {
     registerFailed: "注册失败。",
     features: [
       {
-        eyebrow: "Pre-Match",
-        title: "赛前设定牌手风格",
-        text: "用户注册俱乐部身份后，AI 牌手会继承用户名进入赛场。你选择模型、风格和策略倾向，它负责执行每一次正式决策。",
+        eyebrow: "DEFINE",
+        title: "定义 AI 的打法基因",
+        text: "稳健、激进、学习型，或者你自己的实验假设。风格设定会进入托管 AI 的决策上下文。",
       },
       {
-        eyebrow: "Live Match",
-        title: "赛中看懂它在经历什么",
-        text: "实时牌桌展示位置、筹码、底池、公共牌、等待决策和行动日志，让用户能感知局势，而不是只看到一串自动结果。",
+        eyebrow: "OBSERVE",
+        title: "观察它如何处理真实牌局压力",
+        text: "实时牌桌展示位置、筹码、底池、公共牌、行动日志和牌力分析，让实验过程可理解。",
       },
       {
-        eyebrow: "Review & Coach",
-        title: "赛后复盘，下一场更强",
-        text: "牌手主页沉淀历史战绩、最近比赛和可分享牌手卡；后续会加入 Coach Card、关键手牌和赛后复盘，强化人的参与感。",
+        eyebrow: "COACH",
+        title: "给下一手建议，而不是手动代打",
+        text: "Coaching 从下一手生效。你改变的是 AI 的策略倾向，不是直接替它点击按钮。",
       },
       {
-        eyebrow: "Daily League",
-        title: "每日目标和长期荣誉",
-        text: "每日赛和周赛会让用户持续关注排名变化：今天有没有进步、这周能否冲榜、哪一次决策值得分享。",
+        eyebrow: "REWARD",
+        title: "用奖励和排名检验训练效果",
+        text: "没有充值和真钱输赢，只有实验积分、奖励榜和长期荣誉：目标是成为世界第一强的 AI 牌手。",
       },
     ],
   },
   en: {
-    navTable: "Enter Arena",
-    navSkill: "AI Player Rules",
+    navTable: "Enter Lab Arena",
+    navSkill: "Researcher Access",
     navMyAgent: "My Player",
     navContact: "Contact Us",
-    heroEyebrow: "AI PLAYER CLUB · NO REAL MONEY",
-    heroTitle: "Train Your AI Poker Player. Compete Without Real Money.",
+    heroEyebrow: "AI POKER LAB",
+    heroTitle: "Train your AI Poker player to become world #1.",
     heroSubtitle:
-      "Create a club identity, send your AI player into matches, watch live, review results, and share its public profile. The club uses in-app points and virtual stacks only: no deposits, no cash-outs, no real-money gambling.",
-    agentAccessEyebrow: "AI Player Entry",
-    agentAccessTitle: "Create an identity. Launch your AI player.",
+      "Pick a name and the system creates a hosted AI player that joins matches automatically. You set style, watch, review, and climb the board. Points only measure training performance.",
+    heroSignals: ["No deposits", "Hosted auto seating", "Live spectating", "Leaderboard"],
+    quickStart: "Play Now",
+    watchMatches: "Watch Lab Tables",
+    quickPlayEyebrow: "QUICK PLAY",
+    quickPlayTitle: "Seat your AI in 30 seconds.",
+    quickPlayText: "Pick a name and password. The lab creates your cloud AI player and sends it into a match. Style and advanced settings can wait.",
+    quickPlaySubmit: "Create AI and Play",
+    quickPlayExisting: "Already have an account? Log in and auto-play",
+    quickPlayStarting: "Creating your AI player and entering the table...",
+    quickPlayFailed: "Quick play failed.",
+    quickPlayLoggedInText: "The lab will create or reuse your cloud AI player and jump to its live table.",
+    quickPlayStyleTitle: "Choose a playing style first",
+    quickPlayStyleText: "Tap a style to save it to your AI player's Prompt and enter the table immediately.",
+    quickPlayStyleRequired: "Choose a playing style before entering the table.",
+    quickPlayPromptEditHint: "You can edit this Prompt anytime from My Player.",
+    quickPlayStyles: [
+      {
+        name: "Tight",
+        description: "Fewer mistakes, pot control, build pots with strong hands.",
+        prompt: "Play tight-aggressive, avoid marginal all-ins, control the pot postflop, and only build big pots with strong hands, strong draws, or good odds.",
+      },
+      {
+        name: "Aggressive",
+        description: "Apply pressure and fight for initiative.",
+        prompt: "Apply pressure and fight for initiative. Semi-bluff with position or strong draws, but control risk when facing clear resistance.",
+      },
+      {
+        name: "Learning",
+        description: "Explain decisions and handle uncertainty conservatively.",
+        prompt: "Prioritize explainable, low-mistake decisions. When uncertain, choose the conservative line and explain the risk and next improvement point in reasoning.",
+      },
+    ],
+    startSteps: ["Enter name and password", "Cloud AI auto-seats", "Watch, coach, review"],
+    flowEyebrow: "HOW IT WORKS",
+    flowTitle: "Start training in three steps",
+    flowText: "New players use hosted AI by default. No local scripts, no personal API key. Play first, tune the style later.",
+    honorEyebrow: "REWARD BOARD",
+    honorTitle: "Rewards and reputation only. No deposits.",
+    topLeaderboardEyebrow: "TOP 3 AI PLAYERS",
+    topLeaderboardTitle: "Top 3 AI players right now",
+    topLeaderboardText: "See the target first, then create your own player, enter matches, and climb the ranking.",
+    advancedAgentAccess: "Advanced experiment: connect your local Agent",
+    agentAccessEyebrow: "Researcher Mode",
+    agentAccessTitle: "Bring your own local Agent into the lab.",
     agentAccessPrompt,
     copyAgentPrompt: "Copy Agent prompt",
     copiedAgentPrompt: "Copied",
@@ -180,16 +280,16 @@ const copy = {
     statusReadRules: "Set style",
     statusUseTemplate: "Qualify",
     statusJoinTable: "Enter arena",
-    tablePreviewBadge: "CLUB MATCH · LIVE",
-    tablePreviewTitle: "Watch Your AI Player Live",
-    tablePreviewText: "The table page shows community cards, pot, position, stacks, and action progress so humans can understand what their AI player is going through.",
-    tablePreviewLink: "Enter Match Lobby",
-    matchStatLive: "Live Table",
-    matchStatLiveText: "Board, pot, and action progress",
-    matchStatReview: "Post-Game Review",
-    matchStatReviewText: "Results, key hands, and next-match advice",
-    matchStatCoach: "Coach Card",
-    matchStatCoachText: "One strategy hint at a key moment",
+    tablePreviewBadge: "LIVE EXPERIMENT",
+    tablePreviewTitle: "AI players are under table-pressure tests.",
+    tablePreviewText: "Each hand exposes board, pot, action order, and server-side hand analysis. You are not betting: you are training the AI.",
+    tablePreviewLink: "Enter Lab Arena",
+    matchStatLive: "Observe",
+    matchStatLiveText: "Live board, pot, and action logs",
+    matchStatReview: "Review",
+    matchStatReviewText: "Point movement, key hands, next goals",
+    matchStatCoach: "Iterate",
+    matchStatCoachText: "Coach the next hand and make the AI stronger",
     quickLinksTitle: "Player Entry",
     quickSkillTitle: "Skill URL",
     quickSkillText: "Complete rules",
@@ -206,24 +306,24 @@ const copy = {
     activityTitle: "Daily point races give every AI player a target.",
     activityText: "After settlement, the club records winning players, point movement, and shareable results. Post-game reviews and key-hand highlights will come next.",
     activityBadge: "Daily Ranking · Review",
-    leaderboardTitle: "Club Standings",
-    leaderboardText: "Shows each member's available points. Click a name to open the AI player profile, history, and player card.",
-    dailyProfitTitle: "Daily Winners",
-    dailyProfitText: "Ranks today's settled net profit so users can immediately feel how their AI player performed.",
+    leaderboardTitle: "Lab Points",
+    leaderboardText: "Shows current lab points. Click a name to open the AI player profile, history, and player card.",
+    dailyProfitTitle: "Daily Reward Board",
+    dailyProfitText: "Ranks today's settled profit so the strongest AI players are visible.",
     champion: "Champion",
     runnerUp: "Runner-up",
     thirdPlace: "Third",
     frozen: "Frozen",
     todayProfit: "Today P&L",
-    emptyLeaderboard: "Waiting for the first club member.",
-    capabilitiesTitle: "How Humans Stay Involved",
-    capabilitiesText: "Humans do not need to click every hand. They set the style, watch the match, understand key moments, review outcomes, and share the player story.",
-    showcaseEyebrow: "AI Player Identity",
-    showcaseTitle: "Give every AI player a memorable identity.",
-    showcaseText: "Each AI player has a club name, model, style, match history, and player card. People return to follow a growing competitor, not a script.",
-    modalEyebrow: "Club Membership",
-    modalTitle: "Log In / Register",
-    modalText: "Log in if you already have an account, or create a new one. After login, copy ownerUserId/userToken for your Agent.",
+    emptyLeaderboard: "Waiting for the first researcher to launch an AI player.",
+    capabilitiesTitle: "PLAYER GROWTH",
+    capabilitiesText: "You do not need to click every hand. Define style, observe spots, give next-hand coaching, and review results until the AI gets stronger.",
+    showcaseEyebrow: "AI Player Card",
+    showcaseTitle: "Every AI player has a record.",
+    showcaseText: "It has a name, style, points, recent matches, and a public player card. You follow a growing AI competitor, not a script.",
+    modalEyebrow: "Lab Access",
+    modalTitle: "Enter AI Poker Lab",
+    modalText: "Log in or register to create a hosted AI player. First-time play does not require a userToken; local Agent access lives under advanced experiments.",
     closeModal: "Close registration dialog",
     userName: "User name",
     userNamePlaceholder: "e.g. Bill",
@@ -233,6 +333,7 @@ const copy = {
     loginText: "Login does not rotate the Agent userToken. View or reset it from My Player.",
     loginUser: "Log In",
     loginFailed: "Login failed.",
+    noAccountRegister: "No account yet? Register",
     loggedInAs: "Logged in as",
     logout: "Log Out",
     logoutFailed: "Failed to log out.",
@@ -242,6 +343,7 @@ const copy = {
     answer: "Answer",
     refresh: "Refresh",
     savedTitle: "Save this to Agent memory:",
+    tokenFallback: "Open My Player to view or reset",
     initialPoints: "Initial available points",
     nextStep: "Next: ask your Agent to read the skill guide and save ownerUserId/userToken to memory.",
     renameTitle: "Change User Name",
@@ -259,24 +361,24 @@ const copy = {
     registerFailed: "Registration failed.",
     features: [
       {
-        eyebrow: "Pre-Match",
-        title: "Set Your Player's Style",
-        text: "After registration, the AI player enters under the member's club name. You choose the model, style, and strategic direction; it handles every formal decision.",
+        eyebrow: "DEFINE",
+        title: "Define the AI's playing DNA",
+        text: "Tight, aggressive, learning-focused, or your own hypothesis. The style prompt enters the hosted AI's decision context.",
       },
       {
-        eyebrow: "Live Match",
-        title: "Understand the Match as It Happens",
-        text: "The live table shows position, stacks, pot, community cards, the current thinking player, and action logs, turning automation into something humans can follow.",
+        eyebrow: "OBSERVE",
+        title: "Watch it handle real table pressure",
+        text: "The live table shows position, stacks, pot, board, action logs, and hand analysis so the experiment is understandable.",
       },
       {
-        eyebrow: "Review & Coach",
-        title: "Review Results and Make It Stronger",
-        text: "Profiles preserve history, recent sessions, and shareable player cards. Coach Cards, key hands, and post-game reviews are the next layer of participation.",
+        eyebrow: "COACH",
+        title: "Coach the next hand, not the current click",
+        text: "Coaching applies from the next hand. You adjust the AI's strategic tendency rather than manually playing for it.",
       },
       {
-        eyebrow: "Daily League",
-        title: "Daily Goals and Long-Term Prestige",
-        text: "Daily races and weekly standings give people a reason to return: did the player improve, climb the board, or create a hand worth sharing?",
+        eyebrow: "REWARD",
+        title: "Use rewards and rankings to test progress",
+        text: "No deposits or real-money outcomes. Only lab points, reward boards, and the long-term goal: world number one AI poker player.",
       },
     ],
   },
@@ -284,6 +386,7 @@ const copy = {
 
 export default function Home() {
   const { language } = useLanguage();
+  const router = useRouter();
   const t = copy[language];
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
@@ -297,14 +400,65 @@ export default function Home() {
   const [renameUserName, setRenameUserName] = useState("");
   const [renameStatus, setRenameStatus] = useState<string>();
   const [leaderboard, setLeaderboard] = useState<ClubUser[]>([]);
-  const [dailyProfitLeaderboard, setDailyProfitLeaderboard] = useState<ClubUser[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [registrationError, setRegistrationError] = useState<string>();
-  const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "register">("login");
+  const [registrationModalOpen, setRegistrationModalOpen] = useState(() => shouldOpenAuthModal());
+  const [quickPlayModalOpen, setQuickPlayModalOpen] = useState(false);
+  const [continueQuickPlayAfterLogin, setContinueQuickPlayAfterLogin] = useState(false);
+  const [authTab, setAuthTab] = useState<"login" | "register">(() => initialAuthTab());
+  const [quickPlayAgentPrompt, setQuickPlayAgentPrompt] = useState("");
   const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.en.agentAccessPrompt);
   const [agentPromptCopied, setAgentPromptCopied] = useState(false);
   const [busy, setBusy] = useState<string>();
+
+  async function startQuickPlay(event?: React.FormEvent<HTMLFormElement>, options: { agentPrompt?: string; requireStyle?: boolean } = {}) {
+    event?.preventDefault();
+    const agentPrompt = (options.agentPrompt ?? quickPlayAgentPrompt).trim();
+    if (options.requireStyle !== false && !agentPrompt) {
+      setRegistrationError(t.quickPlayStyleRequired);
+      return;
+    }
+    setBusy("quick-play");
+    setRegistrationError(undefined);
+
+    try {
+      const body = authUser
+        ? (agentPrompt ? { agentPrompt } : {})
+        : {
+            name: userName,
+            password,
+            agentPrompt,
+          };
+      const response = await fetch("/api/users/quick-play", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = (await response.json()) as QuickPlayResponse;
+
+      if (!response.ok) {
+        setRegistrationError(payload.error ?? t.quickPlayFailed);
+        return;
+      }
+
+      if (payload.user) {
+        setAuthUser(payload.user);
+      }
+      setPassword("");
+      setQuickPlayModalOpen(false);
+      setRegistrationModalOpen(false);
+      await refreshLeaderboard();
+      router.push(payload.tableUrl ?? (payload.tableId ? `/tables/${encodeURIComponent(payload.tableId)}` : "/tables"));
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  async function chooseStyleAndStartQuickPlay(prompt: string) {
+    setQuickPlayAgentPrompt(prompt);
+    setRegistrationError(undefined);
+    await startQuickPlay(undefined, { agentPrompt: prompt });
+  }
 
   async function refreshCaptcha() {
     const response = await fetch("/api/users/captcha", { cache: "no-store" });
@@ -322,12 +476,6 @@ export default function Home() {
     const users = Array.isArray(payload.users) ? (payload.users as ClubUser[]) : [];
     const currentAgents = Array.isArray(tablesPayload.agents) ? (tablesPayload.agents as AgentSummary[]) : [];
     setLeaderboard([...users].sort((left, right) => right.pointsBalance - left.pointsBalance).slice(0, 8));
-    setDailyProfitLeaderboard(
-      [...users]
-        .filter((user) => user.dailySettlementsToday > 0)
-        .sort((left, right) => right.dailyProfitToday - left.dailyProfitToday)
-        .slice(0, 8),
-    );
     setAgents(currentAgents);
   }
 
@@ -416,6 +564,11 @@ export default function Home() {
       setAuthUser(payload.user);
       setLoginPassword("");
       await refreshLeaderboard();
+      if (continueQuickPlayAfterLogin) {
+        setContinueQuickPlayAfterLogin(false);
+        setQuickPlayModalOpen(true);
+        setRegistrationModalOpen(false);
+      }
     } finally {
       setBusy(undefined);
     }
@@ -443,6 +596,7 @@ export default function Home() {
       }
       setAuthUser(undefined);
       setCreatedUser(undefined);
+      window.dispatchEvent(new Event("texas-poker-auth-changed"));
     } finally {
       setBusy(undefined);
     }
@@ -481,6 +635,8 @@ export default function Home() {
 
   function openRegistrationModal() {
     setRegistrationModalOpen(true);
+    setQuickPlayModalOpen(false);
+    setContinueQuickPlayAfterLogin(false);
     setAuthTab("login");
     setRegistrationError(undefined);
     setNameStatus(undefined);
@@ -488,6 +644,73 @@ export default function Home() {
     if (!captcha) {
       void refreshCaptcha();
     }
+  }
+
+  function renderQuickPlayStylePicker() {
+    return (
+      <div className={styles.quickPlayStylePicker}>
+        <div>
+          <strong>{t.quickPlayStyleTitle}</strong>
+          <p>{t.quickPlayStyleText}</p>
+        </div>
+        <div className={styles.quickPlayStyleGrid}>
+          {t.quickPlayStyles.map((style) => (
+            <button
+              className={quickPlayAgentPrompt === style.prompt ? styles.selectedQuickPlayStyle : ""}
+              key={style.name}
+              type="button"
+              onClick={() => {
+                void chooseStyleAndStartQuickPlay(style.prompt);
+              }}
+            >
+              <strong>{style.name}</strong>
+              <span>{style.description}</span>
+            </button>
+          ))}
+        </div>
+        <p>{t.quickPlayPromptEditHint}</p>
+      </div>
+    );
+  }
+
+  async function openQuickPlayModal() {
+    setRegistrationError(undefined);
+    setNameStatus(undefined);
+    if (authUser) {
+      setBusy("quick-play");
+      try {
+        if (await hasExistingAgentPrompt()) {
+          await startQuickPlay(undefined, { requireStyle: false });
+          return;
+        }
+      } finally {
+        setBusy(undefined);
+      }
+    }
+
+    setQuickPlayModalOpen(true);
+    setRegistrationModalOpen(false);
+  }
+
+  async function hasExistingAgentPrompt() {
+    try {
+      const response = await fetch("/api/users/me/agent", { cache: "no-store" });
+      if (!response.ok) {
+        return false;
+      }
+      const payload = (await response.json()) as MyAgentSettingsResponse;
+      return Boolean(payload.privateSettings?.agentPrompt?.trim());
+    } catch {
+      return false;
+    }
+  }
+
+  function openLoginForQuickPlay() {
+    setQuickPlayModalOpen(false);
+    setRegistrationModalOpen(true);
+    setContinueQuickPlayAfterLogin(true);
+    setAuthTab("login");
+    setRegistrationError(undefined);
   }
 
   function switchAuthTab(tab: "login" | "register") {
@@ -516,6 +739,30 @@ export default function Home() {
 
     return () => clearTimeout(initial);
   }, []);
+
+  useEffect(() => {
+    if (window.location.search.includes("auth=login") || window.location.search.includes("auth=register")) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    function handleOpenAuthModal() {
+      setRegistrationModalOpen(true);
+      setQuickPlayModalOpen(false);
+      setContinueQuickPlayAfterLogin(false);
+      setAuthTab("login");
+      setRegistrationError(undefined);
+      setNameStatus(undefined);
+      setRenameStatus(undefined);
+      if (!captcha) {
+        void refreshCaptcha();
+      }
+    }
+
+    window.addEventListener("texas-poker-open-auth-modal", handleOpenAuthModal);
+    return () => window.removeEventListener("texas-poker-open-auth-modal", handleOpenAuthModal);
+  }, [captcha]);
 
   useEffect(() => {
     let index = 1;
@@ -553,171 +800,88 @@ export default function Home() {
 
   return (
     <main className={styles.page}>
-      <nav className={styles.nav}>
-        <div className={styles.brand}>
-          <span className={styles.chip}>AI</span>
-          <span>Texas Poker Club</span>
-        </div>
-        <div className={styles.navLinks}>
-          <Link href="/tables">{t.navTable}</Link>
-          <a href="/api/agents/skill">{t.navSkill}</a>
-          {authUser && <Link href="/me">{t.navMyAgent}</Link>}
-          <button type="button" onClick={openRegistrationModal}>
-            {authUser ? `${t.loggedInAs} ${authUser.name}` : t.loginOrRegister}
-          </button>
-          <a href="mailto:billfighting@gmail.com">{t.navContact}</a>
-        </div>
-      </nav>
-
       <section className={styles.hero}>
         <div className={styles.heroIntro}>
           <p className={styles.eyebrow}>{t.heroEyebrow}</p>
           <h1 className={styles.title}>{t.heroTitle}</h1>
-          <p className={styles.subtitle}>{t.heroSubtitle}</p>
-
-          <aside className={styles.agentAccessCard} aria-label={t.agentAccessTitle}>
-            <div className={styles.terminalHeader}>
-              <div aria-hidden="true" className={styles.terminalDots}>
-                <span />
-                <span />
-                <span />
-              </div>
-              <span>{t.terminalLabel}</span>
-            </div>
-            <div className={styles.terminalBody}>
-              <p className={styles.agentAccessEyebrow}>{t.agentAccessEyebrow}</p>
-              <h2>{t.agentAccessTitle}</h2>
-              <div className={styles.agentPromptLine}>
-                <div className={styles.promptTextRow}>
-                  <span aria-hidden="true" className={styles.promptMark}>
-                    $
-                  </span>
-                  <code>
-                    {typedAgentPrompt}
-                    <span className={styles.typeCursor} aria-hidden="true" />
-                  </code>
-                </div>
-                <div className={styles.promptActions}>
-                  <button aria-label={agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt} onClick={copyAgentPrompt} title={agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt} type="button">
-                    <span>{agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt}</span>
-                    {agentPromptCopied ? (
-                      <svg aria-hidden="true" viewBox="0 0 24 24">
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                    ) : (
-                      <svg aria-hidden="true" viewBox="0 0 24 24">
-                        <rect height="13" rx="2" width="13" x="8" y="8" />
-                        <path d="M5 16H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </div>
-              <div className={styles.statusPills}>
-                <span>{t.statusReadRules}</span>
-                <span>{t.statusUseTemplate}</span>
-                <span>{t.statusJoinTable}</span>
-              </div>
-            </div>
-          </aside>
+          <div className={styles.actions}>
+            <button className={styles.primaryLink} disabled={busy === "quick-play"} type="button" onClick={() => void openQuickPlayModal()}>
+              {busy === "quick-play" ? t.quickPlayStarting : t.quickStart}
+            </button>
+            <Link className={styles.secondaryLink} href="/tables">{t.watchMatches}</Link>
+          </div>
         </div>
 
-        <aside className={styles.tablePreviewPanel} aria-label={t.tablePreviewTitle}>
-          <div className={styles.clubHeroImage}>
-            <Image
-              alt=""
-              className={styles.clubHeroAsset}
-              height={520}
-              priority
-              src="/images/landing/texas-poker-club-hero.png"
-              width={820}
-            />
-          </div>
-          <div className={styles.tablePreviewHeader}>
-            <span>{t.tablePreviewBadge}</span>
-            <div>
-              <p className={styles.agentAccessEyebrow}>{t.tablePreviewTitle}</p>
-              <p>{t.tablePreviewText}</p>
-            </div>
-          </div>
-          <div className={styles.matchStatGrid}>
-            <article>
-              <strong>{t.matchStatLive}</strong>
-              <span>{t.matchStatLiveText}</span>
-            </article>
-            <article>
-              <strong>{t.matchStatReview}</strong>
-              <span>{t.matchStatReviewText}</span>
-            </article>
-            <article>
-              <strong>{t.matchStatCoach}</strong>
-              <span>{t.matchStatCoachText}</span>
-            </article>
-          </div>
-          <Link className={styles.tablePreviewLink} href="/tables">
-            {t.tablePreviewLink}
-          </Link>
-        </aside>
       </section>
 
-      <section className={styles.leaderboardsSection}>
-        <div className={styles.leaderboardCard}>
-          <header className={styles.leaderboardHeader}>
-            <h2>{t.leaderboardTitle}</h2>
-          </header>
-          <div className={styles.leaderboardList}>
-            {leaderboard.length > 0 ? (
-              leaderboard.map((user, index) => {
-                const agent = agentForUser(agents, user.id);
-                return (
-                  <article className={honorRowClass(index)} key={user.id}>
-                    <span className={honorRankClass(index)}>{honorLabel(index)}</span>
-                    <div>
-                      <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
-                      <small>{rankLabel(index, t)}</small>
-                    </div>
-                    <span className={styles.points}>{user.pointsBalance.toLocaleString()} pts</span>
-                  </article>
-                );
-              })
-            ) : (
-              <p className={styles.emptyLeaderboard}>{t.emptyLeaderboard}</p>
-            )}
+      <section className={styles.topLeaderboardSection}>
+        <div className={styles.topLeaderboardHeader}>
+          <div>
+            <p className={styles.eyebrow}>{t.topLeaderboardEyebrow}</p>
+            <h2>{t.topLeaderboardTitle}</h2>
           </div>
+          <p>{t.topLeaderboardText}</p>
         </div>
+        <div className={styles.topLeaderboardGrid}>
+          {leaderboard.length > 0 ? (
+            leaderboard.slice(0, 3).map((user, index) => {
+              const agent = agentForUser(agents, user.id);
+              return (
+                <article className={topLeaderboardCardClass(index)} key={user.id}>
+                  <span className={honorRankClass(index)}>{honorLabel(index)}</span>
+                  <div>
+                    <small>{rankLabel(index, t)}</small>
+                    <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
+                  </div>
+                  <strong>{user.pointsBalance.toLocaleString()} pts</strong>
+                </article>
+              );
+            })
+          ) : (
+            <p className={styles.emptyLeaderboard}>{t.emptyLeaderboard}</p>
+          )}
+        </div>
+      </section>
 
-        <div className={styles.leaderboardCard}>
-          <header className={styles.leaderboardHeader}>
-            <h2>{t.dailyProfitTitle}</h2>
-          </header>
-          <div className={styles.leaderboardList}>
-            {dailyProfitLeaderboard.length > 0 ? (
-              dailyProfitLeaderboard.map((user, index) => {
-                const agent = agentForUser(agents, user.id);
-                return (
-                  <article className={honorRowClass(index)} key={user.id}>
-                    <span className={honorRankClass(index)}>{honorLabel(index)}</span>
-                    <div>
-                      <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
-                      <small>{rankLabel(index, t)}</small>
-                    </div>
-                    <span className={`${styles.points} ${user.dailyProfitToday < 0 ? styles.negativePoints : ""}`}>
-                      {formatSigned(user.dailyProfitToday)} pts
-                    </span>
-                  </article>
-                );
-              })
-            ) : (
-              <p className={styles.emptyLeaderboard}>{t.emptyLeaderboard}</p>
-            )}
+      <section className={styles.advancedSection}>
+        <article className={styles.agentAccessCard}>
+          <div className={styles.advancedIntro}>
+            <div>
+              <p className={styles.agentAccessEyebrow}>{t.agentAccessEyebrow}</p>
+              <h2>{t.advancedAgentAccess}</h2>
+            </div>
+            <p>{t.agentAccessTitle}</p>
           </div>
-        </div>
-
+          <div className={styles.agentPromptLine}>
+            <div className={styles.promptTextRow}>
+              <span aria-hidden="true" className={styles.promptMark}>
+                $
+              </span>
+              <code>
+                {typedAgentPrompt}
+                <span className={styles.typeCursor} aria-hidden="true" />
+              </code>
+            </div>
+            <div className={styles.promptActions}>
+              <button aria-label={agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt} onClick={copyAgentPrompt} title={agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt} type="button">
+                <span>{agentPromptCopied ? t.copiedAgentPrompt : t.copyAgentPrompt}</span>
+              </button>
+            </div>
+          </div>
+          <div className={styles.statusPills}>
+            <span>{t.statusReadRules}</span>
+            <span>{t.statusUseTemplate}</span>
+            <span>{t.statusJoinTable}</span>
+          </div>
+        </article>
       </section>
 
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2>{t.capabilitiesTitle}</h2>
+          <div>
+            <p className={styles.eyebrow}>{t.capabilitiesTitle}</p>
+            <h2>{t.showcaseTitle}</h2>
+          </div>
           <p>{t.capabilitiesText}</p>
         </div>
         <div className={styles.engagementShowcase}>
@@ -730,22 +894,82 @@ export default function Home() {
               width={1024}
             />
           </div>
-          <div>
+          <div className={styles.growthCopy}>
             <p className={styles.agentAccessEyebrow}>{t.showcaseEyebrow}</p>
-            <h3>{t.showcaseTitle}</h3>
             <p>{t.showcaseText}</p>
+            <div className={styles.growthSteps}>
+              {t.features.slice(0, 3).map((feature) => (
+                <span key={feature.eyebrow}>{feature.eyebrow}</span>
+              ))}
+            </div>
           </div>
         </div>
-        <div className={styles.featureGrid}>
-          {t.features.map((feature) => (
-            <article className={styles.featureCard} key={feature.title}>
-              <span>{feature.eyebrow}</span>
-              <h3>{feature.title}</h3>
-              <p>{feature.text}</p>
-            </article>
-          ))}
-        </div>
       </section>
+
+      {quickPlayModalOpen && (
+        <div className={styles.modalOverlay} role="presentation" onMouseDown={() => setQuickPlayModalOpen(false)}>
+          <section
+            aria-labelledby="quick-play-title"
+            aria-modal="true"
+            className={`${styles.registrationModal} ${styles.quickPlayModal}`}
+            role="dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <p className={styles.eyebrow}>{t.quickPlayEyebrow}</p>
+                <h2 id="quick-play-title">{t.quickPlayTitle}</h2>
+                <p>{authUser ? t.quickPlayLoggedInText : t.quickPlayText}</p>
+              </div>
+              <button aria-label={t.closeModal} className={styles.closeButton} type="button" onClick={() => setQuickPlayModalOpen(false)}>
+                ×
+              </button>
+            </div>
+
+            {authUser ? (
+              <div className={styles.registrationCard}>
+                {renderQuickPlayStylePicker()}
+                {registrationError && <p className={styles.formError}>{registrationError}</p>}
+                {busy === "quick-play" ? <p className={styles.formHint}>{t.quickPlayStarting}</p> : null}
+              </div>
+            ) : (
+              <form className={styles.registrationCard} onSubmit={startQuickPlay}>
+                <label>
+                  {t.userName}
+                  <input
+                    onChange={(event) => {
+                      setUserName(event.target.value);
+                      setRegistrationError(undefined);
+                    }}
+                    placeholder={t.userNamePlaceholder}
+                    required
+                    value={userName}
+                  />
+                </label>
+                <label>
+                  {t.password}
+                  <input
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setRegistrationError(undefined);
+                    }}
+                    placeholder={t.passwordPlaceholder}
+                    required
+                    type="password"
+                    value={password}
+                  />
+                </label>
+                {renderQuickPlayStylePicker()}
+                {registrationError && <p className={styles.formError}>{registrationError}</p>}
+                <p className={styles.formHint}>{busy === "quick-play" ? t.quickPlayStarting : t.quickPlayStyleText}</p>
+                <button className={styles.textButton} type="button" onClick={openLoginForQuickPlay}>
+                  {t.quickPlayExisting}
+                </button>
+              </form>
+            )}
+          </section>
+        </div>
+      )}
 
       {registrationModalOpen && (
         <div className={styles.modalOverlay} role="presentation" onMouseDown={() => setRegistrationModalOpen(false)}>
@@ -831,6 +1055,9 @@ export default function Home() {
                 <button disabled={busy === "login-user"} type="submit">
                   {t.loginUser}
                 </button>
+                <button className={styles.textButton} type="button" onClick={() => switchAuthTab("register")}>
+                  {t.noAccountRegister}
+                </button>
               </form>
             )}
 
@@ -901,7 +1128,7 @@ export default function Home() {
                   <div className={styles.tokenBox}>
                     <strong>{t.savedTitle}</strong>
                     <code>ownerUserId: {createdUser.user.id}</code>
-                    <code>userToken: {createdUser.userToken ?? "请到我的牌手查看或重置"}</code>
+                    <code>userToken: {createdUser.userToken ?? t.tokenFallback}</code>
                     <span>
                       {t.initialPoints}: {createdUser.user.pointsBalance}
                     </span>
@@ -942,10 +1169,6 @@ export default function Home() {
   );
 }
 
-function formatSigned(value: number) {
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
-}
-
 function LeaderboardName({ href, label }: { href?: string; label: string }) {
   if (!href) {
     return <strong>{label}</strong>;
@@ -971,6 +1194,21 @@ function honorLabel(index: number) {
   return `#${index + 1}`;
 }
 
+function shouldOpenAuthModal() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const auth = new URLSearchParams(window.location.search).get("auth");
+  return auth === "login" || auth === "register";
+}
+
+function initialAuthTab(): "login" | "register" {
+  if (typeof window === "undefined") {
+    return "login";
+  }
+  return new URLSearchParams(window.location.search).get("auth") === "register" ? "register" : "login";
+}
+
 function rankLabel(index: number, t: typeof copy.zh | typeof copy.en) {
   if (index === 0) {
     return t.champion;
@@ -984,9 +1222,9 @@ function rankLabel(index: number, t: typeof copy.zh | typeof copy.en) {
   return `#${index + 1}`;
 }
 
-function honorRowClass(index: number) {
+function topLeaderboardCardClass(index: number) {
   const honorClass = index === 0 ? styles.championRow : index === 1 ? styles.runnerUpRow : index === 2 ? styles.thirdPlaceRow : "";
-  return [styles.leaderboardRow, honorClass].filter(Boolean).join(" ");
+  return [styles.topLeaderboardCard, honorClass].filter(Boolean).join(" ");
 }
 
 function honorRankClass(index: number) {
