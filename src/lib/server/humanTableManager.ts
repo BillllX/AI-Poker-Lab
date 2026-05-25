@@ -490,7 +490,7 @@ export class HumanTableManager {
       .map((participant) => {
         const player = playersById.get(participant.playerId);
         const currentStack = player?.stack ?? participant.lastKnownEffectiveStack;
-        const committedChips = player?.totalCommitted ?? 0;
+        const committedChips = player && game.pot > 0 ? player.totalCommitted : 0;
         const effectiveStack = player ? currentStack + committedChips : participant.lastKnownEffectiveStack;
         return {
           committedChips,
