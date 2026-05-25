@@ -98,6 +98,7 @@ export class HumanTableManager {
   private pendingDecision?: PendingDecision;
   private playersPendingRemoval = new Set<string>();
   private startPromise?: Promise<void>;
+  private snapshotCache = new Map<string, { expiresAt: number; snapshot: HumanTableSnapshot; version: string }>();
   private timer?: ReturnType<typeof setInterval>;
 
   createTable(user: ClubUser, password: string) {
@@ -123,6 +124,7 @@ export class HumanTableManager {
       userId: user.id,
     });
     this.activeTable = table;
+    this.invalidateSnapshotCache();
     logger.info("human_table.created", { tableId: table.id, ownerUserId: user.id });
     return this.snapshot(user.id);
   }
@@ -137,6 +139,7 @@ export class HumanTableManager {
     const snapshot = table.engine.snapshot();
     if (snapshot.players.some((item) => item.id === player.id)) {
       this.rememberParticipant(table, user, player.id, snapshot.players.find((item) => item.id === player.id)?.stack ?? initialStack);
+      this.invalidateSnapshotCache();
       return this.snapshot(user.id);
     }
 
@@ -146,6 +149,7 @@ export class HumanTableManager {
 
     table.engine.addPlayers([player]);
     this.rememberParticipant(table, user, player.id, initialStack);
+    this.invalidateSnapshotCache();
     logger.info("human_table.player_joined", { tableId: table.id, ownerUserId: user.id, playerId: player.id });
     void this.maybeStart();
     return this.snapshot(user.id);
@@ -170,10 +174,20 @@ export class HumanTableManager {
         this.resolvePendingWithFallback("Player left the human table.");
       }
       table.engine.settlePlayer(player.id, "left");
+      this.invalidateSnapshotCache();
+      const hasOtherSeatedPlayer = snapshot.players.some((item) => item.id !== player.id && item.status !== "out");
+      if (!hasOtherSeatedPlayer) {
+        table.engine.removePlayers([player.id]);
+        this.invalidateSnapshotCache();
+        participant.leftAt = new Date().toISOString();
+        logger.info("human_table.player_left", { tableId: table.id, ownerUserId: userId, playerId: participant.playerId });
+        return { left: true, tableClosed: this.closeTable(table, "last_player_left") };
+      }
       if (this.inFlight || player.totalCommitted > 0) {
         this.playersPendingRemoval.add(player.id);
       } else {
         table.engine.removePlayers([player.id]);
+        this.invalidateSnapshotCache();
       }
     }
     participant.leftAt = new Date().toISOString();
@@ -203,7 +217,7 @@ export class HumanTableManager {
     const rawGame = table.engine.snapshot();
     const myParticipant = userId ? table.participants.get(userId) : undefined;
     const myPlayerId = myParticipant?.playerId;
-    const isSeated = Boolean(myPlayerId && rawGame.players.some((player) => player.id === myPlayerId));
+    const isSeated = Boolean(myPlayerId && rawGame.players.some((player) => player.id === myPlayerId && player.status !== "out"));
     const game = publicGameForUser(rawGame, userId);
 
     return {
@@ -226,6 +240,31 @@ export class HumanTableManager {
     };
   }
 
+  cachedSnapshot(userId?: string, maxAgeMs = 750) {
+    const key = userId ?? "anonymous";
+    const now = Date.now();
+    const cached = this.snapshotCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached;
+    }
+
+    const snapshot = this.snapshot(userId);
+    const next = {
+      expiresAt: now + maxAgeMs,
+      snapshot,
+      version: humanSnapshotVersion(snapshot, key),
+    };
+    this.snapshotCache.set(key, next);
+    if (this.snapshotCache.size > 200) {
+      for (const [cacheKey, value] of this.snapshotCache) {
+        if (value.expiresAt <= now) {
+          this.snapshotCache.delete(cacheKey);
+        }
+      }
+    }
+    return next;
+  }
+
   submitAction(userId: string, action: PokerAction) {
     const table = this.requireTable();
     const participant = table.participants.get(userId);
@@ -237,6 +276,7 @@ export class HumanTableManager {
     const normalizedAction = validateHumanAction(action, pending, table.engine.snapshot());
     clearTimeout(pending.timeout);
     this.pendingDecision = undefined;
+    this.invalidateSnapshotCache();
     pending.resolve({
       type: "action_response",
       tableId: table.id,
@@ -287,8 +327,10 @@ export class HumanTableManager {
     try {
       const played = await table.engine.playOneHand((request) => this.requestHumanAction(request));
       this.refreshParticipantStacks(table);
+      this.invalidateSnapshotCache();
       if (!played) {
         table.engine.setRunning(false);
+        this.invalidateSnapshotCache();
         this.stopTimer();
         this.closeIfEmpty();
         return;
@@ -298,8 +340,10 @@ export class HumanTableManager {
       this.removePendingPlayers(table);
       this.removeBustedPlayers(table);
       this.refreshParticipantStacks(table);
+      this.invalidateSnapshotCache();
       if (table.engine.snapshot().players.filter((player) => player.stack > 0).length < minHumanPlayersToStart) {
         table.engine.setRunning(false);
+        this.invalidateSnapshotCache();
         this.stopTimer();
       }
     } catch (error) {
@@ -326,6 +370,7 @@ export class HumanTableManager {
       const timeout = setTimeout(() => {
         if (this.pendingDecision?.playerId === request.playerId && this.pendingDecision.handId === request.handId) {
           this.pendingDecision = undefined;
+          this.invalidateSnapshotCache();
           resolve({
             type: "action_response",
             tableId: table.id,
@@ -350,6 +395,7 @@ export class HumanTableManager {
         timeout,
         toCall: request.toCall,
       };
+      this.invalidateSnapshotCache();
     });
   }
 
@@ -362,6 +408,7 @@ export class HumanTableManager {
 
     clearTimeout(pending.timeout);
     this.pendingDecision = undefined;
+    this.invalidateSnapshotCache();
     pending.resolve({
       type: "action_response",
       tableId: table.id,
@@ -378,6 +425,7 @@ export class HumanTableManager {
     }
     clearTimeout(pending.timeout);
     this.pendingDecision = undefined;
+    this.invalidateSnapshotCache();
     pending.reject(error);
   }
 
@@ -423,6 +471,7 @@ export class HumanTableManager {
       }
     }
     table.engine.removePlayers(busted.map((player) => player.id));
+    this.invalidateSnapshotCache();
   }
 
   private removePendingPlayers(table: HumanTable) {
@@ -432,6 +481,7 @@ export class HumanTableManager {
 
     table.engine.removePlayers([...this.playersPendingRemoval]);
     this.playersPendingRemoval.clear();
+    this.invalidateSnapshotCache();
   }
 
   private playerStats(table: HumanTable, game: GameSnapshot) {
@@ -483,12 +533,24 @@ export class HumanTableManager {
       return false;
     }
 
+    return this.closeTable(table, "empty");
+  }
+
+  private closeTable(table: HumanTable, reason: string) {
     this.rejectPending(new Error("Human table closed."));
     table.engine.setRunning(false);
     this.stopTimer();
-    this.activeTable = undefined;
-    logger.info("human_table.closed", { tableId: table.id });
+    if (this.activeTable === table) {
+      this.activeTable = undefined;
+    }
+    this.playersPendingRemoval.clear();
+    this.invalidateSnapshotCache();
+    logger.info("human_table.closed", { tableId: table.id, reason });
     return true;
+  }
+
+  private invalidateSnapshotCache() {
+    this.snapshotCache.clear();
   }
 
   private stopTimer() {
@@ -575,6 +637,39 @@ function publicGameForUser(game: GameSnapshot, userId?: string): GameSnapshot {
           : undefined,
     })),
   };
+}
+
+function humanSnapshotVersion(snapshot: HumanTableSnapshot, key: string) {
+  const game = snapshot.game;
+  const lastAction = game?.actionHistory.at(-1);
+  const lastLog = game?.logs[0];
+  const playerState = game?.players
+    .map((player) => `${player.id}:${player.stack}:${player.currentBet}:${player.totalCommitted}:${player.status}:${player.lastAction ?? ""}`)
+    .join("|");
+  const pending = snapshot.pendingDecision
+    ? `${snapshot.pendingDecision.playerId}:${snapshot.pendingDecision.handId}:${snapshot.pendingDecision.expiresAt}`
+    : "";
+  const stats = snapshot.playerStats
+    .map((stat) => `${stat.playerId}:${stat.effectiveStack}:${stat.profit}:${stat.inSeat ? "1" : "0"}`)
+    .join("|");
+  return [
+    key,
+    snapshot.mySeatStatus,
+    snapshot.tableStatus.hasTable ? "1" : "0",
+    snapshot.tableStatus.playerCount,
+    snapshot.tableStatus.running ? "1" : "0",
+    game?.handId ?? 0,
+    game?.phase ?? "",
+    game?.pot ?? 0,
+    game?.currentBet ?? 0,
+    game?.currentPlayerId ?? "",
+    game?.communityCards.map((card) => `${card.rank}${card.suit}`).join("") ?? "",
+    playerState ?? "",
+    pending,
+    stats,
+    lastAction?.id ?? "",
+    lastLog?.id ?? "",
+  ].join(";");
 }
 
 function fallbackAction(toCall: number): PokerAction {

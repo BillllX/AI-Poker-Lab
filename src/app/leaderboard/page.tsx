@@ -52,7 +52,7 @@ export default function LeaderboardPage() {
     async function loadLeaderboard() {
       try {
         const [usersResponse, tablesResponse] = await Promise.all([
-          fetch("/api/users", { cache: "no-store" }),
+          fetch("/api/leaderboard?limit=50", { cache: "no-store" }),
           fetch("/api/tables", { cache: "no-store" }),
         ]);
         const usersPayload = await usersResponse.json();
@@ -60,7 +60,7 @@ export default function LeaderboardPage() {
         if (!cancelled) {
           const nextUsers = Array.isArray(usersPayload.users) ? usersPayload.users as ClubUser[] : [];
           const nextAgents = Array.isArray(tablesPayload.agents) ? tablesPayload.agents as AgentSummary[] : [];
-          setUsers([...nextUsers].sort((left, right) => right.pointsBalance - left.pointsBalance));
+          setUsers(nextUsers);
           setAgents(nextAgents);
         }
       } finally {

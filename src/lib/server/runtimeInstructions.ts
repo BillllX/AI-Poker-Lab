@@ -28,6 +28,8 @@ const defaultInstructions = [
   "raise.amount 表示本轮目标总下注额，不是额外加注量。",
   "选择 raise 时，amount 至少应为 currentBet + minRaise；minRaise 会跟随上一手完整下注/加注增量变化。",
 ];
+const maxNotesPerAgent = 50;
+const maxTotalNotes = 1_000;
 
 const globalForRuntimeInstructions = globalThis as typeof globalThis & {
   __texasPokerRuntimeInstructionNotes?: RuntimeInstructionNote[];
@@ -72,10 +74,29 @@ export function addRuntimeInstruction(
   };
 
   notes.push(note);
+  trimInstructionNotes(agentId);
   globalForRuntimeInstructions.__texasPokerRuntimeInstructionVersion =
     (globalForRuntimeInstructions.__texasPokerRuntimeInstructionVersion ?? 1) + 1;
 
   return note;
+}
+
+function trimInstructionNotes(agentId: string) {
+  let agentSeen = 0;
+  for (let index = notes.length - 1; index >= 0; index -= 1) {
+    if (notes[index].agentId !== agentId) {
+      continue;
+    }
+
+    agentSeen += 1;
+    if (agentSeen > maxNotesPerAgent) {
+      notes.splice(index, 1);
+    }
+  }
+
+  if (notes.length > maxTotalNotes) {
+    notes.splice(0, notes.length - maxTotalNotes);
+  }
 }
 
 export function addRuntimeFeedback(rawAgentId: string, message: string) {

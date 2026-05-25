@@ -29,22 +29,51 @@ type ResolvedProfile = {
   historyByOwner: boolean;
 };
 
+type CachedProfilePayload = {
+  expiresAt: number;
+  payload: Awaited<ReturnType<typeof buildAgentProfilePayload>>;
+};
+
+const profileCacheTtlMs = 10_000;
+const globalForAgentProfile = globalThis as typeof globalThis & {
+  __texasPokerAgentProfileCache?: Map<string, CachedProfilePayload>;
+};
+const profileCache = (globalForAgentProfile.__texasPokerAgentProfileCache ??= new Map<string, CachedProfilePayload>());
+
 export async function resolveAgentProfileById(profileId: string, origin: string) {
   const normalizedAgentId = safeNormalizeAgentId(profileId);
   const profile = await resolveProfileById(profileId, normalizedAgentId);
-  return profile ? buildAgentProfilePayload(profile, origin) : undefined;
+  return profile ? buildCachedAgentProfilePayload(`id:${profileId}`, profile, origin) : undefined;
 }
 
 export async function resolveAgentProfileByOwner(ownerUserId: string, origin: string) {
   const profile = await resolveProfileByOwner(ownerUserId);
-  return profile ? buildAgentProfilePayload(profile, origin) : undefined;
+  return profile ? buildCachedAgentProfilePayload(`owner:${ownerUserId}`, profile, origin) : undefined;
+}
+
+async function buildCachedAgentProfilePayload(cacheKey: string, profile: ResolvedProfile, origin: string) {
+  const cached = profileCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
+  }
+
+  const payload = await buildAgentProfilePayload(profile, origin);
+  profileCache.set(cacheKey, { expiresAt: Date.now() + profileCacheTtlMs, payload });
+  if (profileCache.size > 500) {
+    for (const [key, value] of profileCache) {
+      if (value.expiresAt <= Date.now()) {
+        profileCache.delete(key);
+      }
+    }
+  }
+  return payload;
 }
 
 async function buildAgentProfilePayload(profile: ResolvedProfile, origin: string) {
   const { agent, qualification, user } = profile;
   const tableManager = getTableManager(origin);
   const table = agent.tableId ? tableManager.table(agent.tableId) : undefined;
-  const snapshot = table?.runner.snapshot();
+  const snapshot = table?.runner.cachedSnapshot().snapshot;
   const player = snapshot?.players.find((item) => item.id === agent.id);
   const stats = snapshot?.stats.find((item) => item.playerId === agent.id);
   const modelStat = snapshot?.modelStats.find((item) => item.modelName === (agent.modelName ?? "Unknown Model"));

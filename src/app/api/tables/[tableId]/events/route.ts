@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const heartbeatMs = 1_000;
+const idleHeartbeatMs = 15_000;
 
 export async function GET(request: Request, context: { params: Promise<{ tableId: string }> }) {
   const { tableId } = await context.params;
@@ -12,6 +13,9 @@ export async function GET(request: Request, context: { params: Promise<{ tableId
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      let lastHeartbeatAt = 0;
+      let lastVersion = "";
+
       function send(event: string, data: unknown) {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       }
@@ -22,7 +26,17 @@ export async function GET(request: Request, context: { params: Promise<{ tableId
           send("error", { error: "Table was not found." });
           return;
         }
-        send("snapshot", table.runner.snapshot());
+        const cached = table.runner.cachedSnapshot();
+        if (cached.version !== lastVersion) {
+          lastVersion = cached.version;
+          lastHeartbeatAt = Date.now();
+          send("snapshot", cached.snapshot);
+          return;
+        }
+        if (Date.now() - lastHeartbeatAt >= idleHeartbeatMs) {
+          lastHeartbeatAt = Date.now();
+          send("heartbeat", { at: new Date().toISOString(), version: lastVersion });
+        }
       }
 
       sendSnapshot();

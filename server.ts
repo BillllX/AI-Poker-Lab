@@ -141,21 +141,12 @@ async function main() {
       if (stopIfAgentRemoved()) {
         return;
       }
-
-      if (awaitingPong) {
-        logger.warn("ws.pong_timeout", { agentId });
-        ws.terminate();
-        return;
-      }
-
-      awaitingPong = true;
-      ws.ping();
+      markAgentSeen(agentId, { notify: false });
       send(ws, { type: "heartbeat", agentId, shouldStop: false, at: new Date().toISOString() });
     }, 5_000);
 
     ws.on("message", (raw) => {
-      markAgentSeen(agentId);
-      void getTableManager(origin).handleAgentOnline(agentId);
+      markAgentSeen(agentId, { notify: false });
 
       try {
         const payload = JSON.parse(raw.toString()) as (AgentDecisionResponse & { requestId?: string }) | AgentLeaveMessage;
@@ -227,12 +218,7 @@ async function main() {
       unsubscribe();
       unsubscribeRegistry();
       unsubscribeAssignment();
-      if (activeAgentConnections.get(agentId) !== connectionId) {
-        logger.info("ws.closed_stale_connection", { agentId });
-        return;
-      }
-
-      activeAgentConnections.delete(agentId);
+      clearPendingDecisions("Agent WebSocket disconnected.", currentAssignment(agentId)?.tableId, agentId);
       markAgentDisconnected(agentId);
       const assignment = currentAssignment(agentId);
       clearPendingDecisions("Agent WebSocket disconnected.", assignment?.tableId, agentId);

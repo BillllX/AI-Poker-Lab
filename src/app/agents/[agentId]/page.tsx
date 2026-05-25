@@ -258,7 +258,7 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
   useEffect(() => {
     const controller = new AbortController();
     void Promise.resolve().then(() => loadProfile({ signal: controller.signal }));
-    const timer = setInterval(() => void loadProfile({ signal: controller.signal, silent: true }), 5_000);
+    const timer = setInterval(() => void loadProfile({ signal: controller.signal, silent: true }), 15_000);
     return () => {
       controller.abort();
       clearInterval(timer);

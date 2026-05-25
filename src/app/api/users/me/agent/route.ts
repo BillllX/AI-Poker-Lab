@@ -1,24 +1,26 @@
 import { resolveAgentProfileByOwner } from "@/lib/server/agentProfile";
 import { getAgentPrivateSettings, updateAgentPrivateSettings } from "@/lib/server/agentPrivateSettings";
 import { getHostedAgentStatus } from "@/lib/server/hostedAgents";
-import { getCurrentUserTokenForSession, getUserFromSessionCookie } from "@/lib/server/userRegistry";
+import { getCurrentUserTokenForSession, getUserFromSessionCookieLite, rankUser } from "@/lib/server/userRegistry";
 
 export async function GET(request: Request) {
-  const user = await getUserFromSessionCookie(request.headers.get("cookie"));
+  const user = await getUserFromSessionCookieLite(request.headers.get("cookie"));
   if (!user) {
     return Response.json({ user: null, agentProfile: null }, { status: 401 });
   }
 
   const origin = new URL(request.url).origin;
-  const [agentProfile, userToken, privateSettings, hostedAgent] = await Promise.all([
+  const [agentProfile, userToken, privateSettings, hostedAgent, rank] = await Promise.all([
     resolveAgentProfileByOwner(user.id, origin),
     getCurrentUserTokenForSession(user.id),
     getAgentPrivateSettings(user.id),
     getHostedAgentStatus(user.id),
+    rankUser(user.id),
   ]);
 
   return Response.json({
     user,
+    rank,
     credentials: {
       ownerUserId: user.id,
       tokenAvailable: Boolean(userToken),
@@ -38,7 +40,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await getUserFromSessionCookie(request.headers.get("cookie"));
+  const user = await getUserFromSessionCookieLite(request.headers.get("cookie"));
   if (!user) {
     return Response.json({ error: "Login is required." }, { status: 401 });
   }

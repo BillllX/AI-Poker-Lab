@@ -71,6 +71,7 @@ export class GameSimulator {
   private gameSessionId?: string;
   private startPromise?: Promise<void>;
   private settlePromise?: Promise<void>;
+  private snapshotCache?: { expiresAt: number; snapshot: GameSnapshot; version: string };
 
   constructor(
     origin: string,
@@ -95,6 +96,7 @@ export class GameSimulator {
     }
 
     this.engine = this.createEngine();
+    this.invalidateSnapshotCache();
   }
 
   async start() {
@@ -132,6 +134,7 @@ export class GameSimulator {
       this.inFlight = false;
       if (this.engine.snapshot().handId > 0 || this.rosterVersion !== this.currentRosterVersion()) {
         this.engine = this.createEngine();
+        this.invalidateSnapshotCache();
       }
       await this.reserveSessionBuyIns();
       for (const agent of this.deps.listAgents()) {
@@ -162,6 +165,7 @@ export class GameSimulator {
   stop() {
     logger.info("table.stop_requested", { tableId: this.tableId, running: this.engine.isRunning() });
     this.engine.setRunning(false);
+    this.invalidateSnapshotCache();
     this.deps.clearPendingDecisions("Game was stopped or reconfigured.");
     this.inFlight = false;
 
@@ -176,12 +180,14 @@ export class GameSimulator {
     this.deps.clearPendingDecisions(`Agent ${agentId} ${reason === "busted" ? "was busted" : "left the table"}.`, agentId);
     const player = this.engine.snapshot().players.find((item) => item.id === agentId);
     const settlement = this.engine.settlePlayer(agentId, reason) ?? (player ? { finalStack: Math.max(0, player.stack), player } : undefined);
+    this.invalidateSnapshotCache();
     await this.settleAgentBuyIn(agentId, settlement?.finalStack ?? 0, reason);
     if (this.inFlight && player && player.totalCommitted > 0) {
       this.playersPendingRemoval.add(agentId);
     } else {
       this.engine.removePlayers([agentId]);
       this.playersPendingRemoval.delete(agentId);
+      this.invalidateSnapshotCache();
     }
     releaseAgentFromTable(agentId, reason === "left" ? "disconnected" : "registered");
     this.rosterVersion = this.currentRosterVersion();
@@ -211,6 +217,7 @@ export class GameSimulator {
     this.origin = origin;
     this.engine = this.createEngine();
     this.engine.reset();
+    this.invalidateSnapshotCache();
   }
 
   async endSession(origin: string) {
@@ -221,12 +228,33 @@ export class GameSimulator {
     this.origin = origin;
     this.engine = this.createEngine();
     this.engine.reset();
+    this.invalidateSnapshotCache();
     logger.warn("table.end_session_completed", { tableId: this.tableId });
   }
 
   snapshot(): GameSnapshot {
     this.configure(this.origin);
     return this.engine.snapshot();
+  }
+
+  cachedSnapshot(maxAgeMs = 750) {
+    const now = Date.now();
+    if (this.snapshotCache && this.snapshotCache.expiresAt > now) {
+      return this.snapshotCache;
+    }
+
+    const snapshot = this.snapshot();
+    const cached = {
+      expiresAt: now + maxAgeMs,
+      snapshot,
+      version: gameSnapshotVersion(snapshot),
+    };
+    this.snapshotCache = cached;
+    return cached;
+  }
+
+  private invalidateSnapshotCache() {
+    this.snapshotCache = undefined;
   }
 
   private async tick() {
@@ -247,6 +275,7 @@ export class GameSimulator {
 
       await this.addNewPollingAgents();
       const played = await this.engine.playOneHand((request) => this.decide(request));
+      this.invalidateSnapshotCache();
       if (!played) {
         logger.info("table.no_hand_played", { tableId: this.tableId });
         await this.settleCurrentSession();
@@ -258,6 +287,7 @@ export class GameSimulator {
       this.removePendingSettledPlayers();
       await this.settleBustedPlayers();
       await this.addNewPollingAgents();
+      this.invalidateSnapshotCache();
       if (this.onlyVirtualPlayersRemain()) {
         logger.warn("table.only_virtual_players_remaining", { tableId: this.tableId });
         this.stop();
@@ -331,6 +361,7 @@ export class GameSimulator {
     const buyIns = newAgents.filter((agent) => !isVirtualAgent(agent)).map((agent) => agentToBuyIn(agent, sessionId));
     await this.deps.reserveGameBuyIns(buyIns);
     const addedAgentIds = this.engine.addPlayers(newAgents);
+    this.invalidateSnapshotCache();
     this.activeBuyIns = [...this.activeBuyIns, ...buyIns.filter((buyIn) => addedAgentIds.includes(buyIn.agentId))];
     if (addedAgentIds.length > 0) {
       logger.info("table.players_added", { tableId: this.tableId, addedAgentIds, buyInCount: buyIns.length });
@@ -395,6 +426,7 @@ export class GameSimulator {
 
     this.engine.removePlayers([...this.playersPendingRemoval]);
     this.playersPendingRemoval.clear();
+    this.invalidateSnapshotCache();
   }
 
   private async settleCurrentSessionInternal() {
@@ -454,7 +486,7 @@ export class GameSimulator {
   }
 
   tableSummary() {
-    const snapshot = this.snapshot();
+    const snapshot = this.cachedSnapshot().snapshot;
     return {
       id: this.tableId,
       name: this.tableName,
@@ -498,6 +530,7 @@ type TableRecord = {
 
 export class TableManager {
   private tables = new Map<string, TableRecord>();
+  private allocationPromise?: Promise<void>;
 
   constructor(private origin: string) {}
 
@@ -528,7 +561,7 @@ export class TableManager {
     const statsByModel = new Map<string, { modelName: string; handsPlayed: number; agents: Set<string> }>();
 
     for (const table of this.activeTables()) {
-      for (const stat of table.runner.snapshot().modelStats) {
+      for (const stat of table.runner.cachedSnapshot().snapshot.modelStats) {
         const existing = statsByModel.get(stat.modelName) ?? {
           modelName: stat.modelName,
           handsPlayed: 0,
@@ -554,6 +587,17 @@ export class TableManager {
   }
 
   async allocateQueuedAgents() {
+    if (this.allocationPromise) {
+      return this.allocationPromise;
+    }
+
+    this.allocationPromise = this.allocateQueuedAgentsOnce().finally(() => {
+      this.allocationPromise = undefined;
+    });
+    return this.allocationPromise;
+  }
+
+  private async allocateQueuedAgentsOnce() {
     ensureVirtualAgentPool();
 
     for (const agent of listQueuedAgents()) {
@@ -588,11 +632,13 @@ export class TableManager {
 
     logger.warn("table.manager_end_requested", { tableId });
     await table.runner.endSession(this.origin);
+    this.tables.delete(tableId);
   }
 
   async endAllTables() {
     logger.warn("table.manager_end_all_requested", { tableCount: this.tables.size });
     await Promise.all([...this.tables.values()].map((table) => table.runner.endSession(this.origin)));
+    this.tables.clear();
   }
 
   async leaveAgent(agentId: string) {
@@ -692,4 +738,24 @@ export function getTableManager(origin = "http://localhost:3000") {
   }
 
   return globalForSimulator.__texasPokerTableManager;
+}
+
+function gameSnapshotVersion(snapshot: GameSnapshot) {
+  const lastAction = snapshot.actionHistory.at(-1);
+  const lastLog = snapshot.logs[0];
+  const playerState = snapshot.players
+    .map((player) => `${player.id}:${player.stack}:${player.currentBet}:${player.totalCommitted}:${player.status}:${player.lastAction ?? ""}`)
+    .join("|");
+  return [
+    snapshot.running ? "1" : "0",
+    snapshot.handId,
+    snapshot.phase,
+    snapshot.pot,
+    snapshot.currentBet,
+    snapshot.currentPlayerId ?? "",
+    snapshot.communityCards.map((card) => `${card.rank}${card.suit}`).join(""),
+    playerState,
+    lastAction?.id ?? "",
+    lastLog?.id ?? "",
+  ].join(";");
 }

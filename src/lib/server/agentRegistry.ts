@@ -184,10 +184,12 @@ export function removeAgent(id: string) {
   return listAgents().length !== before;
 }
 
-export function markAgentSeen(id: string) {
+export function markAgentSeen(id: string, options: { notify?: boolean } = {}) {
   const now = new Date().toISOString();
   globalForAgents.__texasPokerAgents = listAgents().map((agent) => (agent.id === id ? { ...agent, lastSeenAt: now } : agent));
-  notifyAgentRegistrySubscribers();
+  if (options.notify ?? true) {
+    notifyAgentRegistrySubscribers();
+  }
   return listAgents().find((agent) => agent.id === id);
 }
 

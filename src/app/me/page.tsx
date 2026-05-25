@@ -16,6 +16,7 @@ type MeAgentPayload = {
     dailySettlementsToday: number;
     createdAt: string;
   } | null;
+  rank?: number;
   credentials?: {
     ownerUserId: string;
     tokenAvailable: boolean;
@@ -108,11 +109,6 @@ type HostedAgentStatus = {
     protocolVersion?: string;
   } | null;
   modelName: string;
-};
-
-type RankingUser = {
-  id: string;
-  pointsBalance: number;
 };
 
 const copy = {
@@ -342,7 +338,7 @@ export default function MyAgentPage() {
       }
       setPayload(data);
       setPromptDraft(data.privateSettings?.agentPrompt ?? "");
-      setCurrentRank(await fetchCurrentRank(data.user?.id));
+      setCurrentRank(typeof data.rank === "number" ? data.rank : undefined);
     } finally {
       setLoading(false);
     }
@@ -726,27 +722,6 @@ function formatSigned(value: number) {
 
 function formatDateTime(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
-}
-
-async function fetchCurrentRank(userId?: string) {
-  if (!userId) {
-    return undefined;
-  }
-
-  try {
-    const response = await fetch("/api/users", { cache: "no-store" });
-    if (!response.ok) {
-      return undefined;
-    }
-    const payload = await response.json();
-    const users = Array.isArray(payload.users) ? (payload.users as RankingUser[]) : [];
-    const rank = [...users]
-      .sort((left, right) => right.pointsBalance - left.pointsBalance)
-      .findIndex((item) => item.id === userId);
-    return rank >= 0 ? rank + 1 : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 async function copyText(value: string) {
