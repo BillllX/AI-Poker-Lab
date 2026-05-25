@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./home.module.css";
 
+const authChangedEvent = "texas-poker-auth-changed";
+
 type CaptchaState = {
   captchaId: string;
   challenge: string;
@@ -443,6 +445,7 @@ export default function Home() {
 
       if (payload.user) {
         setAuthUser(payload.user);
+        window.dispatchEvent(new Event(authChangedEvent));
       }
       setPassword("");
       setQuickPlayModalOpen(false);
@@ -528,6 +531,7 @@ export default function Home() {
 
       setCreatedUser(payload);
       setAuthUser(payload.user);
+      window.dispatchEvent(new Event(authChangedEvent));
       setNameStatus(undefined);
       setPassword("");
       setCaptchaAnswer("");
@@ -562,6 +566,7 @@ export default function Home() {
 
       setCreatedUser(payload);
       setAuthUser(payload.user);
+      window.dispatchEvent(new Event(authChangedEvent));
       setLoginPassword("");
       await refreshLeaderboard();
       if (continueQuickPlayAfterLogin) {
@@ -596,7 +601,7 @@ export default function Home() {
       }
       setAuthUser(undefined);
       setCreatedUser(undefined);
-      window.dispatchEvent(new Event("texas-poker-auth-changed"));
+      window.dispatchEvent(new Event(authChangedEvent));
     } finally {
       setBusy(undefined);
     }

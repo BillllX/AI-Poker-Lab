@@ -41,6 +41,7 @@ type HumanTableSnapshot = {
     maxPlayers: number;
     needsCreate: boolean;
     needsJoin: boolean;
+    canEndGame?: boolean;
     playerCount: number;
     running: boolean;
     tableId?: string;
@@ -56,7 +57,9 @@ const copy = {
     amountInvalid: "输入金额不合法。",
     amountPlaceholder: "输入目标注额",
     activePlayers: "在桌玩家",
+    activePlayer: "行动中",
     bet: "下注",
+    balanced: "已平衡",
     call: "跟注",
     check: "过牌",
     committed: "本手已投入",
@@ -66,6 +69,10 @@ const copy = {
     currentBet: "当前注额",
     currentStack: "当前 Stack",
     effectiveStack: "归属筹码",
+    endGame: "结束游戏",
+    endConfirm: "确定要结束真人桌吗？当前手未结算筹码会退回，然后展示最终统计。",
+    endFailed: "结束游戏失败。",
+    finalStats: "最终统计",
     emptySeat: "空位",
     fold: "弃牌",
     hand: "hand",
@@ -110,7 +117,13 @@ const copy = {
     thinking: "正在行动",
     timeoutHint: "超时后将自动执行保守动作：可过牌则过牌，否则弃牌。",
     timeLeft: "剩余时间",
+    totalProfit: "总盈亏",
+    unbalanced: "统计待校验",
     waiting: "等待",
+    waitingInviteTitle: "等待玩家加入",
+    waitingInviteText: "已有真人桌创建成功。分享当前页面并告知牌桌密码，至少 2 人入座后自动开局。",
+    copyInviteLink: "复制邀请链接",
+    inviteCopied: "邀请链接已复制。",
     waitingStart: "等待开局",
     wonChips: "赢得筹码",
     winReason: "胜利原因",
@@ -122,7 +135,9 @@ const copy = {
     amountInvalid: "Invalid amount.",
     amountPlaceholder: "Enter target bet",
     activePlayers: "Active players",
+    activePlayer: "Acting",
     bet: "Bet",
+    balanced: "Balanced",
     call: "Call",
     check: "Check",
     committed: "Committed this hand",
@@ -132,6 +147,10 @@ const copy = {
     currentBet: "Current bet",
     currentStack: "Current Stack",
     effectiveStack: "Owned chips",
+    endGame: "End Game",
+    endConfirm: "End the human table? Unsettled chips in the current hand will be refunded before final stats are shown.",
+    endFailed: "Failed to end game.",
+    finalStats: "Final Stats",
     emptySeat: "Empty Seat",
     fold: "Fold",
     hand: "hand",
@@ -176,7 +195,13 @@ const copy = {
     thinking: "Acting",
     timeoutHint: "On timeout, the table will check when possible, otherwise fold.",
     timeLeft: "Time left",
+    totalProfit: "Total P&L",
+    unbalanced: "Needs check",
     waiting: "Waiting",
+    waitingInviteTitle: "Waiting for Players",
+    waitingInviteText: "The human table is ready. Share this page and the table password; play starts automatically with at least two seated players.",
+    copyInviteLink: "Copy invite link",
+    inviteCopied: "Invite link copied.",
     waitingStart: "Waiting to start",
     wonChips: "Won chips",
     winReason: "Winning hand",
@@ -196,9 +221,10 @@ export default function HumanTablePage() {
   const t = copy[language];
   const [snapshot, setSnapshot] = useState<HumanTableSnapshot>();
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState<"action" | "create" | "join" | "leave">();
+  const [busy, setBusy] = useState<"action" | "create" | "join" | "leave" | "end">();
   const [status, setStatus] = useState<string>();
   const [statsOpen, setStatsOpen] = useState(false);
+  const [finalPlayerStats, setFinalPlayerStats] = useState<HumanTableSnapshot["playerStats"]>();
   const [now, setNow] = useState(() => Date.now());
   const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
   const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
@@ -215,6 +241,10 @@ export default function HumanTablePage() {
   const timeLeftMs = pendingDecision ? Math.max(0, new Date(pendingDecision.expiresAt).getTime() - now) : 0;
   const handWinners = winnerReveal?.winners ?? [];
   const winningPlayerIds = new Set(handWinners.map((winner) => winner.playerId));
+  const playerStats = finalPlayerStats ?? snapshot?.playerStats ?? [];
+  const seatedStatsCount = playerStats.filter((stat) => stat.inSeat).length;
+  const totalProfit = playerStats.reduce((sum, stat) => sum + stat.profit, 0);
+  const isWaitingForPlayers = snapshot?.mySeatStatus === "seated" && Boolean(snapshot.tableStatus.hasTable) && !snapshot.tableStatus.running && (state?.players.length ?? 0) < 2;
 
   function revealWinnersForSnapshot(nextState?: GameSnapshot) {
     if (!nextState || nextState.handId === lastWinnerRevealHandIdRef.current) {
@@ -287,6 +317,7 @@ export default function HumanTablePage() {
         return;
       }
       setPassword("");
+      setFinalPlayerStats(undefined);
       setSnapshot(payload);
     } finally {
       setBusy(undefined);
@@ -332,15 +363,49 @@ export default function HumanTablePage() {
     }
   }
 
+  async function endGame() {
+    if (!window.confirm(t.endConfirm)) {
+      return;
+    }
+    setBusy("end");
+    setStatus(undefined);
+    try {
+      const response = await fetch("/api/human-table/end", { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) {
+        setStatus(payload.error ?? t.endFailed);
+        return;
+      }
+      setFinalPlayerStats(payload.snapshot?.playerStats ?? []);
+      setSnapshot(payload.snapshot);
+      setStatsOpen(true);
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  async function copyInviteLink() {
+    const ok = await copyText(window.location.href);
+    if (ok) {
+      setStatus(t.inviteCopied);
+    }
+  }
+
   return (
     <main className={styles.page}>
       <section className={styles.header}>
-        <div>
+        <div className={styles.mobileHeaderMain}>
           <p className={styles.eyebrow}>Live Poker Room</p>
           <h1>{snapshot?.tableStatus.tableName ?? t.humanTable}</h1>
           <p className={styles.subtitle}>
             {state?.running ? t.running : t.waitingStart} · {snapshot?.tableStatus.playerCount ?? 0}/6 {t.seats} · {t.hand} #{state?.handId ?? 0}
           </p>
+          <div className={styles.mobileTableStatus}>
+            <span>{state?.running ? t.running : t.waitingStart}</span>
+            <span>{t.hand} #{state?.handId ?? 0}</span>
+            <span>{t.pot} {state?.pot ?? 0}</span>
+            <span>{activePlayer ? `${t.activePlayer}: ${activePlayer.name}` : t.waitingStart}</span>
+          </div>
         </div>
         <div className={styles.controls}>
           <button type="button" onClick={() => setStatsOpen(true)}>{t.stats}</button>
@@ -349,29 +414,39 @@ export default function HumanTablePage() {
               {t.leave}
             </button>
           ) : null}
-          {snapshot?.mySeatStatus === "seated" ? (
-            <div className={styles.actionDock}>
-              <span className={styles.actionStatus}>
-                {isMyTurn && pendingDecision ? `${t.timeLeft} ${formatTimeLeft(timeLeftMs)}` : t.seatedHint}
-              </span>
-              {isMyTurn && pendingDecision && state ? (
-                <ActionButtons
-                  bigBlind={state.bigBlind}
-                  busy={busy === "action"}
-                  currentBet={state.currentBet}
-                  maxAmount={(myPlayer?.currentBet ?? 0) + pendingDecision.stack}
-                  legalActions={pendingDecision.legalActions}
-                  minRaise={pendingDecision.minRaise}
-                  onSubmit={(action) => void submitAction(action)}
-                  pot={state.pot}
-                  setStatus={setStatus}
-                  t={t}
-                />
-              ) : null}
-            </div>
+          {snapshot?.tableStatus.canEndGame ? (
+            <button className={styles.danger} disabled={busy === "end"} type="button" onClick={() => void endGame()}>
+              {t.endGame}
+            </button>
           ) : null}
         </div>
       </section>
+
+      {snapshot?.mySeatStatus === "seated" ? (
+        <div className={`${styles.actionDock} ${isMyTurn ? styles.activeActionDock : styles.idleActionDock}`}>
+          <span className={styles.actionStatus}>
+            {isMyTurn && pendingDecision
+              ? `${t.timeLeft} ${formatTimeLeft(timeLeftMs)} · ${t.pot} ${state?.pot ?? 0} · ${t.currentBet} ${state?.currentBet ?? 0}`
+              : activePlayer
+                ? `${activePlayer.name} ${t.thinking}`
+                : t.seatedHint}
+          </span>
+          {isMyTurn && pendingDecision && state ? (
+            <ActionButtons
+              bigBlind={state.bigBlind}
+              busy={busy === "action"}
+              currentBet={state.currentBet}
+              maxAmount={(myPlayer?.currentBet ?? 0) + pendingDecision.stack}
+              legalActions={pendingDecision.legalActions}
+              minRaise={pendingDecision.minRaise}
+              onSubmit={(action) => void submitAction(action)}
+              pot={state.pot}
+              setStatus={setStatus}
+              t={t}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       {snapshot?.mySeatStatus === "not-logged-in" ? (
         <section className={styles.joinPanel}>
@@ -406,6 +481,17 @@ export default function HumanTablePage() {
       ) : null}
 
       {status ? <p className={styles.error}>{status}</p> : null}
+
+      {isWaitingForPlayers ? (
+        <section className={styles.waitingInvite}>
+          <div>
+            <p className={styles.eyebrow}>{t.humanTable}</p>
+            <h2>{t.waitingInviteTitle}</h2>
+            <p className={styles.muted}>{t.waitingInviteText}</p>
+          </div>
+          <button type="button" onClick={() => void copyInviteLink()}>{t.copyInviteLink}</button>
+        </section>
+      ) : null}
 
       {state ? (
         <section className={styles.layout}>
@@ -501,13 +587,18 @@ export default function HumanTablePage() {
             <div className={styles.statsHeader}>
               <div>
                 <p className={styles.eyebrow}>{t.humanTable}</p>
-                <h2>{t.stats}</h2>
+                <h2>{finalPlayerStats ? t.finalStats : t.stats}</h2>
                 <p className={styles.muted}>{t.tableStatsHint}</p>
               </div>
               <button type="button" onClick={() => setStatsOpen(false)}>×</button>
             </div>
             <div className={styles.statsList}>
-              {snapshot?.playerStats.map((stat) => (
+              <div className={styles.scoreSummary}>
+                <span><small>{t.inSeat}</small><strong>{seatedStatsCount}</strong></span>
+                <span><small>{t.totalProfit}</small><strong className={deltaClass(totalProfit)}>{formatDelta(totalProfit)}</strong></span>
+                <span><small>{t.status}</small><strong>{totalProfit === 0 ? t.balanced : t.unbalanced}</strong></span>
+              </div>
+              {playerStats.map((stat) => (
                 <article className={`${styles.statsCard} ${stat.inSeat ? styles.activeStatsCard : ""}`} key={stat.playerId}>
                   <div className={styles.statsPlayer}>
                     <strong>{stat.name}</strong>
@@ -519,7 +610,7 @@ export default function HumanTablePage() {
                   <em className={deltaClass(stat.profit)}>{formatDelta(stat.profit)}</em>
                 </article>
               ))}
-              {snapshot?.playerStats.length === 0 ? <p className={styles.muted}>{t.noActions}</p> : null}
+              {playerStats.length === 0 ? <p className={styles.muted}>{t.noActions}</p> : null}
             </div>
           </div>
         </section>
@@ -802,6 +893,28 @@ function formatWinReason(reason: string | undefined, language: "en" | "zh") {
     "all opponents folded": "其他玩家弃牌",
   };
   return language === "zh" ? (zh[reason] ?? reason) : reason;
+}
+
+async function copyText(value: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Fall through to a textarea fallback for non-secure browser contexts.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.opacity = "0";
+  textarea.style.position = "fixed";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  return copied;
 }
 
 function formatStreetAction(item: GameSnapshot["actionHistory"][number]) {

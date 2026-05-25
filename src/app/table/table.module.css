@@ -778,8 +778,22 @@
   align-items: center;
   display: grid;
   gap: 8px;
-  grid-column: 1 / -1;
+  margin: 0 auto 14px;
+  max-width: 1500px;
   min-width: min(520px, 100%);
+}
+
+.mobileTableStatus {
+  display: none;
+}
+
+.mobileHeaderMain {
+  min-width: 0;
+}
+
+.activeActionDock,
+.idleActionDock {
+  width: min(1500px, 100%);
 }
 
 .actionStatus {
@@ -888,6 +902,41 @@
   max-width: 1500px;
 }
 
+.waitingInvite {
+  align-items: center;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.08), transparent 14rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 0 auto 14px;
+  max-width: 1500px;
+  padding: 16px;
+}
+
+.waitingInvite h2,
+.waitingInvite p {
+  margin: 0;
+}
+
+.waitingInvite button {
+  align-items: center;
+  background: rgba(110, 231, 168, 0.14);
+  border: 1px solid rgba(110, 231, 168, 0.28);
+  border-radius: 999px;
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+
 .statsOverlay {
   align-items: center;
   background: rgba(2, 8, 6, 0.68);
@@ -949,6 +998,30 @@
 .statsList {
   display: grid;
   gap: 10px;
+}
+
+.scoreSummary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.scoreSummary span {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.scoreSummary small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.scoreSummary strong {
+  font-size: 16px;
 }
 
 .statsCard {
@@ -1204,7 +1277,7 @@
 @media (max-width: 760px) {
   .page {
     overflow-x: hidden;
-    padding: 12px 12px 306px;
+    padding: 10px 10px 178px;
   }
 
   .header,
@@ -1215,52 +1288,54 @@
 
   .header {
     align-items: flex-start;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025));
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.2);
     flex-direction: column;
+    gap: 12px;
     margin-bottom: 10px;
-    padding: 0;
+    padding: 12px;
   }
 
   .header h1 {
-    font-size: clamp(26px, 9vw, 36px);
+    font-size: 22px;
     letter-spacing: -0.045em;
     line-height: 1;
   }
 
   .subtitle {
+    display: none;
+  }
+
+  .mobileTableStatus {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .mobileTableStatus span {
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 999px;
-    display: inline-flex;
-    font-size: 12px;
-    margin-top: 8px;
-    padding: 7px 10px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 6px 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .controls {
-    align-items: center;
-    backdrop-filter: blur(18px);
-    background:
-      linear-gradient(180deg, rgba(22, 69, 47, 0.88), rgba(7, 20, 14, 0.96)),
-      radial-gradient(circle at 50% 0%, rgba(110, 231, 168, 0.24), transparent 16rem);
-    border: 1px solid rgba(110, 231, 168, 0.2);
-    border-radius: 28px 28px 0 0;
-    bottom: calc(82px + env(safe-area-inset-bottom));
-    box-shadow:
-      0 -24px 70px rgba(0, 0, 0, 0.48),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-self: stretch;
+    display: flex;
+    gap: 8px;
     justify-content: stretch;
-    left: 8px;
-    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
-    position: fixed;
-    right: 8px;
     width: auto;
-    z-index: 70;
   }
 
   .controls a,
@@ -1274,19 +1349,51 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
     font-size: 12px;
     letter-spacing: 0.01em;
-    min-height: 44px;
-    padding: 9px 10px;
+    box-shadow: none;
+    font-size: 12px;
+    min-height: 38px;
+    padding: 8px 10px;
     width: 100%;
   }
 
   .actionDock {
-    grid-column: 1 / -1;
+    backdrop-filter: blur(18px);
+    background:
+      linear-gradient(180deg, rgba(22, 69, 47, 0.94), rgba(7, 20, 14, 0.98)),
+      radial-gradient(circle at 50% 0%, rgba(110, 231, 168, 0.24), transparent 16rem);
+    border: 1px solid rgba(110, 231, 168, 0.22);
+    border-radius: 24px 24px 0 0;
+    bottom: calc(82px + env(safe-area-inset-bottom));
+    box-shadow:
+      0 -24px 70px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    left: 8px;
+    margin: 0;
+    max-width: none;
     min-width: 0;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    position: fixed;
+    right: 8px;
+    z-index: 76;
+  }
+
+  .idleActionDock {
+    display: none;
+  }
+
+  .activeActionDock {
+    display: grid;
+  }
+
+  .actionStatus {
+    border-radius: 16px;
+    font-size: 12px;
+    padding: 8px 10px;
   }
 
   .actionDock .actionGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
     overflow: visible;
   }
 
@@ -1300,8 +1407,10 @@
   }
 
   .amountDialog {
-    border-radius: 22px;
-    padding: 14px;
+    border-radius: 24px 24px 0 0;
+    margin-inline: -12px;
+    padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+    width: calc(100% + 24px);
   }
 
   .amountChoices {
@@ -1309,8 +1418,13 @@
   }
 
   .amountChoices button {
-    min-height: 62px;
+    border-radius: 18px;
+    min-height: 72px;
     padding: 9px 8px;
+  }
+
+  .amountChoices strong {
+    font-size: 20px;
   }
 
   .amountCustom {
@@ -1405,16 +1519,27 @@
 
   .seat {
     backdrop-filter: blur(8px);
-    border-radius: 16px;
+    border-radius: 15px;
     min-width: 0;
-    padding: 7px;
+    padding: 6px;
     position: absolute;
     transform: translate(-50%, -50%);
-    width: 116px;
+    width: 112px;
   }
 
   .currentSeat {
+    border-color: rgba(245, 200, 75, 0.68);
+    box-shadow:
+      0 0 0 1px rgba(245, 200, 75, 0.25),
+      0 10px 26px rgba(245, 200, 75, 0.12);
     transform: translate(-50%, -50%) scale(1.05);
+  }
+
+  .winningSeat {
+    border-color: rgba(110, 231, 168, 0.7);
+    box-shadow:
+      0 0 0 1px rgba(110, 231, 168, 0.28),
+      0 12px 30px rgba(110, 231, 168, 0.16);
   }
 
   .emptySeatCard {
@@ -1455,10 +1580,16 @@
   }
 
   .seatBadges span:last-child {
-    display: none;
+    background: rgba(255, 255, 255, 0.07);
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .streetAction {
+    background: rgba(245, 200, 75, 0.13);
+    border-color: rgba(245, 200, 75, 0.24);
+    color: var(--warning);
     font-size: 10px;
     justify-content: center;
     margin: 4px auto 0;
@@ -1497,6 +1628,25 @@
     font-size: 10px;
     height: 26px;
     min-width: 19px;
+  }
+
+  .status_folded {
+    opacity: 0.58;
+  }
+
+  .status_all_in {
+    border-color: rgba(245, 200, 75, 0.55);
+  }
+
+  .status_out {
+    opacity: 0.45;
+  }
+
+  .winBadge {
+    font-size: 10px;
+    padding: 3px 7px;
+    right: 6px;
+    top: 6px;
   }
 
   .chipDelta {
@@ -1620,9 +1770,31 @@
   }
 
   .statsDialog {
-    border-radius: 24px;
-    max-height: 82vh;
-    padding: 16px;
+    border-radius: 24px 24px 0 0;
+    max-height: 78vh;
+    padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+    width: calc(100% + 24px);
+  }
+
+  .scoreSummary {
+    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .scoreSummary span {
+    border-radius: 14px;
+    padding: 8px;
+  }
+
+  .scoreSummary small {
+    font-size: 10px;
+  }
+
+  .scoreSummary strong {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .statsCard {
@@ -1659,6 +1831,20 @@
   .statsCard em {
     padding: 6px 8px;
     white-space: nowrap;
+  }
+
+  .waitingInvite {
+    align-items: stretch;
+    border-radius: 18px;
+    display: grid;
+    gap: 12px;
+    margin: 0 0 10px;
+    padding: 13px;
+  }
+
+  .waitingInvite button {
+    justify-content: center;
+    width: 100%;
   }
 
   .joinPanel {
