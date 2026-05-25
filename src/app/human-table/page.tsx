@@ -54,6 +54,7 @@ const copy = {
     actionAmount: "目标注额",
     actionFailed: "操作失败。",
     amountInvalid: "输入金额不合法。",
+    amountPlaceholder: "输入目标注额",
     activePlayers: "在桌玩家",
     bet: "下注",
     call: "跟注",
@@ -88,6 +89,9 @@ const copy = {
     passwordPlaceholder: "至少 4 位",
     players: "玩家统计",
     pot: "底池",
+    potQuarter: "1/4池",
+    potHalf: "1/2池",
+    potFull: "满池",
     profit: "输赢",
     raise: "加注",
     raiseRule: "加注金额必须大于前位玩家下注数量的 2 倍。",
@@ -100,6 +104,8 @@ const copy = {
     status: "状态",
     submit: "提交",
     submitting: "提交中...",
+    customAmount: "自定义",
+    chooseAmount: "选择下注金额",
     tableStatsHint: "桌上已下注但未结算的筹码按下注前归属计算。",
     thinking: "正在行动",
     timeoutHint: "超时后将自动执行保守动作：可过牌则过牌，否则弃牌。",
@@ -114,6 +120,7 @@ const copy = {
     actionAmount: "Target bet",
     actionFailed: "Action failed.",
     amountInvalid: "Invalid amount.",
+    amountPlaceholder: "Enter target bet",
     activePlayers: "Active players",
     bet: "Bet",
     call: "Call",
@@ -148,6 +155,9 @@ const copy = {
     passwordPlaceholder: "At least 4 characters",
     players: "Player Stats",
     pot: "Pot",
+    potQuarter: "1/4 pot",
+    potHalf: "1/2 pot",
+    potFull: "Pot",
     profit: "P&L",
     raise: "Raise",
     raiseRule: "Raise amount must be greater than twice the previous bet.",
@@ -160,6 +170,8 @@ const copy = {
     status: "Status",
     submit: "Submit",
     submitting: "Submitting...",
+    customAmount: "Custom",
+    chooseAmount: "Choose Amount",
     tableStatsHint: "Unsettled chips already committed to the pot are counted as still owned by the bettor.",
     thinking: "Acting",
     timeoutHint: "On timeout, the table will check when possible, otherwise fold.",
@@ -349,7 +361,9 @@ export default function HumanTablePage() {
                   currentBet={state.currentBet}
                   maxAmount={(myPlayer?.currentBet ?? 0) + pendingDecision.stack}
                   legalActions={pendingDecision.legalActions}
+                  minRaise={pendingDecision.minRaise}
                   onSubmit={(action) => void submitAction(action)}
+                  pot={state.pot}
                   setStatus={setStatus}
                   t={t}
                 />
@@ -495,13 +509,13 @@ export default function HumanTablePage() {
             <div className={styles.statsList}>
               {snapshot?.playerStats.map((stat) => (
                 <article className={`${styles.statsCard} ${stat.inSeat ? styles.activeStatsCard : ""}`} key={stat.playerId}>
-                  <div>
+                  <div className={styles.statsPlayer}>
                     <strong>{stat.name}</strong>
                     <span>{stat.inSeat ? t.inSeat : t.leftSeat}</span>
                   </div>
-                  <span><small>{t.currentStack}</small><b>{stat.currentStack}</b></span>
-                  <span><small>{t.committed}</small><b>{stat.committedChips}</b></span>
-                  <span><small>{t.effectiveStack}</small><b>{stat.effectiveStack}</b></span>
+                  <span className={styles.statsStack}><small>{t.currentStack}</small><b>{stat.effectiveStack}</b></span>
+                  <span className={styles.statsCommitted}><small>{t.committed}</small><b>{stat.committedChips}</b></span>
+                  <span className={styles.statsEffective}><small>{t.effectiveStack}</small><b>{stat.effectiveStack}</b></span>
                   <em className={deltaClass(stat.profit)}>{formatDelta(stat.profit)}</em>
                 </article>
               ))}
@@ -584,7 +598,9 @@ function ActionButtons({
   currentBet,
   legalActions,
   maxAmount,
+  minRaise,
   onSubmit,
+  pot,
   setStatus,
   t,
 }: {
@@ -593,18 +609,34 @@ function ActionButtons({
   currentBet: number;
   legalActions: LegalAction[];
   maxAmount: number;
+  minRaise: number;
   onSubmit: (action: PokerAction) => void;
+  pot: number;
   setStatus: (status: string | undefined) => void;
   t: (typeof copy)["zh"];
 }) {
-  function askAmount(type: "bet" | "raise") {
-    const minimum = type === "raise" ? currentBet * 2 + 1 : bigBlind;
-    const input = window.prompt(type === "raise" ? `${t.raise} (${t.raiseRule})` : t.bet, String(Math.min(maxAmount, minimum)));
-    if (input === null) {
-      return;
-    }
+  const [amountPicker, setAmountPicker] = useState<"bet" | "raise">();
+  const [customAmount, setCustomAmount] = useState("");
+  const amountActionType: "bet" | "raise" | undefined = legalActions.includes("bet") ? "bet" : legalActions.includes("raise") ? "raise" : undefined;
+  const potOptions = amountPicker
+    ? [
+        { label: t.potQuarter, amount: amountForRatio(amountPicker, 0.25) },
+        { label: t.potHalf, amount: amountForRatio(amountPicker, 0.5) },
+        { label: t.potFull, amount: amountForRatio(amountPicker, 1) },
+      ]
+    : [];
 
-    const amount = Math.floor(Number(input));
+  function amountForRatio(type: "bet" | "raise", ratio: number) {
+    const minimum = minimumAmount(type);
+    const potAmount = Math.floor(Math.max(0, pot) * ratio);
+    return Math.min(maxAmount, Math.max(minimum, potAmount));
+  }
+
+  function minimumAmount(type: "bet" | "raise") {
+    return type === "raise" ? Math.max(currentBet + minRaise, currentBet * 2 + 1) : bigBlind;
+  }
+
+  function submitAmount(type: "bet" | "raise", amount: number) {
     if (!Number.isFinite(amount) || amount <= 0 || amount > maxAmount) {
       setStatus(t.amountInvalid);
       return;
@@ -614,7 +646,24 @@ function ActionButtons({
       return;
     }
     setStatus(undefined);
+    setAmountPicker(undefined);
+    setCustomAmount("");
     onSubmit({ type, amount });
+  }
+
+  function openAmountPicker(type: "bet" | "raise") {
+    const minimum = minimumAmount(type);
+    setStatus(undefined);
+    setCustomAmount(String(Math.min(maxAmount, minimum)));
+    setAmountPicker(type);
+  }
+
+  function submitCustomAmount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!amountPicker) {
+      return;
+    }
+    submitAmount(amountPicker, Math.floor(Number(customAmount)));
   }
 
   return (
@@ -623,9 +672,43 @@ function ActionButtons({
         {legalActions.includes("fold") ? <button disabled={busy} type="button" onClick={() => onSubmit({ type: "fold" })}>{t.fold}</button> : null}
         {legalActions.includes("check") ? <button disabled={busy} type="button" onClick={() => onSubmit({ type: "check" })}>{t.check}</button> : null}
         {legalActions.includes("call") ? <button disabled={busy} type="button" onClick={() => onSubmit({ type: "call" })}>{t.call}</button> : null}
-        {legalActions.includes("bet") ? <button disabled={busy} type="button" onClick={() => askAmount("bet")}>{t.bet}</button> : null}
-        {legalActions.includes("raise") ? <button disabled={busy} type="button" onClick={() => askAmount("raise")}>{t.raise}</button> : null}
+        {legalActions.includes("bet") ? <button disabled={busy} type="button" onClick={() => openAmountPicker("bet")}>{t.bet}</button> : null}
+        {legalActions.includes("raise") ? <button disabled={busy} type="button" onClick={() => openAmountPicker("raise")}>{t.raise}</button> : null}
       </div>
+      {amountActionType && amountPicker ? (
+        <section className={styles.amountOverlay} role="dialog" aria-modal="true">
+          <div className={styles.amountDialog}>
+            <div className={styles.statsHeader}>
+              <div>
+                <p className={styles.eyebrow}>{amountPicker === "raise" ? t.raise : t.bet}</p>
+                <h2>{t.chooseAmount}</h2>
+                {amountPicker === "raise" ? <p className={styles.muted}>{t.raiseRule}</p> : null}
+              </div>
+              <button type="button" onClick={() => setAmountPicker(undefined)}>×</button>
+            </div>
+            <div className={styles.amountChoices}>
+              {potOptions.map((option) => (
+                <button disabled={busy} key={option.label} type="button" onClick={() => submitAmount(amountPicker, option.amount)}>
+                  <span>{option.label}</span>
+                  <strong>{option.amount}</strong>
+                </button>
+              ))}
+            </div>
+            <form className={styles.amountCustom} onSubmit={submitCustomAmount}>
+              <input
+                inputMode="numeric"
+                max={maxAmount}
+                min={1}
+                onChange={(event) => setCustomAmount(event.target.value)}
+                placeholder={t.amountPlaceholder}
+                type="number"
+                value={customAmount}
+              />
+              <button disabled={busy} type="submit">{t.submit}</button>
+            </form>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

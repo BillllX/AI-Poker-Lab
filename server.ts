@@ -2,7 +2,14 @@ import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
 import WebSocket, { WebSocketServer } from "ws";
 import { listAgents, markAgentDisconnected, markAgentSeen, subscribeAgentRegistry } from "./src/lib/server/agentRegistry";
-import { getPendingDecision, StaleDecisionRequestError, submitDecision, subscribePendingDecision, validateDecisionResponse } from "./src/lib/server/decisionBroker";
+import {
+  clearPendingDecisions,
+  getPendingDecision,
+  StaleDecisionRequestError,
+  submitDecision,
+  subscribePendingDecision,
+  validateDecisionResponse,
+} from "./src/lib/server/decisionBroker";
 import { addRuntimeFeedback, getRuntimeInstructions } from "./src/lib/server/runtimeInstructions";
 import { getTableManager } from "./src/lib/server/simulator";
 import { logger } from "./src/lib/server/logger";
@@ -124,13 +131,12 @@ async function main() {
         return;
       }
 
-      markAgentSeen(agentId);
+      markAgentSeen(agentId, { notify: false });
       send(ws, { type: "heartbeat", agentId, shouldStop: false, at: new Date().toISOString() });
     }, 5_000);
 
     ws.on("message", (raw) => {
-      markAgentSeen(agentId);
-      void getTableManager(origin).handleAgentOnline(agentId);
+      markAgentSeen(agentId, { notify: false });
 
       try {
         const payload = JSON.parse(raw.toString()) as (AgentDecisionResponse & { requestId?: string }) | AgentLeaveMessage;
@@ -202,6 +208,7 @@ async function main() {
       unsubscribe();
       unsubscribeRegistry();
       unsubscribeAssignment();
+      clearPendingDecisions("Agent WebSocket disconnected.", currentAssignment(agentId)?.tableId, agentId);
       markAgentDisconnected(agentId);
       logger.info("ws.closed", { agentId });
     });

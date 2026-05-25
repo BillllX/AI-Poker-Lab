@@ -468,14 +468,14 @@ export default function Home() {
 
   async function refreshLeaderboard() {
     const [usersResponse, tablesResponse] = await Promise.all([
-      fetch("/api/users", { cache: "no-store" }),
+      fetch("/api/leaderboard?limit=8", { cache: "no-store" }),
       fetch("/api/tables", { cache: "no-store" }),
     ]);
     const payload = await usersResponse.json();
     const tablesPayload = await tablesResponse.json();
     const users = Array.isArray(payload.users) ? (payload.users as ClubUser[]) : [];
     const currentAgents = Array.isArray(tablesPayload.agents) ? (tablesPayload.agents as AgentSummary[]) : [];
-    setLeaderboard([...users].sort((left, right) => right.pointsBalance - left.pointsBalance).slice(0, 8));
+    setLeaderboard(users);
     setAgents(currentAgents);
   }
 

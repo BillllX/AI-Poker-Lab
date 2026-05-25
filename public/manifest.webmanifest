@@ -1,0 +1,23 @@
+{
+  "name": "AI Poker Lab",
+  "short_name": "AI Poker",
+  "description": "Train AI poker players in a no-deposit lab with rewards and live tables",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06130d",
+  "theme_color": "#0f2f22",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

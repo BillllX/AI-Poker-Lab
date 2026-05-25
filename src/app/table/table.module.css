@@ -811,6 +811,76 @@
   min-width: 82px;
 }
 
+.amountOverlay {
+  align-items: center;
+  background: rgba(2, 8, 6, 0.72);
+  backdrop-filter: blur(8px);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: 18px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 110;
+}
+
+.amountDialog {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.13), transparent 15rem),
+    linear-gradient(180deg, rgba(18, 54, 38, 0.98), rgba(7, 23, 16, 0.98));
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+  display: grid;
+  gap: 14px;
+  max-width: 460px;
+  padding: 18px;
+  width: min(460px, 100%);
+}
+
+.amountChoices {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.amountChoices button {
+  align-items: center;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  min-height: 72px;
+}
+
+.amountChoices span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.amountChoices strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.amountCustom {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.amountCustom input {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text);
+  font: inherit;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
 .joinPanel {
   display: grid;
   gap: 14px;
@@ -904,7 +974,7 @@
 }
 
 .statsCard small,
-.statsCard > div span {
+.statsPlayer span {
   color: var(--muted);
   font-size: 12px;
 }
@@ -1224,6 +1294,29 @@
     min-width: 0;
   }
 
+  .amountOverlay {
+    align-items: flex-end;
+    padding: 12px 12px calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .amountDialog {
+    border-radius: 22px;
+    padding: 14px;
+  }
+
+  .amountChoices {
+    gap: 8px;
+  }
+
+  .amountChoices button {
+    min-height: 62px;
+    padding: 9px 8px;
+  }
+
+  .amountCustom {
+    grid-template-columns: 1fr;
+  }
+
   .controls a:hover,
   .controls button:hover:not(:disabled) {
     background:
@@ -1533,13 +1626,39 @@
   }
 
   .statsCard {
-    align-items: stretch;
-    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    min-height: 44px;
+    padding: 9px 10px;
   }
 
-  .statsCard > div,
+  .statsPlayer {
+    min-width: 0;
+  }
+
+  .statsPlayer strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .statsPlayer span,
+  .statsCommitted,
+  .statsEffective,
+  .statsStack small,
+  .statsHeader .muted {
+    display: none;
+  }
+
+  .statsStack b {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
   .statsCard em {
-    grid-column: 1 / -1;
+    padding: 6px 8px;
+    white-space: nowrap;
   }
 
   .joinPanel {

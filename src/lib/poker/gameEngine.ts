@@ -38,6 +38,8 @@ type PlayerDecision = {
 };
 
 export const initialStack = 1_000;
+const maxLogEntries = 200;
+const maxActionHistoryEntries = 500;
 
 export class PokerGameEngine {
   private deck: Card[] = [];
@@ -782,6 +784,9 @@ export class PokerGameEngine {
       message,
       createdAt: new Date().toISOString(),
     });
+    if (this.logs.length > maxLogEntries) {
+      this.logs.splice(0, this.logs.length - maxLogEntries);
+    }
   }
 
   private recordAction(
@@ -803,6 +808,9 @@ export class PokerGameEngine {
       potAfter: this.pot,
       createdAt: new Date().toISOString(),
     });
+    if (this.actionHistory.length > maxActionHistoryEntries) {
+      this.actionHistory.splice(0, this.actionHistory.length - maxActionHistoryEntries);
+    }
   }
 
   private publicActionHistoryForCurrentHand(): ActionHistoryItem[] {

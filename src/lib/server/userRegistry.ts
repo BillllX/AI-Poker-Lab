@@ -42,6 +42,49 @@ export async function listUsers() {
   });
 }
 
+export async function listLeaderboardUsers(limit = 20) {
+  const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+  const users = await prisma.user.findMany({
+    orderBy: [{ pointsBalance: "desc" }, { createdAt: "asc" }],
+    select: {
+      createdAt: true,
+      frozenPoints: true,
+      id: true,
+      name: true,
+      pointsBalance: true,
+    },
+    take: safeLimit,
+  });
+  const dailyProfits = await dailyProfitStatsForToday(users.map((user) => user.id));
+  return users.map((user) => {
+    const profit = dailyProfits.get(user.id);
+    return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
+  });
+}
+
+export async function rankUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    select: { createdAt: true, id: true, pointsBalance: true },
+    where: { id: userId },
+  });
+  if (!user) {
+    return undefined;
+  }
+
+  const ahead = await prisma.user.count({
+    where: {
+      OR: [
+        { pointsBalance: { gt: user.pointsBalance } },
+        {
+          createdAt: { lt: user.createdAt },
+          pointsBalance: user.pointsBalance,
+        },
+      ],
+    },
+  });
+  return ahead + 1;
+}
+
 export async function isUserNameAvailable(name: string) {
   const normalized = normalizeName(name);
   const existing = await prisma.user.findUnique({ where: { name: normalized } });
@@ -53,6 +96,11 @@ export async function getUser(userId: string) {
   const dailyProfits = await dailyProfitStatsForToday([userId]);
   const profit = dailyProfits.get(user.id);
   return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
+}
+
+export async function getUserLite(userId: string) {
+  const user = await findStoredUser(userId);
+  return publicUser(user, 0, 0);
 }
 
 export async function createUser(input: CreateUserInput) {
@@ -138,9 +186,7 @@ export async function verifyUserToken(userId: string, token: unknown) {
     throw new Error("userToken is invalid for this ownerUserId.");
   }
 
-  const dailyProfits = await dailyProfitStatsForToday([userId]);
-  const profit = dailyProfits.get(user.id);
-  return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
+  return publicUser(user, 0, 0);
 }
 
 export async function getUserFromSessionCookie(cookieHeader: string | null) {
@@ -150,6 +196,15 @@ export async function getUserFromSessionCookie(cookieHeader: string | null) {
   }
 
   return getUser(ownerUserId);
+}
+
+export async function getUserFromSessionCookieLite(cookieHeader: string | null) {
+  const ownerUserId = verifyUserSessionCookie(cookieHeader);
+  if (!ownerUserId) {
+    return undefined;
+  }
+
+  return getUserLite(ownerUserId);
 }
 
 export function createUserSessionSetCookie(ownerUserId: string) {

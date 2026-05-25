@@ -9,5 +9,5 @@ export async function GET(request: Request, context: { params: Promise<{ tableId
     return Response.json({ error: "Table was not found." }, { status: 404 });
   }
 
-  return Response.json(table.runner.snapshot());
+  return Response.json(table.runner.cachedSnapshot().snapshot);
 }

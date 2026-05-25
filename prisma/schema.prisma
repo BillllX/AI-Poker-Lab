@@ -21,6 +21,7 @@ model User {
   agentProfileContents AgentProfileContent[]
   agentPrivateSettings AgentPrivateSettings?
 
+  @@index([pointsBalance(sort: Desc), createdAt])
   @@map("users")
 }
 
@@ -38,6 +39,7 @@ model AgentQualification {
 
   @@unique([agentId, ownerUserId, modelName, protocolVersion])
   @@index([ownerUserId])
+  @@index([ownerUserId, passedAt(sort: Desc)])
   @@map("agent_qualifications")
 }
 
@@ -57,6 +59,7 @@ model PointsLedger {
 
   @@index([userId, dayKey])
   @@index([dayKey])
+  @@index([dayKey, type, userId])
   @@map("points_ledger")
 }
 
@@ -78,6 +81,7 @@ model AgentResult {
   user          User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
 
   @@index([ownerUserId, settledAt])
+  @@index([ownerUserId, profit(sort: Desc), settledAt(sort: Desc)])
   @@index([agentId, settledAt])
   @@index([modelName, settledAt])
   @@map("agent_results")
