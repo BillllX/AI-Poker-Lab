@@ -1,0 +1,410 @@
+.page {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(125, 230, 171, 0.14), transparent 34rem),
+    radial-gradient(circle at 86% 10%, rgba(245, 199, 65, 0.1), transparent 28rem),
+    linear-gradient(180deg, #020c08 0%, #061b13 48%, #020c08 100%);
+  color: #f4fff8;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 0 20px 72px;
+}
+
+.hero,
+.section,
+.productLoop,
+.pilot,
+.cta {
+  margin: 0 auto;
+  max-width: 1180px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero {
+  align-items: center;
+  display: grid;
+  gap: 48px;
+  grid-template-columns: minmax(0, 1.02fr) minmax(360px, 0.98fr);
+  min-height: calc(100vh - 84px);
+  padding: clamp(48px, 7vw, 96px) 0 60px;
+}
+
+.hero::before,
+.section::before,
+.pilot::before {
+  background:
+    linear-gradient(rgba(125, 230, 171, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 230, 171, 0.035) 1px, transparent 1px);
+  background-size: 42px 42px;
+  border-radius: 36px;
+  content: "";
+  inset: 18px -28px;
+  mask-image: linear-gradient(90deg, transparent, black 16%, black 84%, transparent);
+  opacity: 0.7;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.eyebrow {
+  color: #7de6ab;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.section h2,
+.productLoop h2,
+.pilot h2,
+.cta h2 {
+  color: #f8fff9;
+  font-size: clamp(38px, 6vw, 82px);
+  letter-spacing: -0.075em;
+  line-height: 0.94;
+  margin: 0;
+}
+
+.section h2,
+.productLoop h2,
+.pilot h2,
+.cta h2 {
+  font-size: clamp(34px, 4.4vw, 58px);
+  max-width: 900px;
+}
+
+.lede,
+.sectionHeader p,
+.productLoop p,
+.pilot p,
+.cta p {
+  color: rgba(226, 246, 234, 0.74);
+  font-size: 18px;
+  line-height: 1.72;
+  margin: 22px 0 0;
+  max-width: 780px;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.heroActions a,
+.cta a {
+  align-items: center;
+  background: linear-gradient(135deg, #76e4aa, #bbf7d0);
+  border-radius: 999px;
+  color: #04150d;
+  display: inline-flex;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 24px;
+  text-decoration: none;
+}
+
+.heroActions .secondaryAction {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(125, 230, 171, 0.28);
+  color: #f4fff8;
+}
+
+.trustRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 34px;
+}
+
+.trustRow span,
+.loopCards span {
+  background: rgba(125, 230, 171, 0.1);
+  border: 1px solid rgba(125, 230, 171, 0.24);
+  border-radius: 999px;
+  color: #9bf3bd;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 9px 12px;
+}
+
+.heroPhones {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+}
+
+.offsetPhone {
+  margin-top: 72px;
+}
+
+.section {
+  padding: 86px 0 24px;
+}
+
+.sectionHeader {
+  align-items: end;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.7fr);
+  margin-bottom: 34px;
+}
+
+.sectionHeader p {
+  margin-top: 0;
+}
+
+.benefitGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.benefitCard,
+.productLoop,
+.pilot,
+.cta,
+.loopCards article {
+  background:
+    linear-gradient(180deg, rgba(16, 70, 48, 0.88), rgba(7, 38, 27, 0.82)),
+    rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(125, 230, 171, 0.18);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.24);
+}
+
+.benefitCard {
+  border-radius: 26px;
+  min-height: 178px;
+  padding: 24px;
+}
+
+.benefitCard h3,
+.phoneCaption h3,
+.loopCards strong {
+  color: #f8fff9;
+  font-size: 20px;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.benefitCard p,
+.phoneCaption p {
+  color: rgba(226, 246, 234, 0.68);
+  font-size: 15px;
+  line-height: 1.58;
+  margin: 12px 0 0;
+}
+
+.productLoop,
+.pilot,
+.cta {
+  border-radius: 34px;
+  display: grid;
+  gap: 32px;
+  grid-template-columns: minmax(0, 0.88fr) minmax(360px, 1fr);
+  margin-top: 88px;
+  padding: clamp(28px, 5vw, 48px);
+}
+
+.loopCards {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.loopCards article {
+  border-radius: 22px;
+  display: grid;
+  gap: 18px;
+  min-height: 150px;
+  padding: 22px;
+}
+
+.loopCards span {
+  display: inline-flex;
+  width: max-content;
+}
+
+.screenshotGrid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.phoneCard {
+  min-width: 0;
+}
+
+.phoneFrame {
+  background: #020c08;
+  border: 1px solid rgba(125, 230, 171, 0.34);
+  border-radius: 34px;
+  box-shadow:
+    0 34px 90px rgba(0, 0, 0, 0.36),
+    inset 0 0 0 8px rgba(255, 255, 255, 0.025);
+  margin: 0 auto;
+  max-width: 315px;
+  overflow: hidden;
+  padding: 10px;
+}
+
+.phoneFrame img {
+  border-radius: 24px;
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.phoneCaption {
+  margin: 16px auto 0;
+  max-width: 315px;
+}
+
+.pilot {
+  align-items: start;
+}
+
+.pilot ol {
+  counter-reset: pilot;
+  display: grid;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pilot li {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(125, 230, 171, 0.16);
+  border-radius: 18px;
+  color: rgba(244, 255, 248, 0.86);
+  counter-increment: pilot;
+  font-size: 16px;
+  line-height: 1.55;
+  padding: 18px 18px 18px 62px;
+  position: relative;
+}
+
+.pilot li::before {
+  align-items: center;
+  background: #76e4aa;
+  border-radius: 999px;
+  color: #04150d;
+  content: counter(pilot);
+  display: inline-flex;
+  font-weight: 900;
+  height: 30px;
+  justify-content: center;
+  left: 18px;
+  position: absolute;
+  top: 18px;
+  width: 30px;
+}
+
+.cta {
+  display: block;
+  margin-bottom: 34px;
+  text-align: center;
+}
+
+.cta h2,
+.cta p {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.cta a {
+  margin-top: 30px;
+}
+
+@media (max-width: 980px) {
+  .hero,
+  .sectionHeader,
+  .productLoop,
+  .pilot {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    min-height: 0;
+  }
+
+  .heroPhones {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding: 8px 4px 18px;
+  }
+
+  .benefitGrid,
+  .screenshotGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .offsetPhone {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 0 14px 46px;
+  }
+
+  .hero {
+    gap: 32px;
+    padding-top: 38px;
+  }
+
+  .hero h1,
+  .section h2,
+  .productLoop h2,
+  .pilot h2,
+  .cta h2 {
+    letter-spacing: -0.065em;
+  }
+
+  .lede,
+  .sectionHeader p,
+  .productLoop p,
+  .pilot p,
+  .cta p {
+    font-size: 16px;
+  }
+
+  .heroPhones {
+    scroll-snap-type: x mandatory;
+  }
+
+  .heroPhones .phoneCard,
+  .screenshotGrid .phoneCard {
+    scroll-snap-align: center;
+  }
+
+  .benefitGrid,
+  .screenshotGrid,
+  .loopCards {
+    grid-template-columns: 1fr;
+  }
+
+  .section {
+    padding-top: 64px;
+  }
+
+  .productLoop,
+  .pilot,
+  .cta {
+    border-radius: 26px;
+    margin-top: 58px;
+    padding: 24px;
+  }
+
+  .phoneFrame {
+    max-width: 292px;
+  }
+}

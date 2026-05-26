@@ -20,6 +20,7 @@
   margin: 0 auto 20px;
   max-width: 1500px;
   padding: 22px;
+  position: relative;
 }
 
 .eyebrow {
@@ -123,6 +124,14 @@
   transform: none;
 }
 
+.headerActions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .languageTabs {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
@@ -148,7 +157,7 @@
 .layout {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(720px, 1fr) 380px;
+  grid-template-columns: minmax(720px, 1fr) 340px;
   margin: 0 auto;
   max-width: 1500px;
 }
@@ -163,7 +172,7 @@
   box-shadow:
     0 26px 88px rgba(0, 0, 0, 0.26),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  min-height: 720px;
+  min-height: 0;
   padding: 24px;
 }
 
@@ -185,6 +194,27 @@
   padding: 7px 10px;
 }
 
+.tableControlStack {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(110, 231, 168, 0.1), transparent 18rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  display: grid;
+  gap: 12px;
+  margin: 16px auto 0;
+  max-width: 900px;
+  padding: 14px;
+}
+
+.tableControlStack .controls {
+  justify-content: center;
+}
+
+.tableControlStack .error {
+  margin: 0;
+}
+
 .table {
   background:
     radial-gradient(ellipse at center, rgba(110, 231, 168, 0.22), transparent 20%),
@@ -197,11 +227,11 @@
     inset 0 0 70px rgba(0, 0, 0, 0.42),
     0 30px 100px rgba(0, 0, 0, 0.42),
     0 0 70px rgba(110, 231, 168, 0.12);
-  height: min(68vw, 680px);
+  height: min(56vw, 620px);
   margin: 0 auto;
-  max-height: 680px;
-  max-width: 980px;
-  min-height: 620px;
+  max-height: 620px;
+  max-width: 900px;
+  min-height: 540px;
   min-width: 680px;
   position: relative;
 }
@@ -733,6 +763,12 @@
   width: 100%;
 }
 
+.fieldHint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .coachingForm button,
 .dangerAction,
 .primaryAction {
@@ -772,14 +808,15 @@
 .actionPanel {
   display: grid;
   gap: 10px;
+  position: relative;
 }
 
 .actionDock {
   align-items: center;
   display: grid;
   gap: 8px;
-  margin: 0 auto 14px;
-  max-width: 1500px;
+  margin: 0;
+  max-width: none;
   min-width: min(520px, 100%);
 }
 
@@ -823,6 +860,12 @@
 .actionGrid button {
   flex: 1 0 auto;
   min-width: 82px;
+}
+
+.allInAction {
+  background: rgba(251, 113, 133, 0.16);
+  border-color: rgba(251, 113, 133, 0.34);
+  color: var(--danger);
 }
 
 .amountOverlay {
@@ -935,6 +978,98 @@
   min-height: 42px;
   padding: 10px 14px;
   white-space: nowrap;
+}
+
+.waitingNextHandPanel {
+  border-color: rgba(245, 200, 75, 0.34);
+}
+
+.buyInPanel {
+  align-items: center;
+  background: rgba(110, 231, 168, 0.07);
+  border: 1px solid rgba(110, 231, 168, 0.18);
+  border-radius: 18px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin: 0;
+  max-width: none;
+  padding: 12px 14px;
+}
+
+.buyInPanel p {
+  margin: 0;
+}
+
+.inlineBuyInForm {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.inlineBuyInForm input {
+  max-width: 130px;
+}
+
+.buyInOverlay {
+  align-items: center;
+  background: rgba(2, 8, 6, 0.72);
+  backdrop-filter: blur(10px);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: 24px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 120;
+}
+
+.buyInDialog {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.14), transparent 17rem),
+    linear-gradient(180deg, rgba(18, 54, 38, 0.98), rgba(7, 23, 16, 0.98));
+  border: 1px solid rgba(245, 200, 75, 0.28);
+  border-radius: 28px;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.44);
+  display: grid;
+  gap: 16px;
+  max-width: 520px;
+  padding: 20px;
+  width: min(520px, 100%);
+}
+
+.buyInDialogForm {
+  display: grid;
+  gap: 12px;
+}
+
+.buyInDialogForm label {
+  color: var(--muted);
+  display: grid;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.buyInDialogForm button {
+  align-items: center;
+  background: rgba(110, 231, 168, 0.16);
+  border: 1px solid rgba(110, 231, 168, 0.32);
+  border-radius: 999px;
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 44px;
+  padding: 11px 16px;
+}
+
+.buyInDialogForm button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .statsOverlay {
@@ -1299,6 +1434,12 @@
     padding: 12px;
   }
 
+  .headerActions {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+  }
+
   .header h1 {
     font-size: 22px;
     letter-spacing: -0.045em;
@@ -1357,28 +1498,26 @@
   }
 
   .actionDock {
-    backdrop-filter: blur(18px);
+    backdrop-filter: none;
     background:
-      linear-gradient(180deg, rgba(22, 69, 47, 0.94), rgba(7, 20, 14, 0.98)),
+      linear-gradient(180deg, rgba(22, 69, 47, 0.8), rgba(7, 20, 14, 0.84)),
       radial-gradient(circle at 50% 0%, rgba(110, 231, 168, 0.24), transparent 16rem);
     border: 1px solid rgba(110, 231, 168, 0.22);
-    border-radius: 24px 24px 0 0;
-    bottom: calc(82px + env(safe-area-inset-bottom));
+    border-radius: 20px;
+    bottom: auto;
     box-shadow:
-      0 -24px 70px rgba(0, 0, 0, 0.5),
+      0 14px 34px rgba(0, 0, 0, 0.22),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    left: 8px;
     margin: 0;
     max-width: none;
     min-width: 0;
-    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
-    position: fixed;
-    right: 8px;
-    z-index: 76;
+    padding: 10px;
+    position: static;
+    z-index: auto;
   }
 
   .idleActionDock {
-    display: none;
+    display: grid;
   }
 
   .activeActionDock {
@@ -1402,15 +1541,20 @@
   }
 
   .amountOverlay {
-    align-items: flex-end;
-    padding: 12px 12px calc(92px + env(safe-area-inset-bottom));
+    align-items: stretch;
+    backdrop-filter: none;
+    background: transparent;
+    display: block;
+    padding: 0;
+    position: static;
   }
 
   .amountDialog {
-    border-radius: 24px 24px 0 0;
-    margin-inline: -12px;
-    padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
-    width: calc(100% + 24px);
+    border-radius: 18px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+    max-width: none;
+    padding: 12px;
+    width: 100%;
   }
 
   .amountChoices {
@@ -1461,6 +1605,29 @@
     min-height: auto;
     overflow: hidden;
     padding: 8px;
+  }
+
+  .tableControlStack {
+    border-radius: 18px;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .tableControlStack .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  }
+
+  .buyInPanel,
+  .inlineBuyInForm {
+    align-items: stretch;
+    display: grid;
+    gap: 8px;
+  }
+
+  .inlineBuyInForm input {
+    max-width: none;
   }
 
   .table {
@@ -1769,9 +1936,20 @@
     padding: 12px;
   }
 
+  .buyInOverlay {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
   .statsDialog {
     border-radius: 24px 24px 0 0;
     max-height: 78vh;
+    padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+    width: calc(100% + 24px);
+  }
+
+  .buyInDialog {
+    border-radius: 24px 24px 0 0;
     padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
     width: calc(100% + 24px);
   }

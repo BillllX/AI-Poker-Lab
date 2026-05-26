@@ -93,7 +93,7 @@ export function BottomNav() {
         href: profileHref,
         icon: PlayerIcon,
         label: profileLabel,
-        match: (currentPathname: string) => currentPathname === "/me",
+        match: (currentPathname: string) => currentPathname === "/me" || currentPathname === "/journey",
       }].map((item) => {
         const Icon = item.icon;
         const active = item.match(pathname);

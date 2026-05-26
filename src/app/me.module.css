@@ -330,6 +330,41 @@
   opacity: 0.62;
 }
 
+.journeyPanel {
+  align-items: center;
+  background: linear-gradient(180deg, rgba(110, 231, 168, 0.08), var(--surface-1));
+  border: 1px solid rgba(110, 231, 168, 0.22);
+  border-radius: var(--radius-xl);
+  color: var(--text);
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  margin-top: 12px;
+  padding: 16px 18px;
+  text-align: center;
+  text-decoration: none;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.journeyPanel:hover {
+  border-color: rgba(250, 204, 21, 0.45);
+  transform: translateY(-1px);
+}
+
+.journeyPanel strong {
+  color: var(--accent);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.journeyPanel span {
+  color: var(--muted);
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 36rem;
+}
+
 .stylePicker {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

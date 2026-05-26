@@ -3,7 +3,9 @@
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { use, useEffect, useRef, useState } from "react";
+import { SoundToggle } from "@/components/SoundToggle";
 import { useLanguage } from "@/lib/client/i18n";
+import { useTableSounds } from "@/lib/client/tableSoundEvents";
 import type { Card, GameSnapshot } from "@/lib/poker/types";
 import styles from "../../table/table.module.css";
 
@@ -109,15 +111,6 @@ const copy = {
 };
 
 const initialStack = 1_000;
-const actionSoundPaths = {
-  "all-in": "/audio/actions/all-in.wav",
-  bet: "/audio/actions/bet.wav",
-  blind: "/audio/actions/blind.wav",
-  call: "/audio/actions/call.wav",
-  check: "/audio/actions/check.wav",
-  fold: "/audio/actions/fold.wav",
-  raise: "/audio/actions/raise.wav",
-};
 
 type WinnerReveal = {
   handId: number;
@@ -139,8 +132,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const [controlStatus, setControlStatus] = useState<string>();
   const [controlBusy, setControlBusy] = useState<"coaching" | "leave">();
   const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
-  const announcedActionIdsRef = useRef<Set<string>>(new Set());
-  const actionSoundReadyRef = useRef(false);
   const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
   const winnerRevealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const players = state?.players ?? [];
@@ -150,6 +141,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const waitingForFirstDeal = Boolean(state?.running && state.handId === 0 && players.length >= 2 && players.every((player) => (player.holeCards?.length ?? 0) === 0));
   const streetActions = currentStreetActions(state);
   const handWinners = winnerReveal?.winners ?? [];
+
+  useTableSounds(state);
 
   function revealWinnersForSnapshot(snapshot: GameSnapshot) {
     if (snapshot.handId === lastWinnerRevealHandIdRef.current) {
@@ -210,34 +203,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!state) {
-      return;
-    }
-
-    const actionIds = new Set(state.actionHistory.map((item) => item.id));
-    if (!actionSoundReadyRef.current) {
-      announcedActionIdsRef.current = actionIds;
-      actionSoundReadyRef.current = true;
-      return;
-    }
-
-    for (const item of state.actionHistory) {
-      if (announcedActionIdsRef.current.has(item.id)) {
-        continue;
-      }
-      const soundPath = soundPathForAction(item, state);
-      if (soundPath) {
-        void playActionSound(soundPath);
-      }
-      announcedActionIdsRef.current.add(item.id);
-    }
-
-    if (announcedActionIdsRef.current.size > 200) {
-      announcedActionIdsRef.current = actionIds;
-    }
-  }, [state]);
 
   useEffect(() => {
     return () => {
@@ -316,6 +281,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
           <p className={styles.subtitle}>
             {state?.running ? t.running : t.waitingStart} · {players.length}/6 {t.seats} · {t.hand} #{state?.handId ?? 0}
           </p>
+        </div>
+        <div className={styles.headerActions}>
+          <SoundToggle />
         </div>
       </section>
 
@@ -570,33 +538,6 @@ function formatStreetAction(item: GameSnapshot["actionHistory"][number]) {
     return `${item.action} ${item.amount}`;
   }
   return item.action;
-}
-
-function soundPathForAction(item: GameSnapshot["actionHistory"][number], state: GameSnapshot) {
-  if (item.action === "deal" || item.action === "win") {
-    return undefined;
-  }
-
-  const player = state.players.find((entry) => entry.id === item.playerId);
-  if ((item.action === "bet" || item.action === "raise" || item.action === "call") && player?.status === "all-in") {
-    return actionSoundPaths["all-in"];
-  }
-
-  if (item.action === "post-blind") {
-    return actionSoundPaths.blind;
-  }
-
-  return actionSoundPaths[item.action];
-}
-
-async function playActionSound(path: string) {
-  try {
-    const audio = new Audio(path);
-    audio.volume = 0.72;
-    await audio.play();
-  } catch {
-    // Browsers may block audio until the viewer interacts with the page.
-  }
 }
 
 function positionLabel(index: number, dealerIndex: number, playerCount: number) {

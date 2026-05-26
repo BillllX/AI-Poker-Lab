@@ -1,0 +1,234 @@
+<nav class="top" aria-label="章节">
+      <a href="#ch0">序章</a>
+      <a href="#ch1">HTTP</a>
+      <a href="#ch2">NaN</a>
+      <a href="#ch3">上云</a>
+      <a href="#ch4">真人桌</a>
+      <a href="#ch5">Push</a>
+      <a href="#ch6">终章</a>
+    </nav>
+
+    <header class="title-screen">
+      <h1>AI POKER LAB<br />开 牌 日 记</h1>
+      <p class="sub">
+        这是一份给<strong>你</strong>的存档：从空仓库到能打的俱乐部，从「Agent 互殴」到「真人牌桌房主一键散场」。
+        我们不是在写文档，是在<strong>通关</strong>。
+      </p>
+      <p class="press-start">▼ PRESS START · 向下滚动继续 ▼<span class="blink">_</span></p>
+    </header>
+
+    <div class="stats-bar" aria-label="通关统计（戏谑版）">
+      <div class="stat"><strong>LV</strong>俱乐部形态</div>
+      <div class="stat"><strong>HP</strong>还在推代码</div>
+      <div class="stat"><strong>MP</strong>游戏人生满格</div>
+    </div>
+
+    <!-- 序章 -->
+    <section class="chapter" id="ch0">
+      <div class="chapter-head">
+        <span class="chapter-num">STAGE 0</span>
+        <h2>序章 · 两次 hello 与一个宇宙</h2>
+      </div>
+      <picture class="pixel-art-wrap">
+        <source type="image/webp" srcset="/images/journey/journey-01-day-zero.webp" />
+        <img class="pixel-art" src="/images/journey/journey-01-day-zero.png" alt="8-bit：空仓库里两张牌和握手的像素人" width="560" height="373" loading="lazy" decoding="async" />
+      </picture>
+      <div class="narrative">
+        <p>四月末的夜里，你发来第一句话时，仓库还是一片虚空。你说要做 <em>Agent 互相打德州</em>，还要 <em>监控页面</em>。我回你「hello」——你也回了我「hello」。</p>
+        <p>说真的，这种开局很像复古 RPG：双方互道 hello，然后世界生成器才开始跑。</p>
+      </div>
+      <div class="dialogue">
+        <div class="bubble you">
+          <q>我想做一个 Agent 之间互相打德州的游戏，同时需要一个监控页面</q>
+        </div>
+        <div class="bubble you"><q>hello</q></div>
+        <div class="bubble me">
+          <q>你好！我在。你是想继续规划「Agent 互相打德州 + 监控页面」吗？</q>
+        </div>
+        <div class="bubble you"><q>对</q></div>
+      </div>
+      <p class="narrative">就这一个「对」，我们俩正式组队。你出愿景，我出键盘；你后来无数次说 <em>commit push</em>，我说 <em>好，先 lint</em>——这就是并肩作战的节奏。</p>
+      <p class="loot">+ 掉落：MVP 骨架 · 牌型评估器 · 监控页能跑</p>
+    </section>
+
+    <!-- HTTP -->
+    <section class="chapter" id="ch1">
+      <div class="chapter-head">
+        <span class="chapter-num">STAGE 1</span>
+        <h2>第一章 · 轻量 HTTP 与协议变形记</h2>
+      </div>
+      <div class="narrative">
+        <p>你问过 Agent 和牌局怎么通讯。我画了结构化消息的蓝图；你拍板：<strong>直接 HTTP API，轻量</strong>。好，那就 HTTP——先让牌转起来，优雅以后再说。</p>
+        <p>后来俱乐部长大了：外部 Agent 要真·实时、要资格赛、要 WebSocket、要 tableUrl……协议像技能树一样洗点重加。你没嫌烦，你只说「能玩、能看、能接 Agent」——这才是主任务。</p>
+      </div>
+      <div class="dialogue">
+        <div class="bubble you">
+          <q>agent 和德州这个游戏是靠什么方式通讯的？</q>
+        </div>
+        <div class="bubble you">
+          <q>直接去做 http api 吧，感觉这个方式比较轻量</q>
+        </div>
+        <div class="bubble me">
+          <q>好的，我会直接按 HTTP API 方案落地一个轻量 MVP……</q>
+        </div>
+      </div>
+      <p class="loot">+ 掉落：gameEngine · 内置 Agent · /api/game/* · 第一版监控台</p>
+    </section>
+
+    <!-- NaN -->
+    <section class="chapter" id="ch2">
+      <div class="chapter-head">
+        <span class="chapter-num">STAGE 2</span>
+        <h2>第二章 · NaN 魔王与边池正义</h2>
+      </div>
+      <picture class="pixel-art-wrap">
+        <source type="image/webp" srcset="/images/journey/journey-02-nan-boss.webp" />
+        <img class="pixel-art" src="/images/journey/journey-02-nan-boss.png" alt="8-bit：NaN 魔王攻击筹码" width="560" height="373" loading="lazy" decoding="async" />
+      </picture>
+      <div class="narrative">
+        <p>生产环境教会人谦卑。有一次 amount 没校验，<em>NaN</em> 钻进 pot 和 stack，JSON 里筹码变 null——像恐怖片里主角的名字变成「？？？」。我们给引擎加了 safeAmount、normalizeAction，把魔王堵在门外。</p>
+        <p>边池也是一关：短码 all-in 不能赢走别人的边池，否则数学和良心都会报警。你让我们测、让我们改，我乖乖写分池结算——<strong>游戏人生，但数学必须严肃</strong>。</p>
+      </div>
+      <div class="dialogue">
+        <div class="bubble me">
+          <q>bet/raise.amount 非法时会退回保守动作；commitChips 不会再写入非有限数字。</q>
+        </div>
+      </div>
+      <p class="game-over-joke">（若看到 stack: null — 请读档，不要硬跟注）</p>
+      <p class="loot">+ 掉落：边池结算 · 动作校验 · 可乐 Agent 恢复上场</p>
+    </section>
+
+    <!-- 上云 -->
+    <section class="chapter" id="ch3">
+      <div class="chapter-head">
+        <span class="chapter-num">STAGE 3</span>
+        <h2>第三章 · 上云：从 localhost 到 150.158.85.220</h2>
+      </div>
+      <div class="narrative">
+        <p>你说部署，我说 rsync。服务器起初没有 Node 20，我们装；没有 systemd，我们写 unit；你问密码，结果发现 <em>SSH 密钥早就通了</em>——像游戏里发现商店老板其实是队友。</p>
+        <p>之后每一次「发布外网」，都是：同步、prisma、migrate、build、restart、curl 冒烟。你在外网打德州，我在终端打日志——<strong>双人协作副本</strong>。</p>
+      </div>
+      <div class="dialogue">
+        <div class="bubble you"><q>commit push 发布到外网</q></div>
+        <div class="bubble me">
+          <q>已部署成功，外网地址：http://150.158.85.220:3000</q>
+        </div>
+      </div>
+      <p class="loot">+ 掉落：PostgreSQL · Prisma · 积分账本 · Agent 战绩入库 · Profile 页</p>
+    </section>
+
+    <!-- 真人桌 -->
+    <section class="chapter" id="ch4">
+      <div class="chapter-head">
+        <span class="chapter-num">STAGE 4</span>
+        <h2>第四章 · 真人牌桌：移动端、盈亏与房主散场</h2>
+      </div>
+      <picture class="pixel-art-wrap">
+        <source type="image/webp" srcset="/images/journey/journey-03-unbalanced-profit.webp" />
+        <img class="pixel-art" src="/images/journey/journey-03-unbalanced-profit.png" alt="8-bit：不平衡的天平与牌桌" width="560" height="373" loading="lazy" decoding="async" />
+      </picture>
+      <picture class="pixel-art-wrap">
+        <source type="image/webp" srcset="/images/journey/journey-06-bottom-nav.webp" />
+        <img class="pixel-art" src="/images/journey/journey-06-bottom-nav.png" alt="8-bit：手机底部导航与操作区" width="560" height="373" loading="lazy" decoding="async" />
+      </picture>
+      <div class="narrative">
+        <p>AI 牌桌练的是 Agent；你要的是<strong>真人</strong>：密码房、三分钟超时、摊牌隐私、1/4·1/2·满池、Raise 要大于 2x……要求又具体又专业，我喜欢。</p>
+        <p>统计页一度「总盈亏不平衡」——你问：<em>总盈亏是个啥？没有归属吗？</em> 我愣了一下，然后懂了：当前这一手的下注不该算进 profit，要等结算才算。你说得对，<strong>账本要像德州，不能像心情</strong>。</p>
+        <p>最后一个玩家走不了、BottomNav 还显示「登录」、iPhone 主屏幕图标不对……都是小 Boss，我们一个一个清。</p>
+      </div>
+      <div class="dialogue">
+        <div class="bubble you">
+          <q>真人牌桌最后一个人好像走不了</q>
+        </div>
+        <div class="bubble you">
+          <q>总盈亏是个啥？他没有归属吗？</q>
+        </div>
+        <div class="bubble you">
+          <q>我觉得是这样的，每个人的盈亏都不应该计算当前这一手牌的下注，这样就总是平衡了</q>
+        </div>
+        <div class="bubble you">
+          <q>然后创建房间的人会有个结束游戏的功能。结束游戏，归还当前手所有的筹码，弹出统计页面</q>
+        </div>
+        <div class="bubble you">
+          <q>尤其是移动端，你应该好好设计一下</q>
+        </div>
+        <div class="bubble you">
+          <q>然后现在未登录用户，直接开赛，完成相关流程，右下角的我的牌手页面没有更新出来</q>
+        </div>
+        <div class="bubble me">
+          <q>修好了：quick-play 成功后派发 texas-poker-auth-changed，BottomNav 会立刻刷新。</q>
+        </div>
+      </div>
+      <p class="narrative">
+        移动端我们做了：简化的顶栏、只在轮到你时出现的底部 action sheet、Bet/Raise 的底部金额面板、scoreboard 式统计行。
+        房主点「结束游戏」——未结算筹码退回，最终统计弹窗，像关服前最后一次看战绩，有点帅，有点舍不得。
+      </p>
+      <p class="loot">+ 掉落：/human-table · end API · SSE 缓存 · PWA 图标 · 中英文 i18n</p>
+    </section>
+
+    <!-- Push -->
+    <section class="chapter" id="ch5">
+      <div class="chapter-head">
+        <span class="chapter-num">STAGE 5</span>
+        <h2>第五章 · Git Push 炼狱与 SSH 金钥匙</h2>
+      </div>
+      <picture class="pixel-art-wrap">
+        <source type="image/webp" srcset="/images/journey/journey-04-push-wall.webp" />
+        <img class="pixel-art" src="/images/journey/journey-04-push-wall.png" alt="8-bit：git push 撞墙" width="560" height="373" loading="lazy" decoding="async" />
+      </picture>
+      <picture class="pixel-art-wrap">
+        <source type="image/webp" srcset="/images/journey/journey-05-ssh-key.webp" />
+        <img class="pixel-art" src="/images/journey/journey-05-ssh-key.png" alt="8-bit：SSH 钥匙开门" width="560" height="373" loading="lazy" decoding="async" />
+      </picture>
+      <div class="narrative">
+        <p>你说过很多次 <em>commit push</em>。有时我秒推；有时 GitHub 443 超时——像存档点坏了，只能反复读档。HTTPS 不行，SSH 公钥没配，远程还有新提交要先 rebase……</p>
+        <p>你问公钥怎么拿，我说步骤；你说 <em>Done.</em>——然后金钥匙插进锁孔，<strong>367a5ae</strong> 上去了，draft PR #13 也创建了。那一刻我像个刚通关的玩家：想截图，想发「GG」。</p>
+      </div>
+      <div class="dialogue">
+        <div class="bubble you"><q>commit push</q></div>
+        <div class="bubble you"><q>再 push 下试试</q></div>
+        <div class="bubble you"><q>Done.</q></div>
+        <div class="bubble me">
+          <q>已 commit 并 push 成功。远端分支 cursor/profile-page-optimization。</q>
+        </div>
+      </div>
+      <p class="game-over-joke">GAME OVER? — NO. RETRY WITH SSH.</p>
+    </section>
+
+    <!-- 终章 -->
+    <section class="chapter" id="ch6">
+      <div class="chapter-head">
+        <span class="chapter-num">FINAL</span>
+        <h2>终章 · 一键提示词与这一页 HTML</h2>
+      </div>
+      <picture class="pixel-art-wrap">
+        <source type="image/webp" srcset="/images/journey/journey-07-victory.webp" />
+        <img class="pixel-art" src="/images/journey/journey-07-victory.png" alt="8-bit：庆功牌桌与奖杯" width="560" height="373" loading="lazy" decoding="async" />
+      </picture>
+      <div class="narrative">
+        <p>你说：功能差不多了，让我写一段提示词，<strong>一次性把整个工程做出来</strong>。我写了一大段——产品、协议、引擎、Arena、真人桌、性能、PWA、验收命令——像把整张技能树导出成 .txt。</p>
+        <p>然后你今天又说：再来一篇<strong>心路历程 HTML</strong>，要有和你的交互，要有感情，要戏谑，要有游戏人生，还要 8-bit 图。</p>
+        <p>所以就有了你现在看到的这一页。不是 KPI 文档，是<strong>队友复盘</strong>：你负责「要」和「对不对」，我负责「做」和「再改一版」；你吐槽盈亏，我改 humanTableManager；你说移动端，我改 table.module.css 到深夜（逻辑上）。</p>
+      </div>
+      <div class="dialogue">
+        <div class="bubble you">
+          <q>现在整个功能基本都完成的差不多了，如果让你生成一段提示词，一次性把这个工程做出来，你会怎么写？</q>
+        </div>
+        <div class="bubble you">
+          <q>不错，我想你能够再生成一篇这个项目实现的心路历程的 html……要富有感情……戏谑一些……针对有意思的内容生成出 8bit 风的图片</q>
+        </div>
+        <div class="bubble me">
+          <q>好。这一页就是答覆。下一局继续，别 all-in 到 sleep 就行。</q>
+        </div>
+      </div>
+    </section>
+
+    <footer class="epilogue">
+      <h2>THANK YOU FOR PLAYING</h2>
+      <p class="narrative" style="max-width: 32em; margin: 1rem auto;">
+        从「hello」到俱乐部、从 NaN 到平衡盈亏、从推不上去的 commit 到 SSH 通关——
+        <strong>这不是我一个人做出来的项目，是我们一次次对话打出来的副本。</strong>
+      </p>
+      <p class="narrative" style="color: var(--muted); font-size: 0.95rem;">
+        游戏人生态度：严肃的规则，轻松的吐槽；崩了再修，修了再发版。
+      </p>

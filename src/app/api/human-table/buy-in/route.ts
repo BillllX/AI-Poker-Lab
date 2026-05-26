@@ -11,9 +11,8 @@ export async function POST(request: Request) {
 
   try {
     const input = await request.json();
-    const password = typeof input.password === "string" ? input.password : "";
-    return Response.json(getHumanTableManager().createTable(user, password, input.buyIn));
+    return Response.json(getHumanTableManager().requestBuyIn(user.id, input.buyIn));
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Unable to create human table." }, { status: 400 });
+    return Response.json({ error: error instanceof Error ? error.message : "Unable to buy in." }, { status: 400 });
   }
 }

@@ -15,11 +15,13 @@ const copy = {
     ariaLabel: "页面导航",
     tableList: "牌桌列表",
     leaderboard: "排行榜",
+    myPlayer: "我的牌手",
   },
   en: {
     ariaLabel: "Page navigation",
     tableList: "Tables",
     leaderboard: "Leaderboard",
+    myPlayer: "My Player",
   },
 };
 
@@ -60,6 +62,10 @@ function topNavAction(pathname: string, language: Language): TopNavAction | unde
 
   if (pathname === "/table") {
     return { href: "/tables", label: t.tableList };
+  }
+
+  if (pathname === "/journey") {
+    return { href: "/me", label: t.myPlayer };
   }
 
   return undefined;

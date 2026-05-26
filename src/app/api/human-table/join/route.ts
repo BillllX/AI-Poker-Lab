@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   try {
     const input = await request.json();
     const password = typeof input.password === "string" ? input.password : "";
-    return Response.json(getHumanTableManager().join(user, password));
+    return Response.json(getHumanTableManager().join(user, password, input.buyIn));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to join human table." }, { status: 400 });
   }
