@@ -25,6 +25,7 @@ type PlayerConfig = {
   kind?: "external" | "hosted" | "human" | "virtual";
   strategy?: AgentStyle;
   endpoint?: string;
+  initialStack?: number;
 };
 type GameEngineOptions = {
   tableId?: string;
@@ -66,7 +67,7 @@ export class PokerGameEngine {
   ) {
     this.players = players.map((player) => ({
       ...player,
-      stack: initialStack,
+      stack: normalizedInitialStack(player.initialStack),
       holeCards: [],
       currentBet: 0,
       totalCommitted: 0,
@@ -102,7 +103,7 @@ export class PokerGameEngine {
       ...this.players,
       ...newPlayers.map((player) => ({
         ...player,
-        stack: initialStack,
+        stack: normalizedInitialStack(player.initialStack),
         holeCards: [],
         currentBet: 0,
         totalCommitted: 0,
@@ -126,6 +127,23 @@ export class PokerGameEngine {
     }
 
     return newPlayers.map((player) => player.id);
+  }
+
+  addChips(playerId: string, amount: number) {
+    const index = this.players.findIndex((player) => player.id === playerId);
+    const normalizedAmount = Math.floor(Number(amount));
+    if (index === -1 || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      return undefined;
+    }
+
+    this.players[index] = {
+      ...this.players[index],
+      stack: this.players[index].stack + normalizedAmount,
+      status: this.players[index].status === "out" ? "active" : this.players[index].status,
+    };
+    this.updateProfitStats();
+    this.log("system", `${this.players[index].name} 追加带入 ${normalizedAmount}，下一手起生效。`);
+    return this.players[index];
   }
 
   reset() {
@@ -401,7 +419,7 @@ export class PokerGameEngine {
       return player.stack > toCall ? ["fold", "call", "raise"] : ["fold", "call"];
     }
 
-    return player.stack > this.bigBlind ? ["check", "bet"] : ["check"];
+    return player.stack > 0 ? ["check", "bet"] : ["check"];
   }
 
   private decisionPublicState(currentPlayerId: string): AgentDecisionRequest["publicState"] {
@@ -465,7 +483,7 @@ export class PokerGameEngine {
       this.commitChips(index, toCall);
       this.players[index] = { ...this.players[index], lastReasoning: reasoning };
       const committed = Math.min(toCall, player.stack);
-      this.recordAction(player, "call", { amount: committed, targetBet: this.players[index].currentBet });
+      this.recordAction(player, "call", { amount: committed, isAllIn: this.players[index].stack === 0, targetBet: this.players[index].currentBet });
       this.log(player.id, withReasoning(`${player.name} 跟注 ${committed}。`, reasoning));
       return false;
     }
@@ -482,6 +500,7 @@ export class PokerGameEngine {
     this.players[index] = { ...updated, lastReasoning: reasoning };
     this.recordAction(player, action.type, {
       amount: updated.currentBet - player.currentBet,
+      isAllIn: updated.stack === 0,
       targetBet: updated.currentBet,
     });
     this.log(player.id, withReasoning(`${player.name} ${beforeBet === 0 ? "下注" : "加注到"} ${updated.currentBet}。`, reasoning));
@@ -792,7 +811,7 @@ export class PokerGameEngine {
   private recordAction(
     player: Pick<PlayerState, "id" | "name">,
     action: ActionHistoryItem["action"],
-    details: { amount?: number; handLabel?: string; handRank?: ActionHistoryItem["handRank"]; targetBet?: number } = {},
+    details: { amount?: number; handLabel?: string; handRank?: ActionHistoryItem["handRank"]; isAllIn?: boolean; targetBet?: number } = {},
   ) {
     this.actionHistory.push({
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -804,6 +823,7 @@ export class PokerGameEngine {
       amount: details.amount,
       handLabel: details.handLabel,
       handRank: details.handRank,
+      isAllIn: details.isAllIn,
       targetBet: details.targetBet,
       potAfter: this.pot,
       createdAt: new Date().toISOString(),
@@ -826,6 +846,7 @@ export class PokerGameEngine {
         amount: item.amount,
         handLabel: item.handLabel,
         handRank: item.handRank,
+        isAllIn: item.isAllIn,
         targetBet: item.targetBet,
         potAfter: item.potAfter,
         createdAt: item.createdAt,
@@ -872,6 +893,10 @@ function normalizeAction(action: PokerAction | undefined, legalActions: LegalAct
 function safeAmount(amount: number, fallback: number) {
   const parsed = Number(amount);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizedInitialStack(stack: number | undefined) {
+  return Number.isFinite(stack) && stack && stack > 0 ? Math.floor(stack) : initialStack;
 }
 
 function sanitizeReasoning(reasoning?: string) {

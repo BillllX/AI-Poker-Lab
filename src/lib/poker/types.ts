@@ -58,6 +58,7 @@ export type ActionHistoryItem = {
   amount?: number;
   handRank?: HandRank;
   handLabel?: string;
+  isAllIn?: boolean;
   targetBet?: number;
   potAfter: number;
   createdAt: string;

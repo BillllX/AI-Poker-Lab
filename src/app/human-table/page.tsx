@@ -3,7 +3,9 @@
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
+import { SoundToggle } from "@/components/SoundToggle";
 import { useLanguage } from "@/lib/client/i18n";
+import { useTableSounds } from "@/lib/client/tableSoundEvents";
 import type { Card, GameSnapshot, LegalAction, PokerAction } from "@/lib/poker/types";
 import styles from "../table/table.module.css";
 
@@ -23,6 +25,7 @@ type HumanTableSnapshot = {
     toCall: number;
   };
   playerStats: Array<{
+    buyIn: number;
     committedChips: number;
     currentStack: number;
     effectiveStack: number;
@@ -30,6 +33,7 @@ type HumanTableSnapshot = {
     joinedAt: string;
     leftAt?: string;
     name: string;
+    pendingBuyIn?: number;
     playerId: string;
     profit: number;
     status?: string;
@@ -54,6 +58,7 @@ const copy = {
     action: "动作",
     actionAmount: "目标注额",
     actionFailed: "操作失败。",
+    allIn: "全下",
     amountInvalid: "输入金额不合法。",
     amountPlaceholder: "输入目标注额",
     activePlayers: "在桌玩家",
@@ -66,6 +71,10 @@ const copy = {
     create: "创建牌桌",
     createHint: "当前没有真人牌桌。你将成为这张桌的创建者，并设置进入密码。",
     createTable: "创建真人牌桌",
+    buyIn: "带入筹码",
+    buyInHint: "带入必须是 1000 的整数倍。",
+    buyInNextHand: "下一手带入",
+    buyInQueued: "已预约下一手带入",
     currentBet: "当前注额",
     currentStack: "当前 Stack",
     effectiveStack: "归属筹码",
@@ -102,6 +111,8 @@ const copy = {
     profit: "输赢",
     raise: "加注",
     raiseRule: "加注金额必须大于前位玩家下注数量的 2 倍。",
+    rebuyTitle: "筹码已清空",
+    rebuyText: "你已经被清台，但仍保留在本桌统计中。选择带入筹码可从下一手继续；不买入则离开真人桌。",
     recentActions: "最近动作",
     running: "运行中",
     seatedHint: "你已在本桌入座。轮到你时，这里会出现所有合法动作。",
@@ -120,6 +131,8 @@ const copy = {
     totalProfit: "总盈亏",
     unbalanced: "统计待校验",
     waiting: "等待",
+    waitingNextHand: "等待下一手",
+    waitingNextHandText: "你已加入真人桌，当前手已经开始。本手不会轮到你行动，下一手发牌时会自动入局。",
     waitingInviteTitle: "等待玩家加入",
     waitingInviteText: "已有真人桌创建成功。分享当前页面并告知牌桌密码，至少 2 人入座后自动开局。",
     copyInviteLink: "复制邀请链接",
@@ -132,6 +145,7 @@ const copy = {
     action: "Action",
     actionAmount: "Target bet",
     actionFailed: "Action failed.",
+    allIn: "All-in",
     amountInvalid: "Invalid amount.",
     amountPlaceholder: "Enter target bet",
     activePlayers: "Active players",
@@ -144,6 +158,10 @@ const copy = {
     create: "Create table",
     createHint: "No human table is active. You will create it and set the entry password.",
     createTable: "Create Human Table",
+    buyIn: "Buy-in",
+    buyInHint: "Buy-in must be a multiple of 1000.",
+    buyInNextHand: "Buy in next hand",
+    buyInQueued: "Buy-in queued for next hand",
     currentBet: "Current bet",
     currentStack: "Current Stack",
     effectiveStack: "Owned chips",
@@ -180,6 +198,8 @@ const copy = {
     profit: "P&L",
     raise: "Raise",
     raiseRule: "Raise amount must be greater than twice the previous bet.",
+    rebuyTitle: "Out of chips",
+    rebuyText: "You are out of chips but still kept in this table's stats. Buy in to continue next hand, or leave if you do not want to rebuy.",
     recentActions: "Recent Actions",
     running: "Running",
     seatedHint: "You are seated. Legal actions will appear here when it is your turn.",
@@ -198,6 +218,8 @@ const copy = {
     totalProfit: "Total P&L",
     unbalanced: "Needs check",
     waiting: "Waiting",
+    waitingNextHand: "Waiting for next hand",
+    waitingNextHandText: "You have joined this human table after the current hand started. You will not act this hand and will be dealt in automatically next hand.",
     waitingInviteTitle: "Waiting for Players",
     waitingInviteText: "The human table is ready. Share this page and the table password; play starts automatically with at least two seated players.",
     copyInviteLink: "Copy invite link",
@@ -221,9 +243,12 @@ export default function HumanTablePage() {
   const t = copy[language];
   const [snapshot, setSnapshot] = useState<HumanTableSnapshot>();
   const [password, setPassword] = useState("");
+  const [buyIn, setBuyIn] = useState(String(initialStack));
+  const [nextBuyIn, setNextBuyIn] = useState(String(initialStack));
   const [busy, setBusy] = useState<"action" | "create" | "join" | "leave" | "end">();
   const [status, setStatus] = useState<string>();
   const [statsOpen, setStatsOpen] = useState(false);
+  const [buyInDialogOpen, setBuyInDialogOpen] = useState(false);
   const [finalPlayerStats, setFinalPlayerStats] = useState<HumanTableSnapshot["playerStats"]>();
   const [now, setNow] = useState(() => Date.now());
   const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
@@ -242,9 +267,15 @@ export default function HumanTablePage() {
   const handWinners = winnerReveal?.winners ?? [];
   const winningPlayerIds = new Set(handWinners.map((winner) => winner.playerId));
   const playerStats = finalPlayerStats ?? snapshot?.playerStats ?? [];
+  const myPlayerStat = snapshot?.myPlayerId ? playerStats.find((stat) => stat.playerId === snapshot.myPlayerId) : undefined;
+  const isWaitingNextHand = myPlayerStat?.status === "waiting-next-hand";
+  const needsRebuy = myPlayerStat?.status === "needs-rebuy";
+  const buyInByPlayerId = new Map(playerStats.map((stat) => [stat.playerId, stat.buyIn]));
   const seatedStatsCount = playerStats.filter((stat) => stat.inSeat).length;
   const totalProfit = playerStats.reduce((sum, stat) => sum + stat.profit, 0);
   const isWaitingForPlayers = snapshot?.mySeatStatus === "seated" && Boolean(snapshot.tableStatus.hasTable) && !snapshot.tableStatus.running && (state?.players.length ?? 0) < 2;
+
+  useTableSounds(state, { enableYourTurn: true, myPlayerId: snapshot?.myPlayerId });
 
   function revealWinnersForSnapshot(nextState?: GameSnapshot) {
     if (!nextState || nextState.handId === lastWinnerRevealHandIdRef.current) {
@@ -307,7 +338,7 @@ export default function HumanTablePage() {
     setStatus(undefined);
     try {
       const response = await fetch(`/api/human-table/${mode}`, {
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ buyIn: Number(buyIn), password }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
@@ -317,6 +348,7 @@ export default function HumanTablePage() {
         return;
       }
       setPassword("");
+      setBuyIn(String(initialStack));
       setFinalPlayerStats(undefined);
       setSnapshot(payload);
     } finally {
@@ -339,6 +371,34 @@ export default function HumanTablePage() {
         return;
       }
       setSnapshot(payload);
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  async function requestBuyIn(event: FormEvent<HTMLFormElement>, { closeOnSuccess = false }: { closeOnSuccess?: boolean } = {}) {
+    event.preventDefault();
+    setBusy("join");
+    setStatus(undefined);
+    try {
+      const response = await fetch("/api/human-table/buy-in", {
+        body: JSON.stringify({ buyIn: Number(nextBuyIn) }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setStatus(payload.error ?? t.actionFailed);
+        return;
+      }
+      setSnapshot(payload);
+      const nextMyPlayerId = payload.myPlayerId;
+      const nextMyStat = nextMyPlayerId ? payload.playerStats?.find((stat: HumanTableSnapshot["playerStats"][number]) => stat.playerId === nextMyPlayerId) : undefined;
+      setStatus(nextMyStat?.pendingBuyIn ? t.buyInQueued : undefined);
+      setNextBuyIn(String(initialStack));
+      if (closeOnSuccess) {
+        setBuyInDialogOpen(false);
+      }
     } finally {
       setBusy(undefined);
     }
@@ -391,6 +451,66 @@ export default function HumanTablePage() {
     }
   }
 
+  const visibleStatus = status === t.buyInQueued && !myPlayerStat?.pendingBuyIn ? undefined : status;
+
+  const tableControls = (
+    <div className={styles.controls}>
+      <button type="button" onClick={() => setStatsOpen(true)}>{t.stats}</button>
+      {snapshot?.mySeatStatus === "seated" && !needsRebuy ? (
+        <button type="button" onClick={() => setBuyInDialogOpen(true)}>{t.buyIn}</button>
+      ) : null}
+      {snapshot?.mySeatStatus === "seated" && !snapshot.tableStatus.canEndGame ? (
+        <button className={styles.danger} disabled={busy === "leave"} type="button" onClick={() => void leaveTable()}>
+          {t.leave}
+        </button>
+      ) : null}
+      {snapshot?.tableStatus.canEndGame ? (
+        <button className={styles.danger} disabled={busy === "end"} type="button" onClick={() => void endGame()}>
+          {t.endGame}
+        </button>
+      ) : null}
+    </div>
+  );
+
+  const actionDock = snapshot?.mySeatStatus === "seated" ? (
+    <div className={`${styles.actionDock} ${isMyTurn ? styles.activeActionDock : styles.idleActionDock}`}>
+      <span className={styles.actionStatus}>
+        {isMyTurn && pendingDecision
+          ? `${t.timeLeft} ${formatTimeLeft(timeLeftMs)} · ${t.pot} ${state?.pot ?? 0} · ${t.currentBet} ${state?.currentBet ?? 0}`
+          : isWaitingNextHand
+            ? t.waitingNextHandText
+            : needsRebuy
+              ? t.rebuyText
+              : activePlayer
+                ? `${activePlayer.name} ${t.thinking}`
+                : t.seatedHint}
+      </span>
+      {isMyTurn && pendingDecision && state && !isWaitingNextHand && !needsRebuy ? (
+        <ActionButtons
+          bigBlind={state.bigBlind}
+          busy={busy === "action"}
+          currentBet={state.currentBet}
+          maxAmount={(myPlayer?.currentBet ?? 0) + pendingDecision.stack}
+          legalActions={pendingDecision.legalActions}
+          minRaise={pendingDecision.minRaise}
+          onSubmit={(action) => void submitAction(action)}
+          pot={state.pot}
+          setStatus={setStatus}
+          t={t}
+        />
+      ) : null}
+    </div>
+  ) : null;
+
+  const pendingBuyInNotice = snapshot?.mySeatStatus === "seated" && !needsRebuy && myPlayerStat?.pendingBuyIn ? (
+    <section className={styles.buyInPanel}>
+      <div>
+        <p className={styles.eyebrow}>{t.buyIn}</p>
+        <p className={styles.muted}>{`${t.buyInQueued}: ${myPlayerStat.pendingBuyIn}`}</p>
+      </div>
+    </section>
+  ) : null;
+
   return (
     <main className={styles.page}>
       <section className={styles.header}>
@@ -407,46 +527,10 @@ export default function HumanTablePage() {
             <span>{activePlayer ? `${t.activePlayer}: ${activePlayer.name}` : t.waitingStart}</span>
           </div>
         </div>
-        <div className={styles.controls}>
-          <button type="button" onClick={() => setStatsOpen(true)}>{t.stats}</button>
-          {snapshot?.mySeatStatus === "seated" ? (
-            <button className={styles.danger} disabled={busy === "leave"} type="button" onClick={() => void leaveTable()}>
-              {t.leave}
-            </button>
-          ) : null}
-          {snapshot?.tableStatus.canEndGame ? (
-            <button className={styles.danger} disabled={busy === "end"} type="button" onClick={() => void endGame()}>
-              {t.endGame}
-            </button>
-          ) : null}
+        <div className={styles.headerActions}>
+          <SoundToggle />
         </div>
       </section>
-
-      {snapshot?.mySeatStatus === "seated" ? (
-        <div className={`${styles.actionDock} ${isMyTurn ? styles.activeActionDock : styles.idleActionDock}`}>
-          <span className={styles.actionStatus}>
-            {isMyTurn && pendingDecision
-              ? `${t.timeLeft} ${formatTimeLeft(timeLeftMs)} · ${t.pot} ${state?.pot ?? 0} · ${t.currentBet} ${state?.currentBet ?? 0}`
-              : activePlayer
-                ? `${activePlayer.name} ${t.thinking}`
-                : t.seatedHint}
-          </span>
-          {isMyTurn && pendingDecision && state ? (
-            <ActionButtons
-              bigBlind={state.bigBlind}
-              busy={busy === "action"}
-              currentBet={state.currentBet}
-              maxAmount={(myPlayer?.currentBet ?? 0) + pendingDecision.stack}
-              legalActions={pendingDecision.legalActions}
-              minRaise={pendingDecision.minRaise}
-              onSubmit={(action) => void submitAction(action)}
-              pot={state.pot}
-              setStatus={setStatus}
-              t={t}
-            />
-          ) : null}
-        </div>
-      ) : null}
 
       {snapshot?.mySeatStatus === "not-logged-in" ? (
         <section className={styles.joinPanel}>
@@ -460,10 +544,14 @@ export default function HumanTablePage() {
           buttonText={t.create}
           description={t.createHint}
           onSubmit={(event) => void submitPasswordForm(event, "create")}
+          buyIn={buyIn}
+          buyInHint={t.buyInHint}
+          buyInLabel={t.buyIn}
           password={password}
           passwordLabel={t.password}
           passwordPlaceholder={t.passwordPlaceholder}
           setPassword={setPassword}
+          setBuyIn={setBuyIn}
           title={t.createTable}
         />
       ) : snapshot?.tableStatus.needsJoin ? (
@@ -472,26 +560,19 @@ export default function HumanTablePage() {
           buttonText={t.join}
           description={t.joinHint}
           onSubmit={(event) => void submitPasswordForm(event, "join")}
+          buyIn={buyIn}
+          buyInHint={t.buyInHint}
+          buyInLabel={t.buyIn}
           password={password}
           passwordLabel={t.password}
           passwordPlaceholder={t.passwordPlaceholder}
           setPassword={setPassword}
+          setBuyIn={setBuyIn}
           title={t.join}
         />
       ) : null}
 
-      {status ? <p className={styles.error}>{status}</p> : null}
-
-      {isWaitingForPlayers ? (
-        <section className={styles.waitingInvite}>
-          <div>
-            <p className={styles.eyebrow}>{t.humanTable}</p>
-            <h2>{t.waitingInviteTitle}</h2>
-            <p className={styles.muted}>{t.waitingInviteText}</p>
-          </div>
-          <button type="button" onClick={() => void copyInviteLink()}>{t.copyInviteLink}</button>
-        </section>
-      ) : null}
+      {!state && visibleStatus ? <p className={styles.error}>{visibleStatus}</p> : null}
 
       {state ? (
         <section className={styles.layout}>
@@ -531,8 +612,8 @@ export default function HumanTablePage() {
                     <div className={styles.seatMeta}>
                       <span><small>{t.stack}</small><strong>{player.stack}</strong></span>
                     </div>
-                    <div className={`${styles.chipDelta} ${deltaClass(player.stack + player.totalCommitted - initialStack)}`}>
-                      {t.profit} {formatDelta(player.stack + player.totalCommitted - initialStack)}
+                    <div className={`${styles.chipDelta} ${deltaClass(player.stack + player.totalCommitted - (buyInByPlayerId.get(player.id) ?? initialStack))}`}>
+                      {t.profit} {formatDelta(player.stack + player.totalCommitted - (buyInByPlayerId.get(player.id) ?? initialStack))}
                     </div>
                     <div className={styles.holeCards}>
                       {player.holeCards?.map((card, cardIndex) => (
@@ -561,6 +642,32 @@ export default function HumanTablePage() {
               <span>{t.hand} #{state.handId}</span>
               <span>{t.currentBet} {state.currentBet}</span>
               <span>{activePlayer ? `${activePlayer.name} ${t.thinking}` : t.waitingStart}</span>
+            </div>
+            <div className={styles.tableControlStack}>
+              {actionDock}
+              {visibleStatus ? <p className={styles.error}>{visibleStatus}</p> : null}
+              {isWaitingNextHand && !needsRebuy ? (
+                <section className={`${styles.waitingInvite} ${styles.waitingNextHandPanel}`}>
+                  <div>
+                    <p className={styles.eyebrow}>{t.humanTable}</p>
+                    <h2>{t.waitingNextHand}</h2>
+                    <p className={styles.muted}>{t.waitingNextHandText}</p>
+                  </div>
+                  <button type="button" onClick={() => setStatsOpen(true)}>{t.stats}</button>
+                </section>
+              ) : null}
+              {isWaitingForPlayers ? (
+                <section className={styles.waitingInvite}>
+                  <div>
+                    <p className={styles.eyebrow}>{t.humanTable}</p>
+                    <h2>{t.waitingInviteTitle}</h2>
+                    <p className={styles.muted}>{t.waitingInviteText}</p>
+                  </div>
+                  <button type="button" onClick={() => void copyInviteLink()}>{t.copyInviteLink}</button>
+                </section>
+              ) : null}
+              {pendingBuyInNotice}
+              {tableControls}
             </div>
           </div>
 
@@ -602,7 +709,7 @@ export default function HumanTablePage() {
                 <article className={`${styles.statsCard} ${stat.inSeat ? styles.activeStatsCard : ""}`} key={stat.playerId}>
                   <div className={styles.statsPlayer}>
                     <strong>{stat.name}</strong>
-                    <span>{stat.inSeat ? t.inSeat : t.leftSeat}</span>
+                    <span>{stat.status === "needs-rebuy" ? t.rebuyTitle : stat.status === "waiting-next-hand" ? t.waitingNextHand : stat.inSeat ? t.inSeat : t.leftSeat}</span>
                   </div>
                   <span className={styles.statsStack}><small>{t.currentStack}</small><b>{stat.effectiveStack}</b></span>
                   <span className={styles.statsCommitted}><small>{t.committed}</small><b>{stat.committedChips}</b></span>
@@ -612,6 +719,37 @@ export default function HumanTablePage() {
               ))}
               {playerStats.length === 0 ? <p className={styles.muted}>{t.noActions}</p> : null}
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {needsRebuy || buyInDialogOpen ? (
+        <section className={styles.buyInOverlay} role="dialog" aria-modal="true">
+          <div className={styles.buyInDialog}>
+            <div className={styles.statsHeader}>
+              <div>
+                <p className={styles.eyebrow}>{t.buyIn}</p>
+                <h2>{needsRebuy ? t.rebuyTitle : t.buyInNextHand}</h2>
+                <p className={styles.muted}>{needsRebuy ? t.rebuyText : t.buyInHint}</p>
+              </div>
+              {!needsRebuy ? <button type="button" onClick={() => setBuyInDialogOpen(false)}>×</button> : null}
+            </div>
+            {visibleStatus ? <p className={styles.error}>{visibleStatus}</p> : null}
+            <form className={styles.buyInDialogForm} onSubmit={(event) => void requestBuyIn(event, { closeOnSuccess: !needsRebuy })}>
+              <label>
+                {t.buyIn}
+                <input
+                  className={styles.textInput}
+                  inputMode="numeric"
+                  min={initialStack}
+                  onChange={(event) => setNextBuyIn(event.target.value)}
+                  step={initialStack}
+                  type="number"
+                  value={nextBuyIn}
+                />
+              </label>
+              <button disabled={busy === "join" || !isValidBuyIn(nextBuyIn)} type="submit">{t.buyInNextHand}</button>
+            </form>
           </div>
         </section>
       ) : null}
@@ -641,24 +779,34 @@ export default function HumanTablePage() {
 function PasswordPanel({
   busy,
   buttonText,
+  buyIn,
+  buyInHint,
+  buyInLabel,
   description,
   onSubmit,
   password,
   passwordLabel,
   passwordPlaceholder,
+  setBuyIn,
   setPassword,
   title,
 }: {
   busy: boolean;
   buttonText: string;
+  buyIn: string;
+  buyInHint: string;
+  buyInLabel: string;
   description: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   password: string;
   passwordLabel: string;
   passwordPlaceholder: string;
+  setBuyIn: (value: string) => void;
   setPassword: (value: string) => void;
   title: string;
 }) {
+  const parsedBuyIn = Number(buyIn);
+  const buyInValid = Number.isFinite(parsedBuyIn) && parsedBuyIn >= initialStack && parsedBuyIn % initialStack === 0;
   return (
     <section className={styles.joinPanel}>
       <h2>{title}</h2>
@@ -675,7 +823,20 @@ function PasswordPanel({
             value={password}
           />
         </label>
-        <button disabled={busy || password.trim().length < 4} type="submit">
+        <label>
+          {buyInLabel}
+          <input
+            className={styles.textInput}
+            inputMode="numeric"
+            min={initialStack}
+            onChange={(event) => setBuyIn(event.target.value)}
+            step={initialStack}
+            type="number"
+            value={buyIn}
+          />
+          <span className={styles.fieldHint}>{buyInHint}</span>
+        </label>
+        <button disabled={busy || password.trim().length < 4 || !buyInValid} type="submit">
           {busy ? "..." : buttonText}
         </button>
       </form>
@@ -732,7 +893,7 @@ function ActionButtons({
       setStatus(t.amountInvalid);
       return;
     }
-    if (type === "raise" && amount <= currentBet * 2) {
+    if (type === "raise" && amount <= currentBet * 2 && amount !== maxAmount) {
       setStatus(t.raiseRule);
       return;
     }
@@ -747,6 +908,29 @@ function ActionButtons({
     setStatus(undefined);
     setCustomAmount(String(Math.min(maxAmount, minimum)));
     setAmountPicker(type);
+  }
+
+  function closeAmountPicker() {
+    setStatus(undefined);
+    setCustomAmount("");
+    setAmountPicker(undefined);
+  }
+
+  function submitAllIn() {
+    setStatus(undefined);
+    setAmountPicker(undefined);
+    setCustomAmount("");
+    if (legalActions.includes("raise")) {
+      onSubmit({ type: "raise", amount: maxAmount });
+      return;
+    }
+    if (legalActions.includes("bet")) {
+      onSubmit({ type: "bet", amount: maxAmount });
+      return;
+    }
+    if (legalActions.includes("call")) {
+      onSubmit({ type: "call" });
+    }
   }
 
   function submitCustomAmount(event: FormEvent<HTMLFormElement>) {
@@ -765,6 +949,9 @@ function ActionButtons({
         {legalActions.includes("call") ? <button disabled={busy} type="button" onClick={() => onSubmit({ type: "call" })}>{t.call}</button> : null}
         {legalActions.includes("bet") ? <button disabled={busy} type="button" onClick={() => openAmountPicker("bet")}>{t.bet}</button> : null}
         {legalActions.includes("raise") ? <button disabled={busy} type="button" onClick={() => openAmountPicker("raise")}>{t.raise}</button> : null}
+        {legalActions.some((action) => action === "bet" || action === "raise" || action === "call") ? (
+          <button className={styles.allInAction} disabled={busy} type="button" onClick={submitAllIn}>{t.allIn}</button>
+        ) : null}
       </div>
       {amountActionType && amountPicker ? (
         <section className={styles.amountOverlay} role="dialog" aria-modal="true">
@@ -775,7 +962,7 @@ function ActionButtons({
                 <h2>{t.chooseAmount}</h2>
                 {amountPicker === "raise" ? <p className={styles.muted}>{t.raiseRule}</p> : null}
               </div>
-              <button type="button" onClick={() => setAmountPicker(undefined)}>×</button>
+              <button type="button" onClick={closeAmountPicker}>×</button>
             </div>
             <div className={styles.amountChoices}>
               {potOptions.map((option) => (
@@ -953,6 +1140,11 @@ function PlayingCardBack() {
 
 function formatDelta(delta: number) {
   return delta > 0 ? `+${delta}` : String(delta);
+}
+
+function isValidBuyIn(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= initialStack && parsed % initialStack === 0;
 }
 
 function deltaClass(delta: number) {

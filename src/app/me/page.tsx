@@ -170,6 +170,8 @@ const copy = {
     logout: "退出登录",
     loggingOut: "退出中...",
     logoutFailed: "退出登录失败。",
+    journeyLog: "开牌日记",
+    journeyLogText: "8-bit 风心路历程：从 hello 到俱乐部通关，有对话、有梗、有我们一起改过的副本。",
     promptSaveFailed: "保存 prompt 失败。",
     promptSaved: "Prompt 已保存。托管 Agent 的后续决策会使用这段设定。",
     chooseStyleBeforeCreate: "先选择一个打法风格，再创建云端牌手。",
@@ -259,6 +261,8 @@ const copy = {
     logout: "Log Out",
     loggingOut: "Logging out...",
     logoutFailed: "Failed to log out.",
+    journeyLog: "Deal Log",
+    journeyLogText: "An 8-bit journey from hello to club launch—our chats, inside jokes, and every boss we cleared together.",
     promptSaveFailed: "Failed to save prompt.",
     promptSaved: "Prompt saved. Future hosted Agent decisions will use this setting.",
     chooseStyleBeforeCreate: "Choose a playing style before creating your cloud player.",
@@ -676,6 +680,11 @@ export default function MyAgentPage() {
             {logoutError ? <p className={styles.muted}>{logoutError}</p> : null}
           </div>
         </section>
+
+        <Link className={styles.journeyPanel} href="/journey">
+          <strong>{t.journeyLog}</strong>
+          <span>{t.journeyLogText}</span>
+        </Link>
       </div>
     </main>
   );

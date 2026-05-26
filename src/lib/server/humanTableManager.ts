@@ -12,12 +12,17 @@ const humanTableId = "human-table-1";
 const humanTableName = "Live Human Table";
 
 type HumanParticipant = {
+  bankedStack: number;
+  buyIn: number;
   joinedAt: string;
   lastKnownEffectiveStack: number;
   leftAt?: string;
   name: string;
+  needsRebuy?: boolean;
+  pendingBuyIn?: number;
   playerId: string;
   userId: string;
+  waitingForNextHand?: boolean;
 };
 
 type PendingDecision = {
@@ -47,6 +52,7 @@ type HumanTable = {
 };
 
 export type HumanPlayerStat = {
+  buyIn: number;
   committedChips: number;
   currentStack: number;
   effectiveStack: number;
@@ -54,6 +60,7 @@ export type HumanPlayerStat = {
   joinedAt: string;
   leftAt?: string;
   name: string;
+  pendingBuyIn?: number;
   playerId: string;
   profit: number;
   status?: string;
@@ -103,13 +110,14 @@ export class HumanTableManager {
   private snapshotCache = new Map<string, { expiresAt: number; snapshot: HumanTableSnapshot; version: string }>();
   private timer?: ReturnType<typeof setInterval>;
 
-  createTable(user: ClubUser, password: string) {
+  createTable(user: ClubUser, password: string, buyIn = initialStack) {
     const normalizedPassword = normalizePassword(password);
+    const normalizedBuyIn = normalizeBuyIn(buyIn);
     if (this.activeTable) {
       throw new Error("A human table is already active. Join it with the table password.");
     }
 
-    const player = userToHumanPlayer(user);
+    const player = userToHumanPlayer(user, normalizedBuyIn);
     const table: HumanTable = {
       createdAt: new Date().toISOString(),
       engine: new PokerGameEngine([player], { tableId: humanTableId, tableName: humanTableName }),
@@ -120,8 +128,10 @@ export class HumanTableManager {
       passwordHash: hashPassword(normalizedPassword),
     };
     table.participants.set(user.id, {
+      bankedStack: 0,
+      buyIn: normalizedBuyIn,
       joinedAt: table.createdAt,
-      lastKnownEffectiveStack: initialStack,
+      lastKnownEffectiveStack: normalizedBuyIn,
       name: user.name,
       playerId: player.id,
       userId: user.id,
@@ -132,26 +142,42 @@ export class HumanTableManager {
     return this.snapshot(user.id);
   }
 
-  join(user: ClubUser, password: string) {
+  join(user: ClubUser, password: string, buyIn = initialStack) {
     const table = this.requireTable();
+    const normalizedBuyIn = normalizeBuyIn(buyIn);
     if (hashPassword(normalizePassword(password)) !== table.passwordHash) {
       throw new Error("Table password is incorrect.");
     }
 
-    const player = userToHumanPlayer(user);
+    const player = userToHumanPlayer(user, normalizedBuyIn);
     const snapshot = table.engine.snapshot();
-    if (snapshot.players.some((item) => item.id === player.id)) {
-      this.rememberParticipant(table, user, player.id, snapshot.players.find((item) => item.id === player.id)?.stack ?? initialStack);
+    const seatedPlayer = snapshot.players.find((item) => item.id === player.id);
+    if (seatedPlayer) {
+      this.rememberParticipant(table, user, player.id, seatedPlayer.stack, false, normalizedBuyIn);
       this.invalidateSnapshotCache();
       return this.snapshot(user.id);
     }
 
-    if (snapshot.players.length >= maxHumanPlayers) {
+    const existingParticipant = table.participants.get(user.id);
+    if (existingParticipant?.waitingForNextHand && !this.shouldWaitForNextHand(snapshot)) {
+      this.addWaitingPlayers(table);
+      void this.maybeStart();
+      return this.snapshot(user.id);
+    }
+
+    if (this.participantCount(table) >= maxHumanPlayers) {
       throw new Error("The human table is full.");
     }
 
+    if (this.shouldWaitForNextHand(snapshot)) {
+      this.rememberParticipant(table, user, player.id, normalizedBuyIn, true, normalizedBuyIn);
+      this.invalidateSnapshotCache();
+      logger.info("human_table.player_waiting_next_hand", { tableId: table.id, ownerUserId: user.id, playerId: player.id });
+      return this.snapshot(user.id);
+    }
+
     table.engine.addPlayers([player]);
-    this.rememberParticipant(table, user, player.id, initialStack);
+    this.rememberParticipant(table, user, player.id, normalizedBuyIn, false, normalizedBuyIn);
     this.invalidateSnapshotCache();
     logger.info("human_table.player_joined", { tableId: table.id, ownerUserId: user.id, playerId: player.id });
     void this.maybeStart();
@@ -168,6 +194,9 @@ export class HumanTableManager {
     if (!participant) {
       return { left: false, tableClosed: false };
     }
+    if (table.ownerUserId === userId) {
+      throw new Error("The table creator must end the human table instead of leaving it.");
+    }
 
     const snapshot = table.engine.snapshot();
     const player = snapshot.players.find((item) => item.id === participant.playerId);
@@ -178,14 +207,6 @@ export class HumanTableManager {
       }
       table.engine.settlePlayer(player.id, "left");
       this.invalidateSnapshotCache();
-      const hasOtherSeatedPlayer = snapshot.players.some((item) => item.id !== player.id && item.status !== "out");
-      if (!hasOtherSeatedPlayer) {
-        table.engine.removePlayers([player.id]);
-        this.invalidateSnapshotCache();
-        participant.leftAt = new Date().toISOString();
-        logger.info("human_table.player_left", { tableId: table.id, ownerUserId: userId, playerId: participant.playerId });
-        return { left: true, tableClosed: this.closeTable(table, "last_player_left") };
-      }
       if (this.inFlight || player.totalCommitted > 0) {
         this.playersPendingRemoval.add(player.id);
       } else {
@@ -196,8 +217,7 @@ export class HumanTableManager {
     participant.leftAt = new Date().toISOString();
     logger.info("human_table.player_left", { tableId: table.id, ownerUserId: userId, playerId: participant.playerId });
 
-    const tableClosed = this.closeIfEmpty();
-    return { left: true, tableClosed };
+    return { left: true, tableClosed: false };
   }
 
   endTable(userId: string) {
@@ -240,16 +260,24 @@ export class HumanTableManager {
       };
     }
 
+    if (!table.engine.isRunning() && !this.inFlight) {
+      this.addWaitingPlayers(table);
+      void this.maybeStart();
+    }
+
     const rawGame = table.engine.snapshot();
     const myParticipant = userId ? table.participants.get(userId) : undefined;
     const myPlayerId = myParticipant?.playerId;
     const isSeated = Boolean(myPlayerId && rawGame.players.some((player) => player.id === myPlayerId && player.status !== "out"));
+    const isWaitingForNextHand = Boolean(myParticipant?.waitingForNextHand && !myParticipant.leftAt);
+    const needsRebuy = Boolean(myParticipant?.needsRebuy && !myParticipant.leftAt);
+    const hasJoinedTable = isSeated || isWaitingForNextHand || needsRebuy;
     const game = publicGameForUser(rawGame, userId);
 
     return {
       game,
       myPlayerId,
-      mySeatStatus: !userId ? "not-logged-in" : isSeated ? "seated" : "spectator",
+      mySeatStatus: !userId ? "not-logged-in" : hasJoinedTable ? "seated" : "spectator",
       pendingDecision: this.publicPendingDecision(),
       playerStats: this.playerStats(table, rawGame),
       tableStatus: {
@@ -257,9 +285,9 @@ export class HumanTableManager {
         hasTable: true,
         maxPlayers: maxHumanPlayers,
         needsCreate: false,
-        needsJoin: Boolean(userId && !isSeated),
+        needsJoin: Boolean(userId && !hasJoinedTable),
         canEndGame: Boolean(userId && table.ownerUserId === userId),
-        playerCount: rawGame.players.length,
+        playerCount: this.participantCount(table),
         running: rawGame.running,
         tableId: table.id,
         tableName: table.name,
@@ -314,6 +342,33 @@ export class HumanTableManager {
     return this.snapshot(userId);
   }
 
+  requestBuyIn(userId: string, buyIn = initialStack) {
+    const table = this.requireTable();
+    const participant = table.participants.get(userId);
+    if (!participant || participant.leftAt) {
+      throw new Error("Join the human table before buying in.");
+    }
+
+    const normalizedBuyIn = normalizeBuyIn(buyIn);
+    participant.pendingBuyIn = (participant.pendingBuyIn ?? 0) + normalizedBuyIn;
+    const snapshot = table.engine.snapshot();
+    const seatedPlayer = snapshot.players.find((player) => player.id === participant.playerId);
+    if (!seatedPlayer || participant.needsRebuy) {
+      participant.waitingForNextHand = true;
+      participant.needsRebuy = false;
+    }
+
+    if (!this.shouldWaitForNextHand(snapshot)) {
+      this.applyPendingBuyIns(table);
+      this.addWaitingPlayers(table);
+      void this.maybeStart();
+    }
+
+    this.invalidateSnapshotCache();
+    logger.info("human_table.buy_in_requested", { tableId: table.id, ownerUserId: userId, buyIn: normalizedBuyIn });
+    return this.snapshot(userId);
+  }
+
   private async maybeStart() {
     const table = this.activeTable;
     if (!table || table.engine.isRunning() || this.startPromise) {
@@ -359,13 +414,14 @@ export class HumanTableManager {
         table.engine.setRunning(false);
         this.invalidateSnapshotCache();
         this.stopTimer();
-        this.closeIfEmpty();
         return;
       }
 
       await sleep(handResultPauseMs);
       this.removePendingPlayers(table);
       this.removeBustedPlayers(table);
+      this.applyPendingBuyIns(table);
+      this.addWaitingPlayers(table);
       this.refreshParticipantStacks(table);
       this.invalidateSnapshotCache();
       if (table.engine.snapshot().players.filter((player) => player.stack > 0).length < minHumanPlayersToStart) {
@@ -380,7 +436,6 @@ export class HumanTableManager {
       this.stopTimer();
     } finally {
       this.inFlight = false;
-      this.closeIfEmpty();
     }
   }
 
@@ -463,14 +518,63 @@ export class HumanTableManager {
     return this.activeTable;
   }
 
-  private rememberParticipant(table: HumanTable, user: ClubUser, playerId: string, effectiveStack: number) {
+  private rememberParticipant(table: HumanTable, user: ClubUser, playerId: string, effectiveStack: number, waitingForNextHand = false, buyIn = initialStack) {
     const existing = table.participants.get(user.id);
+    const rejoiningAfterLeave = Boolean(existing?.leftAt);
+    const previousBankedStack = existing?.bankedStack ?? 0;
+    const bankedStack = rejoiningAfterLeave ? previousBankedStack + (existing?.lastKnownEffectiveStack ?? 0) : previousBankedStack;
+    const cumulativeBuyIn = rejoiningAfterLeave ? (existing?.buyIn ?? 0) + buyIn : (existing?.buyIn ?? buyIn);
     table.participants.set(user.id, {
+      bankedStack,
+      buyIn: cumulativeBuyIn,
       joinedAt: existing?.joinedAt ?? new Date().toISOString(),
-      lastKnownEffectiveStack: existing?.lastKnownEffectiveStack ?? effectiveStack,
+      lastKnownEffectiveStack: rejoiningAfterLeave ? effectiveStack : (existing?.lastKnownEffectiveStack ?? effectiveStack),
       name: user.name,
+      needsRebuy: rejoiningAfterLeave ? false : existing?.needsRebuy,
+      pendingBuyIn: rejoiningAfterLeave ? undefined : existing?.pendingBuyIn,
       playerId,
       userId: user.id,
+      waitingForNextHand,
+    });
+  }
+
+  private shouldWaitForNextHand(snapshot: GameSnapshot) {
+    return this.inFlight || (snapshot.running && (snapshot.players.some((player) => (player.holeCards?.length ?? 0) > 0 || player.totalCommitted > 0) || snapshot.pot > 0));
+  }
+
+  private participantCount(table: HumanTable) {
+    return [...table.participants.values()].filter((participant) => !participant.leftAt).length;
+  }
+
+  private addWaitingPlayers(table: HumanTable) {
+    const snapshot = table.engine.snapshot();
+    const seatedPlayerIds = new Set(snapshot.players.map((player) => player.id));
+    const waitingPlayers = [...table.participants.values()].filter(
+      (participant) => participant.waitingForNextHand && !participant.leftAt && !seatedPlayerIds.has(participant.playerId),
+    );
+
+    if (waitingPlayers.length === 0) {
+      return;
+    }
+
+    const openSeats = Math.max(0, maxHumanPlayers - snapshot.players.length);
+    const playersToAdd = waitingPlayers.slice(0, openSeats);
+    table.engine.addPlayers(playersToAdd.map(participantToHumanPlayer));
+    for (const participant of playersToAdd) {
+      const pendingBuyIn = participant.pendingBuyIn ?? 0;
+      const seatStack = participantToSeatStack(participant);
+      if (pendingBuyIn > 0) {
+        participant.buyIn += pendingBuyIn;
+      }
+      participant.waitingForNextHand = false;
+      participant.needsRebuy = false;
+      participant.pendingBuyIn = undefined;
+      participant.lastKnownEffectiveStack = seatStack;
+    }
+    this.invalidateSnapshotCache();
+    logger.info("human_table.waiting_players_joined", {
+      tableId: table.id,
+      playerIds: playersToAdd.map((participant) => participant.playerId),
     });
   }
 
@@ -484,6 +588,28 @@ export class HumanTableManager {
     }
   }
 
+  private applyPendingBuyIns(table: HumanTable) {
+    const snapshot = table.engine.snapshot();
+    for (const participant of table.participants.values()) {
+      const pendingBuyIn = participant.pendingBuyIn ?? 0;
+      if (pendingBuyIn <= 0 || participant.leftAt || participant.needsRebuy) {
+        continue;
+      }
+
+      const player = snapshot.players.find((item) => item.id === participant.playerId);
+      if (!player) {
+        continue;
+      }
+
+      table.engine.addChips(participant.playerId, pendingBuyIn);
+      participant.buyIn += pendingBuyIn;
+      participant.pendingBuyIn = undefined;
+      participant.waitingForNextHand = false;
+      participant.lastKnownEffectiveStack = player.stack + pendingBuyIn;
+    }
+    this.invalidateSnapshotCache();
+  }
+
   private removeBustedPlayers(table: HumanTable) {
     const busted = table.engine.snapshot().players.filter((player) => player.stack <= 0);
     if (busted.length === 0) {
@@ -494,7 +620,8 @@ export class HumanTableManager {
       const participant = [...table.participants.values()].find((item) => item.playerId === player.id);
       if (participant) {
         participant.lastKnownEffectiveStack = 0;
-        participant.leftAt = new Date().toISOString();
+        participant.needsRebuy = true;
+        participant.waitingForNextHand = false;
       }
     }
     table.engine.removePlayers(busted.map((player) => player.id));
@@ -516,11 +643,13 @@ export class HumanTableManager {
     return [...table.participants.values()]
       .map((participant) => {
         const player = playersById.get(participant.playerId);
+        const pendingBuyIn = participant.pendingBuyIn ?? 0;
         const currentStack = player?.stack ?? participant.lastKnownEffectiveStack;
         const committedChips = player && game.pot > 0 ? player.totalCommitted : 0;
-        const effectiveStack = player ? currentStack + committedChips : participant.lastKnownEffectiveStack;
-        const settledProfit = participant.lastKnownEffectiveStack - initialStack;
+        const effectiveStack = participant.bankedStack + (player ? currentStack + committedChips : participant.lastKnownEffectiveStack);
+        const settledProfit = effectiveStack - participant.buyIn;
         return {
+          buyIn: participant.buyIn,
           committedChips,
           currentStack,
           effectiveStack,
@@ -528,9 +657,10 @@ export class HumanTableManager {
           joinedAt: participant.joinedAt,
           leftAt: participant.leftAt,
           name: player?.name ?? participant.name,
+          pendingBuyIn: pendingBuyIn > 0 ? pendingBuyIn : undefined,
           playerId: participant.playerId,
           profit: settledProfit,
-          status: player?.status,
+          status: player?.status ?? (participant.needsRebuy ? "needs-rebuy" : participant.waitingForNextHand ? "waiting-next-hand" : undefined),
           userId: participant.userId,
         };
       })
@@ -553,15 +683,6 @@ export class HumanTableManager {
       startedAt: pending.startedAt,
       toCall: pending.toCall,
     };
-  }
-
-  private closeIfEmpty() {
-    const table = this.activeTable;
-    if (!table || this.inFlight || table.engine.snapshot().players.length > 0) {
-      return false;
-    }
-
-    return this.closeTable(table, "empty");
   }
 
   private closeTable(table: HumanTable, reason: string) {
@@ -594,13 +715,28 @@ export function getHumanTableManager() {
   return globalForHumanTable.__texasPokerHumanTableManager;
 }
 
-function userToHumanPlayer(user: ClubUser) {
+function userToHumanPlayer(user: ClubUser, buyIn = initialStack) {
   return {
     id: `human_${user.id}`,
+    initialStack: buyIn,
     kind: "human" as const,
     name: user.name,
     ownerUserId: user.id,
   };
+}
+
+function participantToHumanPlayer(participant: HumanParticipant) {
+  return {
+    id: participant.playerId,
+    initialStack: participantToSeatStack(participant),
+    kind: "human" as const,
+    name: participant.name,
+    ownerUserId: participant.userId,
+  };
+}
+
+function participantToSeatStack(participant: HumanParticipant) {
+  return participant.pendingBuyIn && participant.pendingBuyIn > 0 ? participant.pendingBuyIn : participant.lastKnownEffectiveStack;
 }
 
 function normalizePassword(password: string) {
@@ -612,6 +748,17 @@ function normalizePassword(password: string) {
     throw new Error("Table password is too long.");
   }
   return normalized;
+}
+
+function normalizeBuyIn(value: unknown) {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed) || parsed < initialStack || parsed % initialStack !== 0) {
+    throw new Error("Buy-in must be a positive multiple of 1000.");
+  }
+  if (parsed > initialStack * 100) {
+    throw new Error("Buy-in is too large.");
+  }
+  return parsed;
 }
 
 function hashPassword(password: string) {
@@ -638,7 +785,7 @@ function validateHumanAction(action: PokerAction, pending: PendingDecision, snap
   if (amount > maxTargetBet) {
     throw new Error("Bet amount exceeds your stack.");
   }
-  if (action.type === "raise" && amount < minTargetBet) {
+  if (action.type === "raise" && amount < minTargetBet && amount !== maxTargetBet) {
     throw new Error("Raise amount must be greater than twice the previous bet.");
   }
   if (action.type === "bet" && amount < minTargetBet && amount !== maxTargetBet) {
@@ -678,7 +825,7 @@ function humanSnapshotVersion(snapshot: HumanTableSnapshot, key: string) {
     ? `${snapshot.pendingDecision.playerId}:${snapshot.pendingDecision.handId}:${snapshot.pendingDecision.expiresAt}`
     : "";
   const stats = snapshot.playerStats
-    .map((stat) => `${stat.playerId}:${stat.effectiveStack}:${stat.profit}:${stat.inSeat ? "1" : "0"}`)
+    .map((stat) => `${stat.playerId}:${stat.buyIn}:${stat.pendingBuyIn ?? 0}:${stat.effectiveStack}:${stat.profit}:${stat.inSeat ? "1" : "0"}:${stat.status ?? ""}`)
     .join("|");
   return [
     key,
