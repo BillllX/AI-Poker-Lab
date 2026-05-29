@@ -350,7 +350,8 @@ export class GameSimulator {
     }
 
     const activeAgentIds = new Set(this.engine.snapshot().players.map((player) => player.id));
-    const newAgents = this.deps.listAgents().filter((agent) => !activeAgentIds.has(agent.id));
+    const reservedAgentIds = new Set(this.activeBuyIns.map((buyIn) => buyIn.agentId));
+    const newAgents = this.deps.listAgents().filter((agent) => !activeAgentIds.has(agent.id) && !reservedAgentIds.has(agent.id));
 
     if (newAgents.length === 0) {
       return;

@@ -43,6 +43,7 @@ async function main() {
   await assertMidDecisionResetSettlesOnce();
   await assertAutoStartWaitsForPollingAgents();
   await assertNewPollingAgentJoinsNextHand();
+  await assertReservedAgentsAreNotReservedAgain();
   await assertBustedRealAgentSettlesAndLeaves();
   await assertDisconnectedLeaveRemovesEngineSeat();
   await assertDisconnectedPlayingAgentSettlesAndLeaves();
@@ -127,6 +128,20 @@ async function assertNewPollingAgentJoinsNextHand() {
 
   assert.ok(harness.reserveCalls.length >= 2, "new polling Agent should get a separate buy-in reserve call");
   assert.equal(harness.reserveCalls.at(-1)?.[0]?.agentId, thirdAgent.id, "new polling Agent should join on a hand boundary");
+}
+
+async function assertReservedAgentsAreNotReservedAgain() {
+  const harness = createHarness({ decisionMode: "pending", agents: agents.slice(0, 2) });
+  const simulator = createSimulator(harness);
+  const internals = simulator as unknown as SimulatorInternals;
+
+  await simulator.start();
+  await waitFor(() => harness.pendingDecisions.length > 0);
+  internals.engine.removePlayers([agents[0].id]);
+  await internals.addNewPollingAgents();
+
+  assert.equal(harness.reserveCalls.length, 1, "already-reserved Agents should not be frozen a second time");
+  simulator.stop();
 }
 
 async function assertBustedRealAgentSettlesAndLeaves() {
@@ -643,9 +658,11 @@ function createSimulator(harness: ReturnType<typeof createHarness>) {
 }
 
 type SimulatorInternals = {
+  addNewPollingAgents: () => Promise<void>;
   activeBuyIns: GameBuyIn[];
   engine: {
     players: Array<{ id: string; stack: number }>;
+    removePlayers: (playerIds: string[]) => string[];
     snapshot: () => { players: Array<{ id: string }> };
   };
 };
