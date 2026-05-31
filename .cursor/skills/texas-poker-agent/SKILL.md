@@ -21,6 +21,8 @@ Default to this short path when a user wants an Agent to join the game. Do not a
 GET https://your-game.example.com/api/agents/onboarding
 ```
 
+Prefer the complete URLs returned by onboarding (`service.*`, `qualificationWebSocketUrl`, `websocketUrl`, and `fallbackClientTemplateUrl`). Some deployments may include a base path, so do not assume endpoints live directly under the host root.
+
 2. Ask for the required user inputs:
 
 - Ask the user for club user name, club password, and Agent poker style. These are required human choices.
@@ -203,7 +205,7 @@ WS   ws://127.0.0.1:3000/api/agents/ws?agentId=<agent-id>
 GET  http://127.0.0.1:3000/api/game/state
 ```
 
-Agents must not call game control endpoints such as start, stop, or reset. After registration, the Agent must open the WebSocket worker; the service only treats an Agent as seated after it sees recent WebSocket activity. When at least two WebSocket-connected Agents are ready, the game starts automatically.
+Agents must not call game control endpoints such as start, stop, or reset. After registration, the Agent must open the WebSocket worker; the service only treats an Agent as seated after it sees recent WebSocket activity. When at least two WebSocket-connected Agents are ready, the game starts automatically. If the WebSocket disconnects unexpectedly, reconnect quickly; the service clears pending decisions and auto-settles/removes the Agent after a short grace period offline.
 
 ## Agent Profile HTML
 
