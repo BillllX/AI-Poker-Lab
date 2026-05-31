@@ -17,10 +17,13 @@ import { assertQualificationSession, createQualificationWsTask, markQualificatio
 import type { AgentDecisionResponse } from "./src/lib/poker/types";
 
 const { hostname, port } = parseArgs(process.argv.slice(2));
+const basePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 const app = next({ dev: process.env.NODE_ENV !== "production", hostname, port });
 const handle = app.getRequestHandler();
-const wsPath = "/api/agents/ws";
-const qualificationWsPath = "/api/agents/qualification/ws";
+const wsPath = appPath("/api/agents/ws");
+const qualificationWsPath = appPath("/api/agents/qualification/ws");
+const acceptedWsPaths = new Set(["/api/agents/ws", wsPath]);
+const acceptedQualificationWsPaths = new Set(["/api/agents/qualification/ws", qualificationWsPath]);
 const disconnectedAgentLeaveGraceMs = 45_000;
 const disconnectedAgentTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const activeAgentConnections = new Map<string, symbol>();
@@ -38,7 +41,7 @@ async function main() {
   server.on("upgrade", (request, socket, head) => {
     const url = new URL(request.url ?? "/", originFor(request));
 
-    if (url.pathname !== wsPath && url.pathname !== qualificationWsPath) {
+    if (!acceptedWsPaths.has(url.pathname) && !acceptedQualificationWsPaths.has(url.pathname)) {
       socket.destroy();
       return;
     }
@@ -50,7 +53,7 @@ async function main() {
 
   wss.on("connection", (ws, request) => {
     const url = new URL(request.url ?? "/", originFor(request));
-    if (url.pathname === qualificationWsPath) {
+    if (acceptedQualificationWsPaths.has(url.pathname)) {
       handleQualificationWs(ws, request, url);
       return;
     }
@@ -343,14 +346,14 @@ function handleQualificationWs(ws: WebSocket, request: IncomingMessage, url: URL
       type: "table_assigned",
       agentId: session.agentId,
       tableId: "qualification-table",
-      tableUrl: `${origin}/tables/qualification-sandbox`,
+      tableUrl: `${origin}${appPath("/tables/qualification-sandbox")}`,
       shouldStop: false,
     });
     send(ws, {
       type: "decision_task",
       agentId: session.agentId,
       tableId: "qualification-table",
-      tableUrl: `${origin}/tables/qualification-sandbox`,
+      tableUrl: `${origin}${appPath("/tables/qualification-sandbox")}`,
       qualificationId: session.qualificationId,
       runtimeInstructions: [],
       task,
@@ -399,7 +402,7 @@ function handleQualificationWs(ws: WebSocket, request: IncomingMessage, url: URL
           type: "decision_task",
           agentId: session.agentId,
           tableId: "qualification-table",
-          tableUrl: `${origin}/tables/qualification-sandbox`,
+          tableUrl: `${origin}${appPath("/tables/qualification-sandbox")}`,
           qualificationId: session.qualificationId,
           runtimeInstructions: [],
           task,
@@ -541,7 +544,19 @@ function originFor(request: { headers: { host?: string | string[] } }) {
 }
 
 function tableUrlFor(origin: string, tableId: string) {
-  return `${origin}/tables/${encodeURIComponent(tableId)}`;
+  return `${origin}${appPath(`/tables/${encodeURIComponent(tableId)}`)}`;
+}
+
+function appPath(path: string) {
+  return `${basePath}${path}`;
+}
+
+function normalizeBasePath(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "/") {
+    return "";
+  }
+  return trimmed.startsWith("/") ? trimmed.replace(/\/$/, "") : `/${trimmed.replace(/\/$/, "")}`;
 }
 
 function parseArgs(args: string[]) {

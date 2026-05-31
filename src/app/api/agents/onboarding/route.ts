@@ -4,22 +4,23 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   const origin = publicOriginFor(request);
-  const wsUrl = origin.replace(/^http/, "ws") + "/api/agents/ws?agentId=<agent-id>";
-  const qualificationWsUrl = origin.replace(/^http/, "ws") + "/api/agents/qualification/ws?agentId=<agent-id>&qualificationId=<qualification-id>";
+  const wsOrigin = origin.replace(/^http/, "ws");
+  const wsUrl = `${wsOrigin}${appPath("/api/agents/ws?agentId=<agent-id>")}`;
+  const qualificationWsUrl = `${wsOrigin}${appPath("/api/agents/qualification/ws?agentId=<agent-id>&qualificationId=<qualification-id>")}`;
 
   return Response.json({
     ok: true,
     strategy: "subagent-first",
     service: {
       origin,
-      skillUrl: `${origin}/api/agents/skill`,
-      usersUrl: `${origin}/api/users`,
-      healthcheckUrl: `${origin}/api/agents/healthcheck`,
-      qualificationTasksUrl: `${origin}/api/agents/qualification/tasks?agentId=<agent-id>`,
-      qualificationSubmitUrl: `${origin}/api/agents/qualification/submit`,
+      skillUrl: `${origin}${appPath("/api/agents/skill")}`,
+      usersUrl: `${origin}${appPath("/api/users")}`,
+      healthcheckUrl: `${origin}${appPath("/api/agents/healthcheck")}`,
+      qualificationTasksUrl: `${origin}${appPath("/api/agents/qualification/tasks?agentId=<agent-id>")}`,
+      qualificationSubmitUrl: `${origin}${appPath("/api/agents/qualification/submit")}`,
       qualificationWebSocketUrl: qualificationWsUrl,
-      rosterUrl: `${origin}/api/agents/roster`,
-      leaveUrl: `${origin}/api/agents/leave`,
+      rosterUrl: `${origin}${appPath("/api/agents/roster")}`,
+      leaveUrl: `${origin}${appPath("/api/agents/leave")}`,
       websocketUrl: wsUrl,
     },
     skill: agentSkillMetadata,
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
       "Exit only on agent_stop or explicit user stop.",
     ],
     subagentPrompt: buildSubagentPrompt(origin, wsUrl, qualificationWsUrl),
-    fallbackClientTemplateUrl: `${origin}/api/agents/client-template`,
+    fallbackClientTemplateUrl: `${origin}${appPath("/api/agents/client-template")}`,
   });
 }
 
@@ -73,13 +74,13 @@ Do not inspect OpenClaw/Cursor config files, environment variables, local creden
 
 Game service:
 - Origin: ${origin}
-- Users: ${origin}/api/users
-- Healthcheck: ${origin}/api/agents/healthcheck
-- Qualification tasks: ${origin}/api/agents/qualification/tasks?agentId=<agent-id>
-- Qualification submit: ${origin}/api/agents/qualification/submit
+- Users: ${origin}${appPath("/api/users")}
+- Healthcheck: ${origin}${appPath("/api/agents/healthcheck")}
+- Qualification tasks: ${origin}${appPath("/api/agents/qualification/tasks?agentId=<agent-id>")}
+- Qualification submit: ${origin}${appPath("/api/agents/qualification/submit")}
 - Qualification WebSocket sandbox: ${qualificationWsUrl}
-- Roster: ${origin}/api/agents/roster
-- Profile HTML: ${origin}/api/agents/<agent-id>/profile-html
+- Roster: ${origin}${appPath("/api/agents/roster")}
+- Profile HTML: ${origin}${appPath("/api/agents/<agent-id>/profile-html")}
 - WebSocket: ${wsUrl}
 
 Your responsibilities:
@@ -120,4 +121,17 @@ function publicOriginFor(request: Request) {
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? url.host;
   const protocol = request.headers.get("x-forwarded-proto") ?? url.protocol.replace(/:$/, "") ?? "http";
   return `${protocol}://${host}`;
+}
+
+function appPath(path: string) {
+  const basePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+  return `${basePath}${path}`;
+}
+
+function normalizeBasePath(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "/") {
+    return "";
+  }
+  return trimmed.startsWith("/") ? trimmed.replace(/\/$/, "") : `/${trimmed.replace(/\/$/, "")}`;
 }
