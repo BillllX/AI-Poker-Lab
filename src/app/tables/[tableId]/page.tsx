@@ -30,6 +30,7 @@ const copy = {
     recentActions: "最近动作",
     noActions: "还没有行动。",
     virtualAgent: "BOT",
+    residentAgent: "常驻 AI",
     currentBet: "当前注额",
     chipChange: "筹码变化",
     players: "玩家",
@@ -42,6 +43,11 @@ const copy = {
     sendCoaching: "发送 Coaching",
     coachingSent: "Coaching 已发送，将从下一手开始生效。",
     coachingFailed: "Coaching 发送失败。",
+    joinTable: "坐上这张桌",
+    joiningTable: "正在上桌...",
+    joinTableHint: "你已登录，可以让自己的托管牌手加入这张桌，从下一手开始参与。",
+    joinTableFailed: "上桌失败。",
+    joinTableQueued: "已加入这张桌，等待下一手入局。",
     leaveTable: "离开牌桌并结算",
     leaveFailed: "离开牌桌失败。",
     leaving: "离开中...",
@@ -79,6 +85,7 @@ const copy = {
     recentActions: "Recent Actions",
     noActions: "No actions yet.",
     virtualAgent: "BOT",
+    residentAgent: "Resident AI",
     currentBet: "Current bet",
     chipChange: "Chip Changes",
     players: "Players",
@@ -91,6 +98,11 @@ const copy = {
     sendCoaching: "Send Coaching",
     coachingSent: "Coaching sent. It will apply starting next hand.",
     coachingFailed: "Failed to send coaching.",
+    joinTable: "Join This Table",
+    joiningTable: "Joining...",
+    joinTableHint: "You are logged in. Seat your hosted player at this table and it will join from the next hand.",
+    joinTableFailed: "Failed to join this table.",
+    joinTableQueued: "Joined this table. Your player will enter on the next hand.",
     leaveTable: "Leave table and settle",
     leaveFailed: "Failed to leave table.",
     leaving: "Leaving...",
@@ -130,12 +142,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const [me, setMe] = useState<ClubUser | null>();
   const [coachingMessage, setCoachingMessage] = useState("");
   const [controlStatus, setControlStatus] = useState<string>();
-  const [controlBusy, setControlBusy] = useState<"coaching" | "leave">();
+  const [controlBusy, setControlBusy] = useState<"coaching" | "join" | "leave">();
   const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
   const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
   const winnerRevealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const players = state?.players ?? [];
   const myPlayer = me ? players.find((player) => player.ownerUserId === me.id) : undefined;
+  const tableIsFull = players.length >= 6;
+  const canJoinThisTable = Boolean(me && !myPlayer && !tableIsFull);
   const myPlayerSeatIndex = myPlayer ? players.findIndex((player) => player.id === myPlayer.id) : -1;
   const activePlayer = players.find((player) => player.id === state?.currentPlayerId);
   const waitingForFirstDeal = Boolean(state?.running && state.handId === 0 && players.length >= 2 && players.every((player) => (player.holeCards?.length ?? 0) === 0));
@@ -272,6 +286,23 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     }
   }
 
+  async function joinThisTable() {
+    setControlBusy("join");
+    setControlStatus(undefined);
+    try {
+      const response = await fetch(`/api/tables/${tableId}/join`, { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) {
+        setControlStatus(payload.error ?? t.joinTableFailed);
+        return;
+      }
+      setControlStatus(t.joinTableQueued);
+      await refreshTableState();
+    } finally {
+      setControlBusy(undefined);
+    }
+  }
+
   return (
     <main className={styles.page}>
       <section className={styles.header}>
@@ -316,6 +347,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                     <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
                       {player.name}
                       {player.kind === "virtual" && <small>{t.virtualAgent}</small>}
+                      {player.kind === "resident" && <small>{t.residentAgent}</small>}
                     </Link>
                     <div className={styles.seatBadges}>
                       <span>{positionLabel(index, state?.dealerIndex ?? 0, players.length)}</span>
@@ -383,7 +415,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                 <div className={styles.myPlayerSummary}>
                   <div>
                     <strong>{myPlayer.name}</strong>
-                    <span>{myPlayer.kind === "hosted" ? t.hostedAgent : t.externalAgent}</span>
+                    <span>{myPlayer.kind === "resident" ? t.residentAgent : myPlayer.kind === "hosted" ? t.hostedAgent : t.externalAgent}</span>
                   </div>
                   <em className={deltaClass(myPlayer.stack - initialStack)}>{formatDelta(myPlayer.stack - initialStack)}</em>
                 </div>
@@ -395,6 +427,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                 </div>
                 <button className={styles.dangerAction} disabled={controlBusy === "leave"} type="button" onClick={() => void leaveMyPlayer()}>
                   {controlBusy === "leave" ? t.leaving : t.leaveTable}
+                </button>
+              </>
+            ) : canJoinThisTable ? (
+              <>
+                <p className={styles.muted}>{t.joinTableHint}</p>
+                {controlStatus ? <p className={styles.muted}>{controlStatus}</p> : null}
+                <button disabled={controlBusy === "join"} type="button" onClick={() => void joinThisTable()}>
+                  {controlBusy === "join" ? t.joiningTable : t.joinTable}
                 </button>
               </>
             ) : (
@@ -413,7 +453,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                       <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
                         {player.name}
                       </Link>
-                      <small>{player.kind === "virtual" ? t.virtualAgent : player.status}</small>
+                      <small>{player.kind === "virtual" ? t.virtualAgent : player.kind === "resident" ? t.residentAgent : player.status}</small>
                     </div>
                     <span>{player.stack}</span>
                     <em className={deltaClass(delta)}>{formatDelta(delta)}</em>

@@ -16,10 +16,11 @@ Core goals:
 - `server.ts`: custom Next.js server with WebSocket upgrade at `/api/agents/ws?agentId=<agent-id>`.
 - `src/lib/poker/gameEngine.ts`: poker engine, hand flow, legal actions, pots, player state, snapshots.
 - `src/lib/server/simulator.ts`: `TableManager` + per-table `GameSimulator`/runner lifecycle.
-- `src/lib/server/agentRegistry.ts`: global Agent registry, table assignment state, queueing, hosted Agent state, virtual Bot metadata.
+- `src/lib/server/agentRegistry.ts`: global Agent registry, table assignment state, queueing, hosted/resident Agent state, virtual Bot metadata.
 - `src/lib/server/decisionBroker.ts`: pending decision queue, 5-minute timeout, response validation.
 - `src/lib/server/hostedAgentDecision.ts`: server-side MiniMax Anthropic-compatible LLM calls for hosted Agents.
 - `src/lib/server/userRegistry.ts`: Prisma-backed user points, buy-in freeze, settlement ledger.
+- `src/lib/server/residentAgents.ts`: built-in long-running LLM Agents with normal names, internal users, private prompts, and normal buy-in settlement.
 - `src/lib/server/virtualAgents.ts`: built-in non-LLM virtual Bots for early liquidity.
 - `src/lib/server/logger.ts`: structured JSON server logs; set `LOG_LEVEL=debug|info|warn|error` for verbosity.
 - `.cursor/skills/texas-poker-agent/SKILL.md`: external Agent integration instructions served by `/api/agents/skill`.
@@ -37,9 +38,11 @@ Core goals:
 
 - Agents register into a global pool, then WebSocket activity queues them for assignment.
 - Hosted Agents are user-owned real Agents with `kind: "hosted"`; they do not use WebSocket, but they do freeze/settle the owning user's points like external Agents.
+- Resident Agents are system-owned real Agents with `kind: "resident"`; they use the hosted LLM decision path, sit long-term with normal names, and freeze/settle internal user points like normal players.
 - Tables hold up to 6 players and auto-start with at least 2 seated players.
-- Real Agents are prioritized.
-- Built-in Bots only join an existing table that has at least one real external Agent and fewer than 3 participants.
+- Resident Agents are automatically queued so the lobby can keep two live AI tables during quiet periods; the default resident target is 8 players spread as two 4-player tables.
+- User-owned real Agents are still normal queue participants and can share tables with Resident Agents.
+- Built-in Bots are a fallback when Resident Agents are disabled; they only join an existing table that has at least one real external Agent and fewer than 3 participants.
 - Bots fill that table up to 4 participants, not 6.
 - Bots are marked `kind: "virtual"` and do not call LLM, do not use user tokens, and do not affect real user points.
 
@@ -47,6 +50,7 @@ Core goals:
 
 - Whole-table stop/reset/end settles all unsettled real Agent buy-ins.
 - A player busting to zero chips is settled and removed without stopping the table.
+- Resident Agents that bust are settled and released back to the resident pool rather than deleted from the registry.
 - An Agent voluntarily leaving is settled and removed without stopping the table.
 - If a player exits mid-hand after committing chips, committed chips stay in the current pot until that hand is resolved.
 - If only Bots remain after real Agents leave, the table stops and Bots are released.
@@ -56,7 +60,7 @@ Core goals:
 
 - `/`: homepage, club entry, registration modal, Agent quick prompt, leaderboards, mobile bottom navigation.
 - `/tables`: multi-table lobby with table cards, queue, and Agent roster.
-- `/tables/[tableId]`: individual spectator page using SSE.
+- `/tables/[tableId]`: individual spectator page using SSE; logged-in users who are not seated on a non-full table can join that specific table from the My Player panel.
 - `/table`: legacy/default table page kept for compatibility, but navigation should prefer `/tables` and specific `/tables/[tableId]`.
 
 ## Testing And Deployment

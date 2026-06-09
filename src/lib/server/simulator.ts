@@ -5,6 +5,7 @@ import type { AgentDecisionRequest, GameSnapshot } from "../poker/types";
 import {
   assignAgentToTable,
   isHostedAgent,
+  isResidentAgent,
   isAgentPolling,
   isUserOwnedAgent,
   listAgents as listRegisteredAgents,
@@ -26,6 +27,7 @@ import {
 import { logger } from "./logger";
 import { prisma } from "./prisma";
 import { decideForHostedAgent } from "./hostedAgentDecision";
+import { isResidentAgentsEnabled, queueResidentAgents } from "./residentAgents";
 
 type ActiveBuyIn = GameBuyIn;
 type AgentSettlementReason = "busted" | "left" | "session-ended";
@@ -34,6 +36,7 @@ type SimulatorDependencies = {
   clearPendingDecisions: (reason?: string, agentId?: string) => void;
   enqueueDecision: (request: Parameters<typeof enqueueAgentDecision>[0]) => ReturnType<typeof enqueueAgentDecision>;
   listAgents: () => RegisteredAgent[];
+  recordAgentResults?: (settlements: GameSettlement[], reason: AgentSettlementReason, runner: GameSimulator) => Promise<void>;
   reserveGameBuyIns: (buyIns: GameBuyIn[]) => Promise<void>;
   settleGameBuyIns: (settlements: GameSettlement[]) => Promise<void>;
 };
@@ -51,6 +54,8 @@ export const maxPlayersPerTable = 6;
 export const minPlayersToStart = 2;
 const virtualBotJoinThreshold = 3;
 const virtualBotTargetPlayers = 4;
+const residentTargetTables = 2;
+const residentTargetPlayersPerTable = 4;
 const virtualBotDecisionDelayMs = 3_000;
 const handResultPauseMs = 3_000;
 
@@ -337,7 +342,7 @@ export class GameSimulator {
       return decideForVirtualAgent(agent, request);
     }
 
-    if (isHostedAgent(agent)) {
+    if (isHostedAgent(agent) || isResidentAgent(agent)) {
       return decideForHostedAgent(agent, request);
     }
 
@@ -404,7 +409,7 @@ export class GameSimulator {
 
     const settlement = { ...buyIn, finalStack: Math.max(0, finalStack) };
     await this.deps.settleGameBuyIns([settlement]);
-    await this.recordAgentResults([settlement], reason);
+    await this.recordAgentResultsThroughDependency([settlement], reason);
     this.activeBuyIns = this.activeBuyIns.filter((item) => item.agentId !== agentId);
     logger.info("table.buy_in_settled", { tableId: this.tableId, agentId, finalStack: Math.max(0, finalStack) });
     if (this.activeBuyIns.length === 0) {
@@ -416,7 +421,7 @@ export class GameSimulator {
     const bustedPlayers = this.engine.snapshot().players.filter((player) => player.stack <= 0);
 
     for (const player of bustedPlayers) {
-      await this.settleAndRemoveAgent(player.id, "busted", player.kind !== "virtual");
+      await this.settleAndRemoveAgent(player.id, "busted", player.kind !== "virtual" && player.kind !== "resident");
     }
   }
 
@@ -438,7 +443,7 @@ export class GameSimulator {
         finalStack: Math.max(0, players.find((player) => player.id === buyIn.agentId)?.stack ?? 0),
       }));
     await this.deps.settleGameBuyIns(settlements);
-    await this.recordAgentResults(settlements, "session-ended");
+    await this.recordAgentResultsThroughDependency(settlements, "session-ended");
     logger.info("table.session_settled", {
       tableId: this.tableId,
       gameSessionId: this.gameSessionId,
@@ -477,6 +482,15 @@ export class GameSimulator {
 
     await prisma.agentResult.createMany({ data: resultRows });
     logger.info("agent_results.recorded", { tableId: this.tableId, count: resultRows.length, reason });
+  }
+
+  private async recordAgentResultsThroughDependency(settlements: GameSettlement[], reason: AgentSettlementReason) {
+    if (this.deps.recordAgentResults) {
+      await this.deps.recordAgentResults(settlements, reason, this);
+      return;
+    }
+
+    await this.recordAgentResults(settlements, reason);
   }
 
   private stopTimer() {
@@ -599,18 +613,25 @@ export class TableManager {
   }
 
   private async allocateQueuedAgentsOnce() {
-    ensureVirtualAgentPool();
+    await queueResidentAgents();
+    if (!isResidentAgentsEnabled()) {
+      ensureVirtualAgentPool();
+    }
 
     for (const agent of listQueuedAgents()) {
-      const table = this.findTableForAgent() ?? this.createTable();
+      const table = this.findTableForAgent(agent) ?? this.createTable();
       assignAgentToTable(agent.id, table.id);
       logger.info("agent.assigned_to_table", { agentId: agent.id, tableId: table.id });
-      this.fillTableWithVirtualAgents(table.id);
+      if (!isResidentAgentsEnabled()) {
+        this.fillTableWithVirtualAgents(table.id);
+      }
       await table.runner.maybeAutoStart();
     }
 
     for (const table of this.activeTables()) {
-      this.fillTableWithVirtualAgents(table.id);
+      if (!isResidentAgentsEnabled()) {
+        this.fillTableWithVirtualAgents(table.id);
+      }
       await table.runner.maybeAutoStart();
     }
   }
@@ -661,6 +682,32 @@ export class TableManager {
     return { removed, tableEnded: Boolean(tableId) };
   }
 
+  async joinAgentToTable(agentId: string, tableId: string) {
+    const agent = listRegisteredAgents().find((item) => item.id === agentId);
+    if (!agent) {
+      throw new Error(`Agent ${agentId} does not exist.`);
+    }
+
+    const table = this.table(tableId);
+    if (!table) {
+      throw new Error(`Table ${tableId} does not exist.`);
+    }
+
+    if (agent.tableId && agent.tableId !== tableId && (agent.assignmentStatus === "seated" || agent.assignmentStatus === "playing")) {
+      throw new Error("Your player is already seated at another table.");
+    }
+
+    const occupiedSeats = Math.max(table.runner.tableSummary().playerCount, listTableAgents(tableId).length);
+    if (!agent.tableId && occupiedSeats >= maxPlayersPerTable) {
+      throw new Error("This table is full.");
+    }
+
+    assignAgentToTable(agent.id, tableId);
+    await table.runner.maybeAutoStart();
+    logger.info("agent.joined_specific_table", { agentId, tableId });
+    return listRegisteredAgents().find((item) => item.id === agentId) ?? agent;
+  }
+
   private findTableContainingPlayer(agentId: string, preferredTableId?: string) {
     const preferredTable = preferredTableId ? this.table(preferredTableId) : undefined;
     if (preferredTable?.runner.snapshot().players.some((player) => player.id === agentId)) {
@@ -670,7 +717,34 @@ export class TableManager {
     return this.activeTables().find((table) => table.runner.snapshot().players.some((player) => player.id === agentId));
   }
 
-  private findTableForAgent() {
+  private findTableForAgent(agent?: RegisteredAgent) {
+    if (agent?.kind === "resident" && isResidentAgentsEnabled()) {
+      const availableTables = this.activeTables().filter(
+        (table) => Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length) < maxPlayersPerTable,
+      );
+      const waitingForSecondSeat = availableTables.find(
+        (table) => Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length) < minPlayersToStart,
+      );
+      if (waitingForSecondSeat) {
+        return waitingForSecondSeat;
+      }
+
+      if (availableTables.length < residentTargetTables) {
+        return undefined;
+      }
+
+      const belowResidentTarget = availableTables
+        .filter((table) => Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length) < residentTargetPlayersPerTable)
+        .sort((left, right) => {
+          const leftCount = Math.max(left.runner.tableSummary().playerCount, listTableAgents(left.id).length);
+          const rightCount = Math.max(right.runner.tableSummary().playerCount, listTableAgents(right.id).length);
+          return leftCount - rightCount || left.createdAt.localeCompare(right.createdAt);
+        })[0];
+      if (belowResidentTarget) {
+        return belowResidentTarget;
+      }
+    }
+
     return this.activeTables().find(
       (table) => Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length) < maxPlayersPerTable,
     );

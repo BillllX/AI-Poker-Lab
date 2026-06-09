@@ -15,7 +15,7 @@ export type RegisteredAgent = {
 const pollingReadyWindowMs = 20_000;
 type AgentRegistrySubscriber = () => void;
 export type AgentAssignmentStatus = "registered" | "queued" | "seated" | "playing" | "disconnected";
-export type AgentKind = "external" | "hosted" | "virtual";
+export type AgentKind = "external" | "hosted" | "resident" | "virtual";
 export type VirtualAgentStrategy = "random" | "tight" | "aggressive" | "caller";
 
 export type AgentRegistrationInput = {
@@ -176,6 +176,43 @@ export function upsertHostedAgent(input: {
   return agent;
 }
 
+export function upsertResidentAgent(input: {
+  id: string;
+  name: string;
+  ownerUserId: string;
+  modelName: string;
+}) {
+  const id = normalizeAgentId(input.id);
+  const name = normalizeName(input.name);
+  const modelName = normalizeModelName(input.modelName);
+  const ownerUserId = input.ownerUserId.trim();
+  const existingAgent = listAgents().find((item) => item.id === id);
+  if (existingAgent && existingAgent.kind !== "resident") {
+    throw new Error(`Agent ${id} already exists and is not a resident Agent.`);
+  }
+  if (!ownerUserId) {
+    throw new Error("ownerUserId is required.");
+  }
+
+  const now = new Date().toISOString();
+  const agent: RegisteredAgent = {
+    id,
+    name,
+    modelName,
+    kind: "resident",
+    ownerUserId,
+    registeredAt: existingAgent?.registeredAt ?? now,
+    lastSeenAt: now,
+    tableId: existingAgent?.tableId,
+    assignmentStatus: existingAgent?.assignmentStatus ?? "registered",
+    queueEnteredAt: existingAgent?.queueEnteredAt,
+  };
+
+  globalForAgents.__texasPokerAgents = [...listAgents().filter((item) => item.id !== id), agent];
+  notifyAgentRegistrySubscribers();
+  return agent;
+}
+
 export function removeAgent(id: string) {
   const agents = listAgents();
   const before = agents.length;
@@ -318,7 +355,7 @@ export function isAgentPolling(agent: RegisteredAgent, now = new Date()) {
     return true;
   }
 
-  if (agent.kind === "hosted") {
+  if (agent.kind === "hosted" || agent.kind === "resident") {
     return true;
   }
 
@@ -333,12 +370,16 @@ export function isHostedAgent(agent: RegisteredAgent | undefined): agent is Regi
   return agent?.kind === "hosted" && Boolean(agent.ownerUserId);
 }
 
-export function isUserOwnedAgent(agent: RegisteredAgent | undefined): agent is RegisteredAgent & { kind: "external" | "hosted"; ownerUserId?: string } {
-  return agent?.kind === "external" || agent?.kind === "hosted";
+export function isResidentAgent(agent: RegisteredAgent | undefined): agent is RegisteredAgent & { kind: "resident"; ownerUserId: string } {
+  return agent?.kind === "resident" && Boolean(agent.ownerUserId);
+}
+
+export function isUserOwnedAgent(agent: RegisteredAgent | undefined): agent is RegisteredAgent & { kind: "external" | "hosted" | "resident"; ownerUserId?: string } {
+  return agent?.kind === "external" || agent?.kind === "hosted" || agent?.kind === "resident";
 }
 
 function isAgentReadyForTable(agent: RegisteredAgent, now = new Date()) {
-  return agent.kind === "hosted" || isAgentPolling(agent, now);
+  return agent.kind === "hosted" || agent.kind === "resident" || isAgentPolling(agent, now);
 }
 
 export function clearAgents() {

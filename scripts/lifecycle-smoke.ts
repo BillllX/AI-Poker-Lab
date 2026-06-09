@@ -15,6 +15,8 @@ import { GameSimulator, TableManager } from "../src/lib/server/simulator";
 import type { GameBuyIn, GameSettlement } from "../src/lib/server/userRegistry";
 import { initialStack, PokerGameEngine } from "../src/lib/poker/gameEngine";
 
+process.env.RESIDENT_AGENTS_ENABLED ??= "false";
+
 const agents = [
   {
     id: "agent-a",
@@ -627,6 +629,7 @@ function createHarness(options: { decisionMode: "auto-fold" | "pending"; agents?
         });
       },
       listAgents: () => activeAgents,
+      recordAgentResults: async () => undefined,
       reserveGameBuyIns: async (buyIns: GameBuyIn[]) => {
         reserveCalls.push(buyIns);
       },
@@ -672,7 +675,7 @@ type TableManagerInternals = {
 };
 
 async function waitFor(predicate: () => boolean) {
-  const deadline = Date.now() + 1_000;
+  const deadline = Date.now() + 5_000;
 
   while (!predicate()) {
     if (Date.now() > deadline) {

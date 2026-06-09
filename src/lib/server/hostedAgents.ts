@@ -45,7 +45,7 @@ export async function getHostedAgentStatus(ownerUserId: string): Promise<HostedA
   };
 }
 
-export async function createOrJoinHostedAgent(input: { ownerUserId: string; ownerName: string; origin: string }) {
+export async function createOrJoinHostedAgent(input: { ownerUserId: string; ownerName: string; origin: string; targetTableId?: string }) {
   const ownerUserId = input.ownerUserId.trim();
   const ownerName = input.ownerName.trim();
   const modelName = hostedAgentModel();
@@ -69,8 +69,20 @@ export async function createOrJoinHostedAgent(input: { ownerUserId: string; owne
     modelName,
   });
   const [namedAgent] = syncOwnerAgentNames(ownerUserId, ownerName).filter((agent) => agent.id === hostedAgent.id);
-  const queuedAgent = queueAgent(hostedAgent.id) ?? namedAgent ?? hostedAgent;
   const tableManager = getTableManager(input.origin);
+  if (input.targetTableId) {
+    const joinedAgent = await tableManager.joinAgentToTable(hostedAgent.id, input.targetTableId);
+    logger.info("hosted_agent.joined", {
+      agentId: hostedAgent.id,
+      ownerUserId,
+      modelName,
+      assignmentStatus: listAgents().find((agent) => agent.id === hostedAgent.id)?.assignmentStatus,
+      targetTableId: input.targetTableId,
+    });
+    return joinedAgent;
+  }
+
+  const queuedAgent = queueAgent(hostedAgent.id) ?? namedAgent ?? hostedAgent;
   await tableManager.allocateQueuedAgents();
 
   logger.info("hosted_agent.joined", {

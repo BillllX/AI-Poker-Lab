@@ -22,7 +22,7 @@ type PlayerConfig = {
   name: string;
   ownerUserId?: string;
   modelName?: string;
-  kind?: "external" | "hosted" | "human" | "virtual";
+  kind?: "external" | "hosted" | "human" | "resident" | "virtual";
   strategy?: AgentStyle;
   endpoint?: string;
   initialStack?: number;

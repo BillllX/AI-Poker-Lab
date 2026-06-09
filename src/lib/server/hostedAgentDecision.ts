@@ -22,7 +22,7 @@ const defaultDecisionTimeoutMs = 45_000;
 const defaultMaxTokens = 1024;
 const defaultThinkingTokens = 0;
 
-export async function decideForHostedAgent(agent: RegisteredAgent & { kind: "hosted"; ownerUserId: string }, request: AgentDecisionRequest) {
+export async function decideForHostedAgent(agent: RegisteredAgent & { kind: "hosted" | "resident"; ownerUserId: string }, request: AgentDecisionRequest) {
   const prompt = await buildHostedAgentPrompt(agent, request);
 
   try {

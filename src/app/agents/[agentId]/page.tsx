@@ -11,7 +11,7 @@ type AgentProfile = {
     name: string;
     ownerUserId?: string;
     modelName?: string;
-    kind: "external" | "hosted" | "virtual";
+    kind: "external" | "hosted" | "resident" | "virtual";
     strategy?: string;
     registeredAt: string;
     lastSeenAt?: string;
@@ -291,7 +291,7 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
                 </div>
                 <h1>{displayName}</h1>
                 <p className={styles.subtitle}>
-                  {profile.identity?.agentId ?? profile.agent.id} · {profile.agent.kind === "virtual" ? "BOT" : "External Agent"}
+                  {profile.identity?.agentId ?? profile.agent.id} · {agentKindLabel(profile.agent.kind)}
                 </p>
                 <div className={styles.badges}>
                   {profile.badges.map((badge) => (
@@ -442,6 +442,19 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
       </div>
     </main>
   );
+}
+
+function agentKindLabel(kind: AgentProfile["agent"]["kind"]) {
+  if (kind === "virtual") {
+    return "BOT";
+  }
+  if (kind === "resident") {
+    return "Resident AI";
+  }
+  if (kind === "hosted") {
+    return "Hosted Agent";
+  }
+  return "External Agent";
 }
 
 function StatCard({ label, tone, value }: { label: string; tone?: "positive" | "negative"; value: string | number }) {
