@@ -17,10 +17,10 @@ type MiniMaxResponse = {
 };
 
 const defaultMiniMaxBaseUrl = "https://api.minimaxi.com/anthropic/v1";
-const defaultHostedModel = "MiniMax-M1";
+const defaultHostedModel = "MiniMax M2.7 Highspeed";
 const defaultDecisionTimeoutMs = 45_000;
 const defaultMaxTokens = 1024;
-const defaultThinkingTokens = 512;
+const defaultThinkingTokens = 0;
 
 export async function decideForHostedAgent(agent: RegisteredAgent & { kind: "hosted"; ownerUserId: string }, request: AgentDecisionRequest) {
   const prompt = await buildHostedAgentPrompt(agent, request);
@@ -44,7 +44,7 @@ export async function decideForHostedAgent(agent: RegisteredAgent & { kind: "hos
       handId: request.handId,
       error,
     });
-    return fallbackHostedDecision(agent, request, error instanceof Error ? error.message : "模型决策失败");
+    return fallbackHostedDecision(agent, request, userFacingHostedErrorReason(error));
   }
 }
 
@@ -79,11 +79,15 @@ ${playerPrompt}
 ${JSON.stringify(runtimeInstructions.instructions)}
 
 输出要求:
-- 只输出 JSON，不要 Markdown，不要代码块。
+- 只输出一个 JSON 对象，不要 Markdown，不要代码块，不要解释性前后缀。
+- 不要输出思考过程、牌局分析正文、英文说明或自然语言段落；所有分析只能浓缩进 reasoning。
+- 最终回复必须以 { 开始，以 } 结束。
 - action.type 必须来自 legalActions。
+- 如果 legalActions 包含 bet 但不包含 raise，只能用 bet，不能用 raise。
+- 如果 legalActions 包含 raise 但不包含 bet，只能用 raise，不能用 bet。
 - fold/check/call 不能包含 amount。
 - bet/raise 必须包含正数 amount；raise 的 amount 是本轮目标总下注额，通常至少为 currentBet + minRaise。
-- reasoning 必须是简短中文解释。
+- reasoning 必须是简短中文解释，最多 40 个中文字符。
 
 牌力判断硬约束:
 - decisionInput.handAnalysis 是当前手牌+公牌组合的权威牌力计算结果。
@@ -91,8 +95,11 @@ ${JSON.stringify(runtimeInstructions.instructions)}
 - privateCards 和 publicState.communityCards 只用于理解上下文、位置、下注和风险，不允许重新计算出与 handAnalysis 冲突的牌力结论。
 - 如果你自己的直觉牌力判断与 handAnalysis 不一致，必须服从 handAnalysis，并在 reasoning 中按 handAnalysis 描述当前牌力。
 
-JSON schema:
-{"action":{"type":"fold|check|call|bet|raise","amount":number_if_and_only_if_bet_or_raise},"reasoning":"中文简短解释"}
+合法输出示例，二选一参考格式：
+{"action":{"type":"check"},"reasoning":"当前无需跟注，选择过牌控制底池。"}
+{"action":{"type":"raise","amount":80},"reasoning":"牌力和位置支持加注施压。"}
+
+注意：上面只是格式示例。最终 action.type 必须从本次 decisionInput.legalActions 中选择；只有 bet/raise 可以包含 amount。
 
 决策输入:
 ${JSON.stringify(decisionInput)}
@@ -108,16 +115,21 @@ async function callMiniMax(prompt: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), hostedDecisionTimeoutMs());
   try {
+    const body: Record<string, unknown> = {
+      model: hostedAgentModel(),
+      max_tokens: maxTokens(),
+      messages: [{ role: "user", content: prompt }],
+    };
+    const thinkingBudget = thinkingTokens();
+    if (thinkingBudget > 0) {
+      body.thinking = {
+        type: "enabled",
+        max_tokens: thinkingBudget,
+      };
+    }
+
     const response = await fetch(`${miniMaxBaseUrl().replace(/\/$/, "")}/messages`, {
-      body: JSON.stringify({
-        model: hostedAgentModel(),
-        max_tokens: maxTokens(),
-        thinking: {
-          type: "enabled",
-          max_tokens: thinkingTokens(),
-        },
-        messages: [{ role: "user", content: prompt }],
-      }),
+      body: JSON.stringify(body),
       headers: {
         "anthropic-version": "2023-06-01",
         authorization: `Bearer ${apiKey}`,
@@ -133,7 +145,16 @@ async function callMiniMax(prompt: string) {
     }
 
     const data = (await response.json()) as MiniMaxResponse;
-    return parseModelJson(extractModelText(data));
+    const modelText = extractModelText(data);
+    try {
+      return parseModelJson(modelText);
+    } catch (error) {
+      logger.warn("hosted_agent.model_json_parse_failed", {
+        error,
+        outputPreview: previewText(modelText),
+      });
+      throw error;
+    }
   } finally {
     clearTimeout(timeout);
   }
@@ -143,7 +164,9 @@ function normalizeHostedDecision(modelDecision: unknown, request: AgentDecisionR
   const source = isRecord(modelDecision) && isRecord(modelDecision.action) ? modelDecision.action : modelDecision;
   const action = normalizeAction(source, request.legalActions);
   if (!action) {
-    throw new Error("Hosted model returned an invalid action.");
+    throw new Error(
+      `Hosted model returned an invalid action: ${previewText(JSON.stringify({ action: source, legalActions: request.legalActions }))}`,
+    );
   }
 
   const reasoning =
@@ -176,6 +199,22 @@ function fallbackHostedDecision(agent: RegisteredAgent, request: AgentDecisionRe
   };
 }
 
+function userFacingHostedErrorReason(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "模型决策失败";
+  }
+
+  if (
+    error.message.includes("Model response did not contain") ||
+    error.message.includes("Hosted model returned an invalid action") ||
+    error.message.includes("JSON")
+  ) {
+    return "模型输出未能匹配当前合法动作";
+  }
+
+  return "模型决策失败";
+}
+
 function safeFallbackAction(legalActions: LegalAction[]): PokerAction {
   if (legalActions.includes("check")) {
     return { type: "check" };
@@ -187,53 +226,82 @@ function safeFallbackAction(legalActions: LegalAction[]): PokerAction {
 }
 
 function normalizeAction(value: unknown, legalActions: LegalAction[]): PokerAction | null {
-  if (!isRecord(value) || !legalActions.includes(value.type as LegalAction)) {
+  if (!isRecord(value)) {
     return null;
   }
 
-  if (value.type === "bet" || value.type === "raise") {
+  const actionType = normalizeActionType(value.type, legalActions);
+  if (!actionType) {
+    return null;
+  }
+
+  if (actionType === "bet" || actionType === "raise") {
     const amount = Number(value.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       return null;
     }
-    return { type: value.type, amount };
+    return { type: actionType, amount };
   }
 
-  return { type: value.type as "call" | "check" | "fold" };
+  return { type: actionType };
+}
+
+function normalizeActionType(type: unknown, legalActions: LegalAction[]): LegalAction | null {
+  if (legalActions.includes(type as LegalAction)) {
+    return type as LegalAction;
+  }
+
+  // Models often use poker table language loosely: an opening bet may be called a raise, and vice versa.
+  if (type === "raise" && legalActions.includes("bet")) {
+    return "bet";
+  }
+  if (type === "bet" && legalActions.includes("raise")) {
+    return "raise";
+  }
+  if (type === "call" && legalActions.includes("check")) {
+    return "check";
+  }
+
+  return null;
 }
 
 function extractModelText(data: MiniMaxResponse) {
   const contentBlocks = Array.isArray(data.content) ? data.content : [];
-  const textBlock = contentBlocks.find((block) => block.type === "text" && typeof block.text === "string" && block.text.trim());
-  if (textBlock && typeof textBlock.text === "string") {
-    return textBlock.text;
-  }
-
-  const thinkingText = contentBlocks
-    .filter((block) => block.type === "thinking")
-    .map((block) => (typeof block.text === "string" ? block.text : typeof block.thinking === "string" ? block.thinking : ""))
-    .join("\n");
-  const jsonMatch = thinkingText.match(/\{[\s\S]*"action"[\s\S]*\}/);
-  if (jsonMatch) {
-    return jsonMatch[0];
+  const strings = collectStrings(contentBlocks).filter((text) => text.trim());
+  const preferred = strings.find((text) => /\{[\s\S]*"action"[\s\S]*\}/.test(text)) ?? strings[0];
+  if (preferred) {
+    return preferred;
   }
 
   throw new Error("Model response did not contain JSON text.");
 }
 
-function parseModelJson(text: string) {
+export function parseModelJson(text: string) {
   const trimmed = text.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const raw = fenced?.[1]?.trim() || trimmed;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Model response did not contain JSON.");
+
+  for (const candidate of jsonCandidates(raw)) {
+    for (const normalized of normalizeJsonCandidates(candidate)) {
+      try {
+        return JSON.parse(normalized);
+      } catch {
+        // Try the next candidate/normalization before surfacing the parse failure.
+      }
     }
-    return JSON.parse(jsonMatch[0]);
   }
+
+  const partialJsonDecision = parsePartialJsonAction(raw);
+  if (partialJsonDecision) {
+    return partialJsonDecision;
+  }
+
+  const naturalDecision = parseNaturalLanguageDecision(raw);
+  if (naturalDecision) {
+    return naturalDecision;
+  }
+
+  throw new Error("Model response did not contain valid JSON.");
 }
 
 function miniMaxBaseUrl() {
@@ -263,4 +331,139 @@ function positiveIntegerEnv(name: string, fallback: number) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function collectStrings(value: unknown, depth = 0): string[] {
+  if (depth > 8 || value === null || typeof value === "undefined") {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectStrings(item, depth + 1));
+  }
+
+  return Object.entries(value)
+    .filter(([key]) => key !== "id" && key !== "model" && key !== "type" && key !== "role")
+    .flatMap(([, item]) => collectStrings(item, depth + 1));
+}
+
+function jsonCandidates(raw: string) {
+  const candidates: string[] = [];
+  const balanced = firstBalancedJsonObject(raw);
+  if (balanced) {
+    candidates.push(balanced);
+  }
+
+  if (!candidates.includes(raw)) {
+    candidates.push(raw);
+  }
+
+  return candidates;
+}
+
+function normalizeJsonCandidates(candidate: string) {
+  const normalized = candidate.trim();
+  const repaired = repairCommonJsonMistakes(normalized);
+  return repaired === normalized ? [normalized] : [normalized, repaired];
+}
+
+function firstBalancedJsonObject(text: string) {
+  const start = text.indexOf("{");
+  if (start < 0) {
+    return undefined;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = inString;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(start, index + 1);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function repairCommonJsonMistakes(text: string) {
+  return text
+    .replace(/([}\]"0-9])\s+("reasoning"\s*:)/g, "$1,$2")
+    .replace(/([}\]"0-9])\s+("action"\s*:)/g, "$1,$2");
+}
+
+function parsePartialJsonAction(text: string) {
+  const actionMatch = text.match(/"action"\s*:\s*\{[\s\S]*?"type"\s*:\s*"(fold|check|call|bet|raise)"/i);
+  const type = actionMatch?.[1]?.toLowerCase();
+  if (!type) {
+    return undefined;
+  }
+
+  const reasoning = previewText(text) || "模型返回了不完整 JSON，服务端从 action 字段提取结构化决策。";
+  if (type === "bet" || type === "raise") {
+    const amount = Number(text.match(/"amount"\s*:\s*(\d+(?:\.\d+)?)/i)?.[1]);
+    return Number.isFinite(amount) && amount > 0 ? { action: { type, amount }, reasoning } : undefined;
+  }
+
+  return { action: { type }, reasoning };
+}
+
+function parseNaturalLanguageDecision(text: string) {
+  const normalized = text.toLowerCase();
+  const amount = Number(text.match(/(?:amount|加注到|下注到|下注|加注|raise|bet)[^\d]*(\d+(?:\.\d+)?)/i)?.[1]);
+  const reasoning = previewText(text) || "模型以自然语言给出动作，服务端提取为结构化决策。";
+
+  if (/\braise\b|加注|raise\s+to/i.test(text)) {
+    return Number.isFinite(amount) && amount > 0 ? { action: { type: "raise", amount }, reasoning } : undefined;
+  }
+  if (/\bbet\b|下注/i.test(text)) {
+    return Number.isFinite(amount) && amount > 0 ? { action: { type: "bet", amount }, reasoning } : undefined;
+  }
+  if (/\bfold\b|弃牌/i.test(text)) {
+    return { action: { type: "fold" }, reasoning };
+  }
+  if (/\bcall\b|跟注/i.test(text)) {
+    return { action: { type: "call" }, reasoning };
+  }
+  if (/\bcheck\b|过牌/i.test(normalized)) {
+    return { action: { type: "check" }, reasoning };
+  }
+
+  return undefined;
+}
+
+function previewText(text: string) {
+  return text.replace(/\s+/g, " ").trim().slice(0, 500);
 }
