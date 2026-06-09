@@ -15,6 +15,8 @@ type RegisteredAgent = {
   modelName?: string;
   registeredAt: string;
   lastSeenAt?: string;
+  tableId?: string;
+  assignmentStatus?: string;
 };
 
 const copy = {
@@ -66,7 +68,6 @@ const copy = {
     action: "动作",
     waiting: "等待",
     virtualAgent: "BOT",
-    residentAgent: "常驻 AI",
     status: {
       active: "active",
       folded: "folded",
@@ -122,7 +123,6 @@ const copy = {
     action: "Action",
     waiting: "Waiting",
     virtualAgent: "BOT",
-    residentAgent: "Resident AI",
     status: {
       active: "active",
       folded: "folded",
@@ -415,7 +415,7 @@ export default function TablePage() {
               </Link>
               <span>{agent.id}</span>
               <small>{agent.modelName}</small>
-              <small>{agent.kind === "virtual" ? `${t.virtualAgent} · ${agent.strategy ?? "virtual"}` : agent.kind === "resident" ? t.residentAgent : agent.ownerUserId ? `Owner ${agent.ownerUserId}` : t.ownerMissing}</small>
+              <small>{agent.kind === "virtual" ? `${t.virtualAgent} · ${agent.strategy ?? "virtual"}` : agent.kind === "resident" ? agent.tableId ?? agent.assignmentStatus : agent.ownerUserId ? `Owner ${agent.ownerUserId}` : t.ownerMissing}</small>
               <small>{pollingAgentIds.has(agent.id) ? t.pollingReady : t.pollingWaiting}</small>
               <small>{agent.lastSeenAt ? `${t.lastSeen} ${new Date(agent.lastSeenAt).toLocaleTimeString()}` : t.neverSeen}</small>
             </div>
@@ -492,7 +492,6 @@ function SeatCard({
         <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
           {player.name}
           {player.kind === "virtual" && <small>{text.virtualAgent}</small>}
-          {player.kind === "resident" && <small>{text.residentAgent}</small>}
         </Link>
         <div className={styles.seatBadges}>
           <span>{positionLabel(seatIndex, dealerIndex, totalSeats)}</span>

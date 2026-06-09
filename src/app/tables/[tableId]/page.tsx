@@ -30,7 +30,6 @@ const copy = {
     recentActions: "最近动作",
     noActions: "还没有行动。",
     virtualAgent: "BOT",
-    residentAgent: "常驻 AI",
     currentBet: "当前注额",
     chipChange: "筹码变化",
     players: "玩家",
@@ -85,7 +84,6 @@ const copy = {
     recentActions: "Recent Actions",
     noActions: "No actions yet.",
     virtualAgent: "BOT",
-    residentAgent: "Resident AI",
     currentBet: "Current bet",
     chipChange: "Chip Changes",
     players: "Players",
@@ -347,7 +345,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                     <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
                       {player.name}
                       {player.kind === "virtual" && <small>{t.virtualAgent}</small>}
-                      {player.kind === "resident" && <small>{t.residentAgent}</small>}
                     </Link>
                     <div className={styles.seatBadges}>
                       <span>{positionLabel(index, state?.dealerIndex ?? 0, players.length)}</span>
@@ -415,7 +412,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                 <div className={styles.myPlayerSummary}>
                   <div>
                     <strong>{myPlayer.name}</strong>
-                    <span>{myPlayer.kind === "resident" ? t.residentAgent : myPlayer.kind === "hosted" ? t.hostedAgent : t.externalAgent}</span>
+                    <span>{myPlayer.kind === "hosted" ? t.hostedAgent : t.externalAgent}</span>
                   </div>
                   <em className={deltaClass(myPlayer.stack - initialStack)}>{formatDelta(myPlayer.stack - initialStack)}</em>
                 </div>
@@ -453,7 +450,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                       <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
                         {player.name}
                       </Link>
-                      <small>{player.kind === "virtual" ? t.virtualAgent : player.kind === "resident" ? t.residentAgent : player.status}</small>
+                      <small>{player.kind === "virtual" ? t.virtualAgent : player.status}</small>
                     </div>
                     <span>{player.stack}</span>
                     <em className={deltaClass(delta)}>{formatDelta(delta)}</em>

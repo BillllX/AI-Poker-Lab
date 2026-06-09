@@ -449,7 +449,7 @@ function agentKindLabel(kind: AgentProfile["agent"]["kind"]) {
     return "BOT";
   }
   if (kind === "resident") {
-    return "Resident AI";
+    return "AI Player";
   }
   if (kind === "hosted") {
     return "Hosted Agent";

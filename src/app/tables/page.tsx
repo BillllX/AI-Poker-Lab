@@ -61,7 +61,6 @@ const copy = {
     tableLabel: "桌",
     unseated: "未入座",
     virtualAgent: "BOT",
-    residentAgent: "常驻 AI",
     realAgent: "真人",
     myPlayer: "我的牌手",
     myPlayerPlaying: "你的 AI 牌手正在比赛，继续进入牌桌观战和 Coaching。",
@@ -104,7 +103,6 @@ const copy = {
     tableLabel: "Table",
     unseated: "Unseated",
     virtualAgent: "BOT",
-    residentAgent: "Resident AI",
     realAgent: "Human",
     myPlayer: "My Player",
     myPlayerPlaying: "Your AI player is seated. Continue watching and coach from the table.",
@@ -314,7 +312,7 @@ export default function TablesPage() {
                     </Link>
                     <small>{agent.id}</small>
                   </div>
-                  <em>{agent.kind === "virtual" ? t.virtualAgent : agent.kind === "resident" ? t.residentAgent : agent.assignmentStatus}</em>
+                  <em>{agent.kind === "virtual" ? t.virtualAgent : agent.assignmentStatus}</em>
                 </div>
               ))}
               {queuedAgents.length === 0 && <p className={styles.emptyStateCompact}>{t.noQueuedAgents}</p>}
@@ -337,9 +335,8 @@ export default function TablesPage() {
                     <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
                       {agent.name}
                       {agent.kind === "virtual" && <b>{t.virtualAgent}</b>}
-                      {agent.kind === "resident" && <b>{t.residentAgent}</b>}
                     </Link>
-                    <small>{agent.kind === "virtual" ? agent.strategy ?? "virtual" : agent.kind === "resident" ? agent.tableId ?? t.residentAgent : agent.tableId ?? t.unseated}</small>
+                    <small>{agent.kind === "virtual" ? agent.strategy ?? "virtual" : agent.tableId ?? t.unseated}</small>
                   </div>
                   <em>{agent.assignmentStatus}</em>
                 </div>
