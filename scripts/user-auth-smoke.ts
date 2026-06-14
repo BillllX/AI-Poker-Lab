@@ -42,6 +42,7 @@ async function runSmoke() {
   }
 
   const name = `Auth Smoke ${Date.now()}`;
+  const email = `auth-smoke-${Date.now()}@example.com`;
   const password = "smoke-password-123";
   const captcha = createCaptcha();
   const registerResponse = await usersRoute.POST(
@@ -49,6 +50,7 @@ async function runSmoke() {
       method: "POST",
       body: JSON.stringify({
         name,
+        email,
         password,
         captchaId: captcha.captchaId,
         captchaAnswer: answerForCaptcha(captcha.challenge),
@@ -70,6 +72,21 @@ async function runSmoke() {
   assert.equal(registered.user.name, name);
   assert.match(registered.userToken, /^utok_/);
   assert.ok(registerResponse.headers.get("set-cookie")?.includes("texas_poker_user_session="));
+
+  const duplicateEmailCaptcha = createCaptcha();
+  const duplicateEmailResponse = await usersRoute.POST(
+    new Request("http://localhost:3000/api/users", {
+      method: "POST",
+      body: JSON.stringify({
+        name: `${name} Duplicate Email`,
+        email,
+        password,
+        captchaId: duplicateEmailCaptcha.captchaId,
+        captchaAnswer: answerForCaptcha(duplicateEmailCaptcha.challenge),
+      }),
+    }),
+  );
+  assert.equal(duplicateEmailResponse.status, 400);
 
   const badLoginResponse = await loginRoute.POST(
     new Request("http://localhost:3000/api/users/login", {

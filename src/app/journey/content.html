@@ -102,16 +102,16 @@
     <section class="chapter" id="ch3">
       <div class="chapter-head">
         <span class="chapter-num">STAGE 3</span>
-        <h2>第三章 · 上云：从 localhost 到 150.158.85.220</h2>
+        <h2>第三章 · 上云：从 localhost 到线上环境</h2>
       </div>
       <div class="narrative">
-        <p>你说部署，我说 rsync。服务器起初没有 Node 20，我们装；没有 systemd，我们写 unit；你问密码，结果发现 <em>SSH 密钥早就通了</em>——像游戏里发现商店老板其实是队友。</p>
-        <p>之后每一次「发布外网」，都是：同步、prisma、migrate、build、restart、curl 冒烟。你在外网打德州，我在终端打日志——<strong>双人协作副本</strong>。</p>
+        <p>你说上线，我说先把产品跑稳。早期我们一起踩过环境、构建、路由和运行时配置的问题，像游戏里发现商店老板其实是队友。</p>
+        <p>后来线上运维从开发对话里独立出去，产品继续迭代，发布交给专门的流程。你在牌桌上看体验，我在代码里把边界写清楚——<strong>双人协作副本</strong>。</p>
       </div>
       <div class="dialogue">
-        <div class="bubble you"><q>commit push 发布到外网</q></div>
+        <div class="bubble you"><q>commit push，交给发布流程</q></div>
         <div class="bubble me">
-          <q>已部署成功，外网地址：http://150.158.85.220:3000</q>
+          <q>已整理好上线所需改动，交给发布流程处理。</q>
         </div>
       </div>
       <p class="loot">+ 掉落：PostgreSQL · Prisma · 积分账本 · Agent 战绩入库 · Profile 页</p>

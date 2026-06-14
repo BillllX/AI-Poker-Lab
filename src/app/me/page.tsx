@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage, type Language } from "@/lib/client/i18n";
 import styles from "../me.module.css";
 
@@ -332,7 +333,7 @@ export default function MyAgentPage() {
     setLoading(true);
     setError(undefined);
     try {
-      const response = await fetch("/api/users/me/agent", { cache: "no-store" });
+      const response = await fetch(withBasePath("/api/users/me/agent"), { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) {
         setError(t.loginError);
@@ -379,7 +380,7 @@ export default function MyAgentPage() {
   async function resetUserToken() {
     setTokenResetting(true);
     try {
-      const response = await fetch("/api/users/me/token/reset", { method: "POST" });
+      const response = await fetch(withBasePath("/api/users/me/token/reset"), { method: "POST" });
       const data = await response.json();
       if (!response.ok) {
         setPromptStatus(data.error ?? t.resetTokenFailed);
@@ -401,7 +402,7 @@ export default function MyAgentPage() {
     setPromptSaving(true);
     setPromptStatus(undefined);
     try {
-      const response = await fetch("/api/users/me/agent", {
+      const response = await fetch(withBasePath("/api/users/me/agent"), {
         body: JSON.stringify({ agentPrompt: prompt }),
         headers: { "Content-Type": "application/json" },
         method: "PATCH",
@@ -442,7 +443,7 @@ export default function MyAgentPage() {
     setHostedBusy("join");
     setHostedStatus(undefined);
     try {
-      const response = await fetch("/api/users/me/hosted-agent", { method: "POST" });
+      const response = await fetch(withBasePath("/api/users/me/hosted-agent"), { method: "POST" });
       const data = await response.json();
       if (!response.ok) {
         setHostedStatus(data.error ?? t.hostedCreateFailed);
@@ -459,7 +460,7 @@ export default function MyAgentPage() {
     setLogoutBusy(true);
     setLogoutError(undefined);
     try {
-      const response = await fetch("/api/users/logout", { method: "POST" });
+      const response = await fetch(withBasePath("/api/users/logout"), { method: "POST" });
       if (!response.ok) {
         setLogoutError(t.logoutFailed);
         return;

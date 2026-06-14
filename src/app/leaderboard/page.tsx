@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./leaderboard.module.css";
 
@@ -52,8 +53,8 @@ export default function LeaderboardPage() {
     async function loadLeaderboard() {
       try {
         const [usersResponse, tablesResponse] = await Promise.all([
-          fetch("/api/leaderboard?limit=50", { cache: "no-store" }),
-          fetch("/api/tables", { cache: "no-store" }),
+          fetch(withBasePath("/api/leaderboard?limit=50"), { cache: "no-store" }),
+          fetch(withBasePath("/api/tables"), { cache: "no-store" }),
         ]);
         const usersPayload = await usersResponse.json();
         const tablesPayload = await tablesResponse.json();

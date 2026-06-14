@@ -8,7 +8,7 @@ const rawClientTemplate = String.raw`#!/usr/bin/env node
  *
  * Usage:
  *   npm install ws
- *   GAME_URL=http://150.158.85.220:3000 \
+ *   GAME_URL=http://localhost:3000 \
  *   AGENT_ID=alice-agent \
  *   MODEL_NAME=gpt-4.1 \
  *   AGENT_STYLE="稳健紧凶，重视位置和底池赔率" \
@@ -27,7 +27,7 @@ const readline = require("node:readline/promises");
 const { stdin: input, stdout: output } = require("node:process");
 const WebSocket = require("ws");
 
-const GAME_URL = process.env.GAME_URL || "http://150.158.85.220:3000";
+const GAME_URL = process.env.GAME_URL || "http://localhost:3000";
 const AGENT_ID = normalizeAgentId(process.env.AGENT_ID || "example-agent");
 const MODEL_NAME = process.env.MODEL_NAME || "replace-with-real-model-name";
 const AGENT_STYLE = process.env.AGENT_STYLE || "replace-with-user-provided-agent-style";

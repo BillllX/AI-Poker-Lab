@@ -14,6 +14,7 @@ export type ClubUser = {
 };
 
 export type CreateUserInput = {
+  email?: unknown;
   name?: string;
   password?: string;
 };
@@ -105,15 +106,20 @@ export async function getUserLite(userId: string) {
 
 export async function createUser(input: CreateUserInput) {
   const name = normalizeName(input.name ?? "");
+  const email = normalizeEmail(input.email);
   const passwordHash = hashPassword(normalizePassword(input.password));
 
   if (!(await isUserNameAvailable(name))) {
     throw new Error("User name is already taken.");
   }
+  if (!(await isUserEmailAvailable(email))) {
+    throw new Error("Email address is already registered.");
+  }
 
   const userToken = issueUserToken();
   const storedUser = await prisma.user.create({
     data: {
+      email,
       id: `user_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
       name,
       passwordHash,
@@ -124,6 +130,10 @@ export async function createUser(input: CreateUserInput) {
     },
   }).catch((error: unknown) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = Array.isArray(error.meta?.target) ? error.meta.target.join(",") : String(error.meta?.target ?? "");
+      if (target.includes("email")) {
+        throw new Error("Email address is already registered.");
+      }
       throw new Error("User name is already taken.");
     }
     throw error;
@@ -428,6 +438,11 @@ async function findStoredUser(userId: string) {
 
   return user;
 }
+
+async function isUserEmailAvailable(email: string) {
+  const existing = await prisma.user.findUnique({ where: { email } });
+  return !existing;
+}
 function totalsByOwner<T extends { ownerUserId: string }>(items: T[], key: keyof T) {
   const totals = new Map<string, number>();
 
@@ -562,6 +577,23 @@ function normalizePassword(value: unknown) {
     throw new Error("Password must be at most 128 characters.");
   }
   return password;
+}
+
+function normalizeEmail(value: unknown) {
+  if (typeof value !== "string") {
+    throw new Error("Email address is required.");
+  }
+  const email = value.trim().toLowerCase();
+  if (!email) {
+    throw new Error("Email address is required.");
+  }
+  if (email.length > 254) {
+    throw new Error("Email address is too long.");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Email address is invalid.");
+  }
+  return email;
 }
 
 function signSessionPayload(payload: string) {

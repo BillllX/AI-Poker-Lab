@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./home.module.css";
 
@@ -74,7 +75,7 @@ const copy = {
     watchMatches: "观看实验牌桌",
     quickPlayEyebrow: "QUICK PLAY",
     quickPlayTitle: "30 秒让你的 AI 坐上牌桌",
-    quickPlayText: "起一个昵称，设置密码，系统会自动创建云端 AI 牌手并进入比赛。打法风格和高级设置可以之后再调。",
+    quickPlayText: "起一个昵称，留下邮箱，设置密码，系统会自动创建云端 AI 牌手并进入比赛。打法风格和高级设置可以之后再调。",
     quickPlaySubmit: "创建 AI 并开赛",
     quickPlayExisting: "已有账号？登录后自动开赛",
     quickPlayStarting: "正在创建 AI 牌手并进入牌桌...",
@@ -101,7 +102,7 @@ const copy = {
         prompt: "优先做可解释、低失误决策；不确定时选择保守线路，并在 reasoning 中说明风险和下一次需要改进的点。",
       },
     ],
-    startSteps: ["输入昵称和密码", "云端 AI 自动入桌", "观战、Coaching、复盘"],
+    startSteps: ["输入昵称、邮箱和密码", "云端 AI 自动入桌", "观战、Coaching、复盘"],
     flowEyebrow: "HOW IT WORKS",
     flowTitle: "三步开始训练",
     flowText: "新用户默认使用云端托管 AI，不需要本地脚本和 API key。先开赛，再慢慢调整打法风格。",
@@ -167,6 +168,8 @@ const copy = {
     closeModal: "关闭注册浮窗",
     userName: "用户名",
     userNamePlaceholder: "例如 Bill",
+    email: "邮件地址",
+    emailPlaceholder: "用于接收通知和找回信息",
     password: "密码",
     passwordPlaceholder: "至少 8 位",
     loginTitle: "已有账号登录",
@@ -236,7 +239,7 @@ const copy = {
     watchMatches: "Watch Lab Tables",
     quickPlayEyebrow: "QUICK PLAY",
     quickPlayTitle: "Seat your AI in 30 seconds.",
-    quickPlayText: "Pick a name and password. The lab creates your cloud AI player and sends it into a match. Style and advanced settings can wait.",
+    quickPlayText: "Pick a name, email, and password. The lab creates your cloud AI player and sends it into a match. Style and advanced settings can wait.",
     quickPlaySubmit: "Create AI and Play",
     quickPlayExisting: "Already have an account? Log in and auto-play",
     quickPlayStarting: "Creating your AI player and entering the table...",
@@ -263,7 +266,7 @@ const copy = {
         prompt: "Prioritize explainable, low-mistake decisions. When uncertain, choose the conservative line and explain the risk and next improvement point in reasoning.",
       },
     ],
-    startSteps: ["Enter name and password", "Cloud AI auto-seats", "Watch, coach, review"],
+    startSteps: ["Enter name, email, and password", "Cloud AI auto-seats", "Watch, coach, review"],
     flowEyebrow: "HOW IT WORKS",
     flowTitle: "Start training in three steps",
     flowText: "New players use hosted AI by default. No local scripts, no personal API key. Play first, tune the style later.",
@@ -329,6 +332,8 @@ const copy = {
     closeModal: "Close registration dialog",
     userName: "User name",
     userNamePlaceholder: "e.g. Bill",
+    email: "Email address",
+    emailPlaceholder: "For updates and account recovery",
     password: "Password",
     passwordPlaceholder: "At least 8 characters",
     loginTitle: "Log In",
@@ -391,6 +396,7 @@ export default function Home() {
   const router = useRouter();
   const t = copy[language];
   const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginName, setLoginName] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -427,11 +433,12 @@ export default function Home() {
       const body = authUser
         ? (agentPrompt ? { agentPrompt } : {})
         : {
+            email: userEmail,
             name: userName,
             password,
             agentPrompt,
           };
-      const response = await fetch("/api/users/quick-play", {
+      const response = await fetch(withBasePath("/api/users/quick-play"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -448,6 +455,7 @@ export default function Home() {
         window.dispatchEvent(new Event(authChangedEvent));
       }
       setPassword("");
+      setUserEmail("");
       setQuickPlayModalOpen(false);
       setRegistrationModalOpen(false);
       await refreshLeaderboard();
@@ -464,15 +472,15 @@ export default function Home() {
   }
 
   async function refreshCaptcha() {
-    const response = await fetch("/api/users/captcha", { cache: "no-store" });
+    const response = await fetch(withBasePath("/api/users/captcha"), { cache: "no-store" });
     setCaptcha(await response.json());
     setCaptchaAnswer("");
   }
 
   async function refreshLeaderboard() {
     const [usersResponse, tablesResponse] = await Promise.all([
-      fetch("/api/leaderboard?limit=8", { cache: "no-store" }),
-      fetch("/api/tables", { cache: "no-store" }),
+      fetch(withBasePath("/api/leaderboard?limit=8"), { cache: "no-store" }),
+      fetch(withBasePath("/api/tables"), { cache: "no-store" }),
     ]);
     const payload = await usersResponse.json();
     const tablesPayload = await tablesResponse.json();
@@ -492,7 +500,7 @@ export default function Home() {
     setBusy("check-name");
     setRegistrationError(undefined);
     try {
-      const response = await fetch(`/api/users/check-name?name=${encodeURIComponent(name)}`, { cache: "no-store" });
+      const response = await fetch(withBasePath(`/api/users/check-name?name=${encodeURIComponent(name)}`), { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) {
         setNameStatus(payload.error ?? t.nameCheckFailed);
@@ -511,11 +519,12 @@ export default function Home() {
     setCreatedUser(undefined);
 
     try {
-      const response = await fetch("/api/users", {
+      const response = await fetch(withBasePath("/api/users"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: userName,
+          email: userEmail,
           password,
           captchaId: captcha?.captchaId,
           captchaAnswer,
@@ -533,6 +542,7 @@ export default function Home() {
       setAuthUser(payload.user);
       window.dispatchEvent(new Event(authChangedEvent));
       setNameStatus(undefined);
+      setUserEmail("");
       setPassword("");
       setCaptchaAnswer("");
       await refreshLeaderboard();
@@ -549,7 +559,7 @@ export default function Home() {
     setCreatedUser(undefined);
 
     try {
-      const response = await fetch("/api/users/login", {
+      const response = await fetch(withBasePath("/api/users/login"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -580,7 +590,7 @@ export default function Home() {
   }
 
   async function refreshMe() {
-    const response = await fetch("/api/users/me", { cache: "no-store" });
+    const response = await fetch(withBasePath("/api/users/me"), { cache: "no-store" });
     if (!response.ok) {
       setAuthUser(undefined);
       return;
@@ -593,7 +603,7 @@ export default function Home() {
     setBusy("logout-user");
     setRegistrationError(undefined);
     try {
-      const response = await fetch("/api/users/logout", { method: "POST" });
+      const response = await fetch(withBasePath("/api/users/logout"), { method: "POST" });
       if (!response.ok) {
         const payload = await response.json();
         setRegistrationError(payload.error ?? t.logoutFailed);
@@ -614,7 +624,7 @@ export default function Home() {
     setRegistrationError(undefined);
 
     try {
-      const response = await fetch("/api/users", {
+      const response = await fetch(withBasePath("/api/users"), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -699,7 +709,7 @@ export default function Home() {
 
   async function hasExistingAgentPrompt() {
     try {
-      const response = await fetch("/api/users/me/agent", { cache: "no-store" });
+      const response = await fetch(withBasePath("/api/users/me/agent"), { cache: "no-store" });
       if (!response.ok) {
         return false;
       }
@@ -952,6 +962,21 @@ export default function Home() {
                   />
                 </label>
                 <label>
+                  {t.email}
+                  <input
+                    autoComplete="email"
+                    inputMode="email"
+                    onChange={(event) => {
+                      setUserEmail(event.target.value);
+                      setRegistrationError(undefined);
+                    }}
+                    placeholder={t.emailPlaceholder}
+                    required
+                    type="email"
+                    value={userEmail}
+                  />
+                </label>
+                <label>
                   {t.password}
                   <input
                     onChange={(event) => {
@@ -1092,6 +1117,23 @@ export default function Home() {
                   </div>
                 </label>
                 {nameStatus && <p className={styles.formHint}>{nameStatus}</p>}
+
+                <label>
+                  {t.email}
+                  <input
+                    autoComplete="email"
+                    inputMode="email"
+                    onChange={(event) => {
+                      setUserEmail(event.target.value);
+                      setCreatedUser(undefined);
+                      setRegistrationError(undefined);
+                    }}
+                    placeholder={t.emailPlaceholder}
+                    required
+                    type="email"
+                    value={userEmail}
+                  />
+                </label>
 
                 <label>
                   {t.password}

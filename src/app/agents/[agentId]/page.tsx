@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "../agent-profile.module.css";
 
@@ -209,7 +210,7 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
       }
 
       try {
-        const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/profile`, { cache: "no-store", signal });
+        const response = await fetch(withBasePath(`/api/agents/${encodeURIComponent(agentId)}/profile`), { cache: "no-store", signal });
         const payload = await response.json();
         if (signal?.aborted) {
           return;

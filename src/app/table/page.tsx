@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage, type Language } from "@/lib/client/i18n";
 import type { Card, GameSnapshot, PublicPlayerState } from "@/lib/poker/types";
 import styles from "./table.module.css";
@@ -155,12 +156,12 @@ export default function TablePage() {
   const currentPlayerId = state?.currentPlayerId;
 
   async function refreshState() {
-    const gameResponse = await fetch("/api/game/state", { cache: "no-store" });
+    const gameResponse = await fetch(withBasePath("/api/game/state"), { cache: "no-store" });
     setState(await gameResponse.json());
   }
 
   async function refreshRoster() {
-    const rosterResponse = await fetch("/api/agents/roster", { cache: "no-store" });
+    const rosterResponse = await fetch(withBasePath("/api/agents/roster"), { cache: "no-store" });
     const rosterPayload = await rosterResponse.json();
     setAgents(rosterPayload.agents);
     setPollingAgentIds(new Set((rosterPayload.pollingAgents as RegisteredAgent[] | undefined)?.map((agent) => agent.id) ?? []));
@@ -175,7 +176,7 @@ export default function TablePage() {
     setBusyAction(action);
     setError(undefined);
     try {
-      const response = await fetch(`/api/game/${action}`, {
+      const response = await fetch(withBasePath(`/api/game/${action}`), {
         method: "POST",
         headers: action === "start" ? { "x-dashboard-action": "start-game" } : undefined,
       });
@@ -198,7 +199,7 @@ export default function TablePage() {
     setBusyAction("register");
     setError(undefined);
     try {
-      const response = await fetch("/api/agents/roster", {
+      const response = await fetch(withBasePath("/api/agents/roster"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: agentId, name: agentName, modelName, ownerUserId, userToken, qualificationToken }),
@@ -228,7 +229,7 @@ export default function TablePage() {
     setError(undefined);
 
     try {
-      const response = await fetch("/api/agents/runtime-instructions", {
+      const response = await fetch(withBasePath("/api/agents/runtime-instructions"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ agentId: instructionAgentId, message: instructionMessage }),
@@ -250,7 +251,7 @@ export default function TablePage() {
     const initial = setTimeout(() => {
       void refreshRoster();
     }, 0);
-    const events = new EventSource("/api/game/events");
+    const events = new EventSource(withBasePath("/api/game/events"));
     events.addEventListener("snapshot", (event) => {
       setState(JSON.parse((event as MessageEvent<string>).data) as GameSnapshot);
     });

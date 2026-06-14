@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./login.module.css";
 
@@ -55,7 +56,7 @@ export default function LoginPage() {
     setBusy(true);
     setError(undefined);
     try {
-      const response = await fetch("/api/users/login", {
+      const response = await fetch(withBasePath("/api/users/login"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name, password }),

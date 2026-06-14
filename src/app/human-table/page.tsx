@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { SoundToggle } from "@/components/SoundToggle";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import { useTableSounds } from "@/lib/client/tableSoundEvents";
 import type { Card, GameSnapshot, LegalAction, PokerAction } from "@/lib/poker/types";
@@ -302,14 +303,14 @@ export default function HumanTablePage() {
   }
 
   useEffect(() => {
-    const events = new EventSource("/api/human-table/events");
+    const events = new EventSource(withBasePath("/api/human-table/events"));
     events.addEventListener("snapshot", (event) => {
       const nextSnapshot = JSON.parse((event as MessageEvent<string>).data) as HumanTableSnapshot;
       setSnapshot(nextSnapshot);
       revealWinnersForSnapshot(nextSnapshot.game);
     });
     events.onerror = async () => {
-      const response = await fetch("/api/human-table/state", { cache: "no-store" });
+      const response = await fetch(withBasePath("/api/human-table/state"), { cache: "no-store" });
       if (response.ok) {
         const nextSnapshot = (await response.json()) as HumanTableSnapshot;
         setSnapshot(nextSnapshot);
@@ -337,7 +338,7 @@ export default function HumanTablePage() {
     setBusy(mode);
     setStatus(undefined);
     try {
-      const response = await fetch(`/api/human-table/${mode}`, {
+      const response = await fetch(withBasePath(`/api/human-table/${mode}`), {
         body: JSON.stringify({ buyIn: Number(buyIn), password }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -360,7 +361,7 @@ export default function HumanTablePage() {
     setBusy("action");
     setStatus(undefined);
     try {
-      const response = await fetch("/api/human-table/action", {
+      const response = await fetch(withBasePath("/api/human-table/action"), {
         body: JSON.stringify(action),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -381,7 +382,7 @@ export default function HumanTablePage() {
     setBusy("join");
     setStatus(undefined);
     try {
-      const response = await fetch("/api/human-table/buy-in", {
+      const response = await fetch(withBasePath("/api/human-table/buy-in"), {
         body: JSON.stringify({ buyIn: Number(nextBuyIn) }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -411,7 +412,7 @@ export default function HumanTablePage() {
     setBusy("leave");
     setStatus(undefined);
     try {
-      const response = await fetch("/api/human-table/leave", { method: "POST" });
+      const response = await fetch(withBasePath("/api/human-table/leave"), { method: "POST" });
       const payload = await response.json();
       if (!response.ok) {
         setStatus(payload.error ?? t.leaveFailed);
@@ -430,7 +431,7 @@ export default function HumanTablePage() {
     setBusy("end");
     setStatus(undefined);
     try {
-      const response = await fetch("/api/human-table/end", { method: "POST" });
+      const response = await fetch(withBasePath("/api/human-table/end"), { method: "POST" });
       const payload = await response.json();
       if (!response.ok) {
         setStatus(payload.error ?? t.endFailed);

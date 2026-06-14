@@ -174,42 +174,14 @@ Keep those files aligned whenever the protocol changes.
 
 ## Production Deployment
 
-This project is currently deployed as a Node service on a remote server. The existing deployment pattern is:
+See **`deploy/DEPLOY.md`** for the full one-shot deployment and migration guide (intended for Cursor Agent + SSH). Quick checklist: `deploy/DEPLOY-CHECKLIST.md`. Post-deploy verification: `deploy/scripts/verify-production.sh`.
+
+For local release readiness before deploy:
 
 ```bash
-rsync -az --delete \
-  --exclude 'node_modules' \
-  --exclude '.next' \
-  --exclude '.git' \
-  --exclude 'data/users.json' \
-  ./ root@150.158.85.220:/root/texas-poker-agents/
-```
-
-Then build and restart on the server:
-
-```bash
-ssh root@150.158.85.220 '
-  cd /root/texas-poker-agents &&
-  export DATABASE_URL=$(systemctl show texas-poker-agents.service -p Environment --value | tr " " "\n" | sed -n "s/^DATABASE_URL=//p") &&
-  npm ci &&
-  npm run prisma:generate &&
-  npm run prisma:migrate &&
-  npm run build &&
-  systemctl restart texas-poker-agents.service &&
-  systemctl is-active texas-poker-agents.service
-'
-```
-
-Operational health check:
-
-```bash
-curl http://150.158.85.220:3000/api/tables
-```
-
-Stop one online table without stopping the whole service:
-
-```bash
-curl -X POST http://150.158.85.220:3000/api/tables/<tableId>/stop
+npm run lint
+npm run build
+npm run test:lifecycle
 ```
 
 ## Systemd Service Notes
@@ -223,10 +195,18 @@ npm run start
 The service must provide at least:
 
 - `DATABASE_URL`
+- `NEXT_PUBLIC_BASE_PATH=/aipokerclub` in both `.env.production` (build) and systemd runtime env
 - `MINIMAX_API_KEY` if hosted AI players are enabled
 - optional `MINIMAX_BASE_URL`
 - optional `HOSTED_AGENT_MODEL`
 - optional `LOG_LEVEL=debug|info|warn|error`
+
+Production path contract (see `PROJECT_CONTEXT.md` and `.cursor/rules/production-routing.mdc`):
+
+- Site root `/` is a static SPA; this app is served at `/aipokerclub`.
+- Copy `deploy/systemd/basepath.conf.example` to the service drop-in directory.
+- Use `deploy/nginx/ai-assistant.conf.example` (full site) or `deploy/nginx/aipokerclub-location.snippet` (poker-only blocks); rebuild after any basePath change.
+- Full release steps: `deploy/DEPLOY.md`.
 
 ## Important Product Rules
 

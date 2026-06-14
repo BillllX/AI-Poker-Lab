@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a Next.js + TypeScript Texas Hold'em club application where external AI Agents join games over WebSocket. The public site is hosted at `http://150.158.85.220:3000`.
+This is a Next.js + TypeScript Texas Hold'em club application where external AI Agents join games over WebSocket.
 
 Core goals:
 
@@ -63,7 +63,32 @@ Core goals:
 - `/tables/[tableId]`: individual spectator page using SSE; logged-in users who are not seated on a non-full table can join that specific table from the My Player panel.
 - `/table`: legacy/default table page kept for compatibility, but navigation should prefer `/tables` and specific `/tables/[tableId]`.
 
-## Testing And Deployment
+## Production Routing
+
+Public hosts use path-based routing:
+
+| Public path | Backend |
+|---|---|
+| `https://aiagentswitcher.com/aipokerclub` | Primary user URL (nginx `:443`) |
+| `http://150.158.85.220/aipokerclub` | IP fallback (nginx `:80`) |
+| `/` | Static SPA (`/var/www/bill`) — not this app |
+| `/aipokerclub` | This Next.js app (`texas-poker-agents` on `:3000`) |
+| `/api/*`, `/_next/*` (legacy) | Proxied to prefixed app paths |
+| `/lobster/` | Separate lobster frontend (`:5176`) |
+
+Deploy contract (all three required after any basePath change):
+
+1. `.env.production` on the server: `NEXT_PUBLIC_BASE_PATH=/aipokerclub`
+2. systemd drop-in: `deploy/systemd/basepath.conf.example` → `/etc/systemd/system/texas-poker-agents.service.d/basepath.conf`
+3. `npm run build` then `systemctl restart texas-poker-agents` (restart alone is not enough)
+
+Nginx template: `deploy/nginx/ai-assistant.conf.example` (HTTPS, static `/`, legacy `/api/` + `/_next/`). Do not mount this app at site root `/`.
+
+In code, use `getBasePath()` / `withBasePath()` for links and client fetches. Agent onboarding and skill docs must emit full prefixed URLs.
+
+Deployment: `deploy/DEPLOY.md` (full) and `deploy/DEPLOY-CHECKLIST.md` (quick).
+
+## Testing And Operations
 
 Local checks:
 
@@ -73,28 +98,12 @@ npm run build
 npm run test:lifecycle
 ```
 
-Remote deployment pattern used in this project:
-
-```bash
-rsync -az --delete --exclude 'node_modules' --exclude '.next' --exclude '.git' --exclude 'data/users.json' ./ root@150.158.85.220:/root/texas-poker-agents/
-ssh root@150.158.85.220 'cd /root/texas-poker-agents && export DATABASE_URL=$(systemctl show texas-poker-agents.service -p Environment --value | tr " " "\n" | sed -n "s/^DATABASE_URL=//p") && npm ci && npm run prisma:generate && npm run prisma:migrate && npm run build && systemctl restart texas-poker-agents.service && systemctl is-active texas-poker-agents.service'
-```
-
-Operational check:
-
-```bash
-curl http://150.158.85.220:3000/api/tables
-```
-
-To stop an online table without stopping the server:
-
-```bash
-curl -X POST http://150.158.85.220:3000/api/tables/<tableId>/stop
-```
+Production deployment is documented in `deploy/DEPLOY.md` for one-shot Agent runs when the project owner requests it. Never commit secrets; use systemd drop-ins on the server for credentials.
 
 ## Important Cautions
 
 - Do not commit secrets, `.env`, real `userToken`s, or database credentials.
+- Do not access production servers from this workspace agent; keep deployment and operations out of agent-run commands.
 - Do not change Prisma deployment config casually; this project uses Prisma 7 with `prisma.config.ts` and `@prisma/adapter-pg`.
 - Keep Agent protocol docs and `/api/agents/client-template` in sync when changing WebSocket messages or action schema.
 - After UI changes, verify mobile layouts because homepage and table pages have custom bottom navigation behavior.

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./tables.module.css";
 
@@ -136,7 +137,7 @@ export default function TablesPage() {
   const myTable = myAgent?.tableId ? tables.find((table) => table.id === myAgent.tableId) : undefined;
 
   async function refresh() {
-    const response = await fetch("/api/tables", { cache: "no-store" });
+    const response = await fetch(withBasePath("/api/tables"), { cache: "no-store" });
     const payload = await response.json();
     setTables(Array.isArray(payload.tables) ? payload.tables : []);
     setAgents(Array.isArray(payload.agents) ? payload.agents : []);
@@ -144,7 +145,7 @@ export default function TablesPage() {
   }
 
   async function refreshMe() {
-    const response = await fetch("/api/users/me", { cache: "no-store" });
+    const response = await fetch(withBasePath("/api/users/me"), { cache: "no-store" });
     if (!response.ok) {
       setMe(null);
       return;
@@ -157,7 +158,7 @@ export default function TablesPage() {
     setQuickPlayBusy(true);
     setQuickPlayError(undefined);
     try {
-      const response = await fetch("/api/users/quick-play", {
+      const response = await fetch(withBasePath("/api/users/quick-play"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({}),

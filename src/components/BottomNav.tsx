@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./BottomNav.module.css";
 
@@ -65,7 +66,7 @@ export function BottomNav() {
 
     async function loadSession() {
       try {
-        const response = await fetch("/api/users/me", { cache: "no-store" });
+        const response = await fetch(withBasePath("/api/users/me"), { cache: "no-store" });
         const payload = await response.json();
         if (!cancelled) {
           setUser(response.ok ? payload.user ?? null : null);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { FormEvent } from "react";
 import { use, useEffect, useRef, useState } from "react";
 import { SoundToggle } from "@/components/SoundToggle";
+import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import { useTableSounds } from "@/lib/client/tableSoundEvents";
 import type { Card, GameSnapshot } from "@/lib/poker/types";
@@ -178,14 +179,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   }
 
   useEffect(() => {
-    const events = new EventSource(`/api/tables/${tableId}/events`);
+    const events = new EventSource(withBasePath(`/api/tables/${tableId}/events`));
     events.addEventListener("snapshot", (event) => {
       const nextState = JSON.parse((event as MessageEvent<string>).data) as GameSnapshot;
       setState(nextState);
       revealWinnersForSnapshot(nextState);
     });
     events.onerror = async () => {
-      const response = await fetch(`/api/tables/${tableId}/state`, { cache: "no-store" });
+      const response = await fetch(withBasePath(`/api/tables/${tableId}/state`), { cache: "no-store" });
       if (response.ok) {
         const nextState = (await response.json()) as GameSnapshot;
         setState(nextState);
@@ -198,7 +199,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   useEffect(() => {
     let cancelled = false;
     async function loadMe() {
-      const response = await fetch("/api/users/me", { cache: "no-store" });
+      const response = await fetch(withBasePath("/api/users/me"), { cache: "no-store" });
       if (cancelled) {
         return;
       }
@@ -225,7 +226,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   }, []);
 
   async function refreshTableState() {
-    const response = await fetch(`/api/tables/${tableId}/state`, { cache: "no-store" });
+    const response = await fetch(withBasePath(`/api/tables/${tableId}/state`), { cache: "no-store" });
     if (response.ok) {
       const nextState = (await response.json()) as GameSnapshot;
       setState(nextState);
@@ -242,7 +243,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     setControlBusy("coaching");
     setControlStatus(undefined);
     try {
-      const response = await fetch("/api/users/me/agent/coaching", {
+      const response = await fetch(withBasePath("/api/users/me/agent/coaching"), {
         body: JSON.stringify({ tableId, message: coachingMessage }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -267,7 +268,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     setControlBusy("leave");
     setControlStatus(undefined);
     try {
-      const response = await fetch("/api/users/me/agent/leave", {
+      const response = await fetch(withBasePath("/api/users/me/agent/leave"), {
         body: JSON.stringify({ tableId }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -288,7 +289,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     setControlBusy("join");
     setControlStatus(undefined);
     try {
-      const response = await fetch(`/api/tables/${tableId}/join`, { method: "POST" });
+      const response = await fetch(withBasePath(`/api/tables/${tableId}/join`), { method: "POST" });
       const payload = await response.json();
       if (!response.ok) {
         setControlStatus(payload.error ?? t.joinTableFailed);

@@ -133,7 +133,7 @@ async function ensureResidentUser(template: ResidentAgentTemplate, ownerUserId: 
   });
 
   const user = await prisma.user.findUnique({ where: { id: ownerUserId } });
-  if (user && user.pointsBalance < initialStack && user.frozenPoints === 0) {
+  if (user && user.pointsBalance < initialStack) {
     await prisma.user.update({
       data: { pointsBalance: residentBankroll },
       where: { id: ownerUserId },
