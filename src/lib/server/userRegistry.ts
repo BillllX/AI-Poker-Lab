@@ -1,5 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import { rankChangeFor, type RankTrend } from "@/lib/leaderboard/rankChange";
+import { currentClubDay, previousClubDay } from "./clubDay";
 import { prisma } from "./prisma";
 import { logger } from "./logger";
 
@@ -10,6 +12,10 @@ export type ClubUser = {
   frozenPoints: number;
   dailyProfitToday: number;
   dailySettlementsToday: number;
+  currentRank?: number;
+  previousRank?: number;
+  rankDelta?: number;
+  rankTrend?: RankTrend;
   createdAt: string;
 };
 
@@ -45,7 +51,7 @@ export async function listUsers() {
 
 export async function listLeaderboardUsers(limit = 20) {
   const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
-  const users = await prisma.user.findMany({
+  const rankedUsers = await prisma.user.findMany({
     orderBy: [{ pointsBalance: "desc" }, { createdAt: "asc" }],
     select: {
       createdAt: true,
@@ -54,12 +60,28 @@ export async function listLeaderboardUsers(limit = 20) {
       name: true,
       pointsBalance: true,
     },
-    take: safeLimit,
   });
-  const dailyProfits = await dailyProfitStatsForToday(users.map((user) => user.id));
-  return users.map((user) => {
+  const today = currentClubDay();
+  const yesterday = previousClubDay(today);
+  await ensureLeaderboardSnapshot(yesterday, rankedUsers);
+  await refreshLeaderboardSnapshot(today, rankedUsers);
+
+  const users = rankedUsers.slice(0, safeLimit);
+  const userIds = users.map((user) => user.id);
+  const [dailyProfits, previousSnapshots] = await Promise.all([
+    dailyProfitStatsForToday(userIds),
+    prisma.leaderboardDailySnapshot.findMany({
+      select: { rank: true, userId: true },
+      where: { dayKey: yesterday, userId: { in: userIds } },
+    }),
+  ]);
+  const previousRanks = new Map(previousSnapshots.map((snapshot) => [snapshot.userId, snapshot.rank]));
+  return users.map((user, index) => {
     const profit = dailyProfits.get(user.id);
-    return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
+    return {
+      ...publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0),
+      ...rankChangeFor(index + 1, previousRanks.get(user.id)),
+    };
   });
 }
 
@@ -479,6 +501,46 @@ async function dailyProfitStatsForToday(userIds?: string[]) {
   return new Map(rows.map((row) => [row.userId, { amount: row._sum.amount ?? 0, settlements: row._count._all }]));
 }
 
+type RankedSnapshotUser = {
+  id: string;
+  pointsBalance: number;
+  createdAt: Date;
+};
+
+async function ensureLeaderboardSnapshot(dayKey: string, rankedUsers: RankedSnapshotUser[]) {
+  const existingCount = await prisma.leaderboardDailySnapshot.count({ where: { dayKey } });
+  if (existingCount > 0 || rankedUsers.length === 0) {
+    return;
+  }
+
+  await prisma.leaderboardDailySnapshot.createMany({
+    data: leaderboardSnapshotRows(dayKey, rankedUsers),
+    skipDuplicates: true,
+  });
+}
+
+async function refreshLeaderboardSnapshot(dayKey: string, rankedUsers: RankedSnapshotUser[]) {
+  await prisma.$transaction(async (tx) => {
+    await tx.leaderboardDailySnapshot.deleteMany({ where: { dayKey } });
+    if (rankedUsers.length > 0) {
+      await tx.leaderboardDailySnapshot.createMany({
+        data: leaderboardSnapshotRows(dayKey, rankedUsers),
+      });
+    }
+  });
+}
+
+function leaderboardSnapshotRows(dayKey: string, rankedUsers: RankedSnapshotUser[]) {
+  return rankedUsers.map((user, index) => ({
+    id: `lbs_${randomUUID().replace(/-/g, "")}`,
+    dayKey,
+    userId: user.id,
+    rank: index + 1,
+    pointsBalance: user.pointsBalance,
+    userCreatedAt: user.createdAt,
+  }));
+}
+
 async function assertUserCanReserve(tx: Prisma.TransactionClient, ownerUserId: string, amount: number) {
   const user = await tx.user.findUnique({ where: { id: ownerUserId } });
 
@@ -491,18 +553,6 @@ async function assertUserCanReserve(tx: Prisma.TransactionClient, ownerUserId: s
   }
 
   throw new Error(`Unable to reserve buy-in for ownerUserId ${ownerUserId}.`);
-}
-
-function currentClubDay(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-
-  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function hashToken(token: string) {

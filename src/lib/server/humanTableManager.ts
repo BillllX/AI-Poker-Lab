@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { initialStack, PokerGameEngine } from "../poker/gameEngine";
-import type { AgentDecisionRequest, AgentDecisionResponse, GameSnapshot, LegalAction, PokerAction } from "../poker/types";
+import type { ActionHistoryItem, ActionLog, AgentDecisionRequest, AgentDecisionResponse, Card, GameSnapshot, LegalAction, PokerAction } from "../poker/types";
 import type { ClubUser } from "./userRegistry";
 import { logger } from "./logger";
+import { prisma } from "./prisma";
 
 const maxHumanPlayers = 6;
 const minHumanPlayersToStart = 2;
@@ -10,6 +12,7 @@ const decisionTimeoutMs = 180_000;
 const handResultPauseMs = 6_000;
 const humanTableId = "human-table-1";
 const humanTableName = "Live Human Table";
+const maxHumanHandSummaries = 80;
 
 type HumanParticipant = {
   bankedStack: number;
@@ -44,11 +47,48 @@ type PendingDecision = {
 type HumanTable = {
   createdAt: string;
   engine: PokerGameEngine;
+  handSummaries: HumanHandSummary[];
   id: string;
   name: string;
   ownerUserId: string;
   participants: Map<string, HumanParticipant>;
   passwordHash: string;
+};
+
+export type HumanHandSummary = {
+  actions: ActionHistoryItem[];
+  bigBlind: number;
+  communityCards: Card[];
+  completedAt: string;
+  dealerIndex: number;
+  handId: number;
+  id: string;
+  logs: ActionLog[];
+  players: Array<{
+    committedChips: number;
+    endingStack: number;
+    holeCards: Card[];
+    lastAction?: string;
+    name: string;
+    netChips: number;
+    playerId: string;
+    seatIndex: number;
+    startingStack: number;
+    status?: string;
+    userId?: string;
+  }>;
+  smallBlind: number;
+  startedAt: string;
+  tableId: string;
+  tableName?: string;
+  totalAwarded: number;
+  winners: Array<{
+    amount: number;
+    handLabel?: string;
+    handRank?: string;
+    name: string;
+    playerId: string;
+  }>;
 };
 
 export type HumanPlayerStat = {
@@ -69,6 +109,7 @@ export type HumanPlayerStat = {
 
 export type HumanTableSnapshot = {
   game?: GameSnapshot;
+  handSummaries: HumanHandSummary[];
   myPlayerId?: string;
   mySeatStatus: "not-logged-in" | "no-table" | "seated" | "spectator";
   pendingDecision?: {
@@ -121,6 +162,7 @@ export class HumanTableManager {
     const table: HumanTable = {
       createdAt: new Date().toISOString(),
       engine: new PokerGameEngine([player], { tableId: humanTableId, tableName: humanTableName }),
+      handSummaries: [],
       id: humanTableId,
       name: humanTableName,
       ownerUserId: user.id,
@@ -248,6 +290,7 @@ export class HumanTableManager {
     if (!table) {
       return {
         mySeatStatus: userId ? "no-table" : "not-logged-in",
+        handSummaries: [],
         playerStats: [],
         tableStatus: {
           hasTable: false,
@@ -276,6 +319,7 @@ export class HumanTableManager {
 
     return {
       game,
+      handSummaries: table.handSummaries.slice(-20).reverse(),
       myPlayerId,
       mySeatStatus: !userId ? "not-logged-in" : hasJoinedTable ? "seated" : "spectator",
       pendingDecision: this.publicPendingDecision(),
@@ -417,6 +461,7 @@ export class HumanTableManager {
         return;
       }
 
+      await this.recordCompletedHand(table);
       await sleep(handResultPauseMs);
       this.removePendingPlayers(table);
       this.removeBustedPlayers(table);
@@ -685,6 +730,62 @@ export class HumanTableManager {
     };
   }
 
+  private async recordCompletedHand(table: HumanTable) {
+    const snapshot = table.engine.snapshot();
+    if (snapshot.handId <= 0 || snapshot.actionHistory.length === 0) {
+      return;
+    }
+    if (table.handSummaries.some((summary) => summary.handId === snapshot.handId)) {
+      return;
+    }
+
+    const summary = buildHumanHandSummary(table, snapshot);
+    table.handSummaries.push(summary);
+    if (table.handSummaries.length > maxHumanHandSummaries) {
+      table.handSummaries.splice(0, table.handSummaries.length - maxHumanHandSummaries);
+    }
+    this.invalidateSnapshotCache();
+
+    try {
+      await prisma.humanHandSummary.upsert({
+        create: {
+          id: summary.id,
+          tableId: summary.tableId,
+          tableName: summary.tableName,
+          handId: summary.handId,
+          startedAt: new Date(summary.startedAt),
+          completedAt: new Date(summary.completedAt),
+          dealerIndex: summary.dealerIndex,
+          smallBlind: summary.smallBlind,
+          bigBlind: summary.bigBlind,
+          communityCards: toJsonValue(summary.communityCards),
+          actions: toJsonValue(summary.actions),
+          logs: toJsonValue(summary.logs),
+          players: toJsonValue(summary.players),
+          winners: toJsonValue(summary.winners),
+          totalAwarded: summary.totalAwarded,
+        },
+        update: {
+          tableName: summary.tableName,
+          completedAt: new Date(summary.completedAt),
+          dealerIndex: summary.dealerIndex,
+          smallBlind: summary.smallBlind,
+          bigBlind: summary.bigBlind,
+          communityCards: toJsonValue(summary.communityCards),
+          actions: toJsonValue(summary.actions),
+          logs: toJsonValue(summary.logs),
+          players: toJsonValue(summary.players),
+          winners: toJsonValue(summary.winners),
+          totalAwarded: summary.totalAwarded,
+        },
+        where: { tableId_handId: { tableId: summary.tableId, handId: summary.handId } },
+      });
+      logger.info("human_table.hand_summary_recorded", { tableId: table.id, handId: summary.handId, playerCount: summary.players.length });
+    } catch (error) {
+      logger.error("human_table.hand_summary_record_failed", { tableId: table.id, handId: summary.handId, error });
+    }
+  }
+
   private closeTable(table: HumanTable, reason: string) {
     this.rejectPending(new Error("Human table closed."));
     table.engine.setRunning(false);
@@ -737,6 +838,74 @@ function participantToHumanPlayer(participant: HumanParticipant) {
 
 function participantToSeatStack(participant: HumanParticipant) {
   return participant.pendingBuyIn && participant.pendingBuyIn > 0 ? participant.pendingBuyIn : participant.lastKnownEffectiveStack;
+}
+
+function buildHumanHandSummary(table: HumanTable, snapshot: GameSnapshot): HumanHandSummary {
+  const completedAt = new Date().toISOString();
+  const actions = snapshot.actionHistory.filter((item) => item.handId === snapshot.handId);
+  const logs = snapshot.logs
+    .filter((item) => item.handId === snapshot.handId)
+    .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime());
+  const startedAt = actions[0]?.createdAt ?? logs[0]?.createdAt ?? completedAt;
+  const winnersById = new Map<string, HumanHandSummary["winners"][number]>();
+
+  for (const action of actions) {
+    if (action.action !== "win") {
+      continue;
+    }
+    const current = winnersById.get(action.playerId);
+    winnersById.set(action.playerId, {
+      amount: (current?.amount ?? 0) + (action.amount ?? 0),
+      handLabel: current?.handLabel ?? action.handLabel,
+      handRank: current?.handRank ?? action.handRank,
+      name: action.playerName,
+      playerId: action.playerId,
+    });
+  }
+
+  const winners = [...winnersById.values()].sort((left, right) => right.amount - left.amount || left.name.localeCompare(right.name));
+  const participantByPlayerId = new Map([...table.participants.values()].map((participant) => [participant.playerId, participant]));
+  const wonByPlayerId = new Map(winners.map((winner) => [winner.playerId, winner.amount]));
+  const players = snapshot.players.map((player, index) => {
+    const wonAmount = wonByPlayerId.get(player.id) ?? 0;
+    const startingStack = player.stack + player.totalCommitted - wonAmount;
+    const participant = participantByPlayerId.get(player.id);
+    return {
+      committedChips: player.totalCommitted,
+      endingStack: player.stack,
+      holeCards: player.holeCards ?? [],
+      lastAction: player.lastAction,
+      name: player.name,
+      netChips: player.stack - startingStack,
+      playerId: player.id,
+      seatIndex: index,
+      startingStack,
+      status: player.status,
+      userId: participant?.userId ?? player.ownerUserId,
+    };
+  });
+
+  return {
+    actions,
+    bigBlind: snapshot.bigBlind,
+    communityCards: snapshot.communityCards,
+    completedAt,
+    dealerIndex: snapshot.dealerIndex,
+    handId: snapshot.handId,
+    id: `human_hand_${table.id}_${snapshot.handId}`,
+    logs,
+    players,
+    smallBlind: snapshot.smallBlind,
+    startedAt,
+    tableId: table.id,
+    tableName: table.name,
+    totalAwarded: winners.reduce((sum, winner) => sum + winner.amount, 0),
+    winners,
+  };
+}
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 function normalizePassword(password: string) {

@@ -12,6 +12,7 @@
     "prisma:dev": "prisma migrate dev",
     "test:hand-analysis": "tsx scripts/hand-analysis-smoke.ts",
     "test:hosted-decision": "tsx scripts/hosted-decision-smoke.ts",
+    "test:leaderboard-rank": "tsx scripts/leaderboard-rank-smoke.ts",
     "test:lifecycle": "tsx scripts/lifecycle-smoke.ts",
     "test:onboarding": "tsx scripts/onboarding-smoke.ts",
     "test:user-auth": "tsx scripts/user-auth-smoke.ts",

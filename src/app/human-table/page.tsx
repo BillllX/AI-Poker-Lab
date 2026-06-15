@@ -12,6 +12,28 @@ import styles from "../table/table.module.css";
 
 type HumanTableSnapshot = {
   game?: GameSnapshot;
+  handSummaries: Array<{
+    actions: GameSnapshot["actionHistory"];
+    bigBlind: number;
+    communityCards: Card[];
+    completedAt: string;
+    handId: number;
+    players: Array<{
+      endingStack: number;
+      holeCards: Card[];
+      name: string;
+      netChips: number;
+      playerId: string;
+      startingStack: number;
+    }>;
+    totalAwarded: number;
+    winners: Array<{
+      amount: number;
+      handLabel?: string;
+      name: string;
+      playerId: string;
+    }>;
+  }>;
   myPlayerId?: string;
   mySeatStatus: "not-logged-in" | "no-table" | "seated" | "spectator";
   pendingDecision?: {
@@ -86,6 +108,7 @@ const copy = {
     emptySeat: "空位",
     fold: "弃牌",
     hand: "hand",
+    handReview: "最近复盘",
     handWinners: "本局赢家",
     humanTable: "真人牌桌",
     inSeat: "在桌",
@@ -100,6 +123,7 @@ const copy = {
     maxPlayers: "最多 6 人",
     myAction: "我的操作",
     noActions: "还没有行动。",
+    noHandSummaries: "还没有完成的手牌摘要。",
     noCommunity: "等待公共牌",
     notMyTurn: "还没有轮到你行动。",
     password: "牌桌密码",
@@ -173,6 +197,7 @@ const copy = {
     emptySeat: "Empty Seat",
     fold: "Fold",
     hand: "hand",
+    handReview: "Recent Review",
     handWinners: "Hand Winners",
     humanTable: "Human Table",
     inSeat: "Seated",
@@ -187,6 +212,7 @@ const copy = {
     maxPlayers: "Up to 6 players",
     myAction: "My Action",
     noActions: "No actions yet.",
+    noHandSummaries: "No completed hand summaries yet.",
     noCommunity: "Waiting for community cards",
     notMyTurn: "It is not your turn yet.",
     password: "Table password",
@@ -267,6 +293,7 @@ export default function HumanTablePage() {
   const timeLeftMs = pendingDecision ? Math.max(0, new Date(pendingDecision.expiresAt).getTime() - now) : 0;
   const handWinners = winnerReveal?.winners ?? [];
   const winningPlayerIds = new Set(handWinners.map((winner) => winner.playerId));
+  const handSummaries = snapshot?.handSummaries ?? [];
   const playerStats = finalPlayerStats ?? snapshot?.playerStats ?? [];
   const myPlayerStat = snapshot?.myPlayerId ? playerStats.find((stat) => stat.playerId === snapshot.myPlayerId) : undefined;
   const isWaitingNextHand = myPlayerStat?.status === "waiting-next-hand";
@@ -683,6 +710,43 @@ export default function HumanTablePage() {
                   </article>
                 ))}
                 {state.logs.length === 0 && <p className={styles.muted}>{t.noActions}</p>}
+              </div>
+            </section>
+            <section className={styles.panel}>
+              <h2>{t.handReview}</h2>
+              <div className={styles.handSummaryList}>
+                {handSummaries.slice(0, 5).map((summary) => (
+                  <article className={styles.handSummaryCard} key={`${summary.handId}-${summary.completedAt}`}>
+                    <div className={styles.handSummaryHeader}>
+                      <strong>{t.hand} #{summary.handId}</strong>
+                      <span>{summary.totalAwarded.toLocaleString()}</span>
+                    </div>
+                    <div className={styles.handSummaryCards}>
+                      {summary.communityCards.length > 0 ? (
+                        summary.communityCards.map((card, index) => <PlayingCard card={card} key={`${summary.handId}-${card.rank}${card.suit}-${index}`} small />)
+                      ) : (
+                        <small>{t.noCommunity}</small>
+                      )}
+                    </div>
+                    <div className={styles.handSummaryWinners}>
+                      {summary.winners.map((winner) => (
+                        <span key={`${summary.handId}-${winner.playerId}`}>
+                          {winner.name} +{winner.amount.toLocaleString()}
+                          {winner.handLabel ? <small>{formatWinReason(winner.handLabel, language)}</small> : null}
+                        </span>
+                      ))}
+                    </div>
+                    <div className={styles.handSummaryPlayers}>
+                      {summary.players.map((player) => (
+                        <span key={`${summary.handId}-${player.playerId}`}>
+                          {player.name}
+                          <em className={deltaClass(player.netChips)}>{formatDelta(player.netChips)}</em>
+                        </span>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+                {handSummaries.length === 0 ? <p className={styles.muted}>{t.noHandSummaries}</p> : null}
               </div>
             </section>
           </aside>

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { FormEvent } from "react";
 import { use, useEffect, useRef, useState } from "react";
 import { SoundToggle } from "@/components/SoundToggle";
 import { withBasePath } from "@/lib/client/basePath";
@@ -37,29 +36,21 @@ const copy = {
     profit: "盈亏",
     position: "位置",
     myPlayer: "我的牌手",
-    loginToCoach: "登录后，如果你的牌手在本桌，会显示 Coaching 和离桌控制。",
-    coaching: "现场 Coaching",
-    coachingPlaceholder: "例如：下一手不要 bluff，优先控制底池；强牌再加注。",
-    sendCoaching: "发送 Coaching",
-    coachingSent: "Coaching 已发送，将从下一手开始生效。",
-    coachingFailed: "Coaching 发送失败。",
+    loginToView: "登录后，如果你的牌手在本桌，会显示当前状态和离桌控制。",
     joinTable: "坐上这张桌",
     joiningTable: "正在上桌...",
     joinTableHint: "你已登录，可以让自己的托管牌手加入这张桌，从下一手开始参与。",
     joinTableFailed: "上桌失败。",
     joinTableQueued: "已加入这张桌，等待下一手入局。",
-    leaveTable: "离开牌桌并结算",
+    leaveTable: "Leave",
     leaveFailed: "离开牌桌失败。",
     leaving: "离开中...",
-    coachingSending: "发送中...",
     loadingLogin: "正在读取登录状态...",
     leaveSettled: "已离开牌桌并结算。",
     leaveNoPlayer: "当前没有需要离开的牌手。",
     hostedAgent: "托管 Agent",
     externalAgent: "本地 Agent",
-    coachingHint: "Coaching 只从下一手开始生效，不会改变当前手已经开始的决策。托管 Agent 会由服务器模型读取；本地 Agent 需要保持连接并读取 runtime instructions。",
     spectatorMode: "观战模式",
-    currentHandReadonly: "当前手只能观看，Coaching 下一手生效。",
     thinking: "正在思考",
     preparingHand: "准备发牌",
     handWinners: "本局赢家",
@@ -91,29 +82,21 @@ const copy = {
     profit: "P&L",
     position: "Position",
     myPlayer: "My Player",
-    loginToCoach: "Log in to see coaching and leave controls when your player is seated here.",
-    coaching: "Live Coaching",
-    coachingPlaceholder: "e.g. Starting next hand, avoid bluffing and control the pot unless clearly strong.",
-    sendCoaching: "Send Coaching",
-    coachingSent: "Coaching sent. It will apply starting next hand.",
-    coachingFailed: "Failed to send coaching.",
+    loginToView: "Log in to see current status and leave controls when your player is seated here.",
     joinTable: "Join This Table",
     joiningTable: "Joining...",
     joinTableHint: "You are logged in. Seat your hosted player at this table and it will join from the next hand.",
     joinTableFailed: "Failed to join this table.",
     joinTableQueued: "Joined this table. Your player will enter on the next hand.",
-    leaveTable: "Leave table and settle",
+    leaveTable: "Leave",
     leaveFailed: "Failed to leave table.",
     leaving: "Leaving...",
-    coachingSending: "Sending...",
     loadingLogin: "Reading login status...",
     leaveSettled: "Left table and settled.",
     leaveNoPlayer: "No player needs to leave right now.",
     hostedAgent: "Hosted Agent",
     externalAgent: "Local Agent",
-    coachingHint: "Coaching applies from the next hand only. Hosted Agents read it on the server. Local Agents must stay connected and read runtime instructions.",
     spectatorMode: "Spectator mode",
-    currentHandReadonly: "Current hand is watch-only. Coaching applies next hand.",
     thinking: "Thinking",
     preparingHand: "Preparing cards",
     handWinners: "Hand Winners",
@@ -139,9 +122,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const t = copy[language];
   const [state, setState] = useState<GameSnapshot>();
   const [me, setMe] = useState<ClubUser | null>();
-  const [coachingMessage, setCoachingMessage] = useState("");
   const [controlStatus, setControlStatus] = useState<string>();
-  const [controlBusy, setControlBusy] = useState<"coaching" | "join" | "leave">();
+  const [controlBusy, setControlBusy] = useState<"join" | "leave">();
   const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
   const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
   const winnerRevealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -234,32 +216,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     }
   }
 
-  async function submitCoaching(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!myPlayer || !coachingMessage.trim()) {
-      return;
-    }
-
-    setControlBusy("coaching");
-    setControlStatus(undefined);
-    try {
-      const response = await fetch(withBasePath("/api/users/me/agent/coaching"), {
-        body: JSON.stringify({ tableId, message: coachingMessage }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setControlStatus(payload.error ?? t.coachingFailed);
-        return;
-      }
-      setCoachingMessage("");
-      setControlStatus(t.coachingSent);
-    } finally {
-      setControlBusy(undefined);
-    }
-  }
-
   async function leaveMyPlayer() {
     if (!myPlayer || !window.confirm(t.leaveTable)) {
       return;
@@ -313,6 +269,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
           </p>
         </div>
         <div className={styles.headerActions}>
+          {myPlayer ? (
+            <button className={styles.navLeaveAction} disabled={controlBusy === "leave"} type="button" onClick={() => void leaveMyPlayer()}>
+              {controlBusy === "leave" ? t.leaving : t.leaveTable}
+            </button>
+          ) : null}
           <SoundToggle />
         </div>
       </section>
@@ -394,22 +355,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
             <h2>{t.myPlayer}</h2>
             {myPlayer ? (
               <>
-                <p className={styles.coachingNotice}>{t.currentHandReadonly}</p>
-                <form className={styles.coachingForm} onSubmit={submitCoaching}>
-                  <label>
-                    {t.coaching}
-                    <textarea
-                      onChange={(event) => setCoachingMessage(event.target.value)}
-                      placeholder={t.coachingPlaceholder}
-                      value={coachingMessage}
-                    />
-                  </label>
-                  <button disabled={controlBusy === "coaching" || !coachingMessage.trim()} type="submit">
-                    {controlBusy === "coaching" ? t.coachingSending : t.sendCoaching}
-                  </button>
-                </form>
                 {controlStatus ? <p className={styles.muted}>{controlStatus}</p> : null}
-                <p className={styles.muted}>{t.coachingHint}</p>
                 <div className={styles.myPlayerSummary}>
                   <div>
                     <strong>{myPlayer.name}</strong>
@@ -423,9 +369,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                   <span>{t.action} {myPlayer.lastAction ?? t.waiting}</span>
                   <span>{myPlayer.id === state?.currentPlayerId ? t.thinking : myPlayer.status}</span>
                 </div>
-                <button className={styles.dangerAction} disabled={controlBusy === "leave"} type="button" onClick={() => void leaveMyPlayer()}>
-                  {controlBusy === "leave" ? t.leaving : t.leaveTable}
-                </button>
               </>
             ) : canJoinThisTable ? (
               <>
@@ -436,7 +379,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                 </button>
               </>
             ) : (
-              <p className={styles.muted}>{me === undefined ? t.loadingLogin : t.loginToCoach}</p>
+              <p className={styles.muted}>{me === undefined ? t.loadingLogin : t.loginToView}</p>
             )}
           </section>
 
