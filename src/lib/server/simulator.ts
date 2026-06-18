@@ -54,8 +54,7 @@ export const maxPlayersPerTable = 6;
 export const minPlayersToStart = 2;
 const virtualBotJoinThreshold = 3;
 const virtualBotTargetPlayers = 4;
-const residentTargetTables = 2;
-const residentTargetPlayersPerTable = 4;
+const maxResidentsPerTable = Math.max(2, Number(process.env.RESIDENT_AGENTS_PER_TABLE ?? 4));
 const virtualBotDecisionDelayMs = 3_000;
 const handResultPauseMs = 3_000;
 
@@ -719,35 +718,41 @@ export class TableManager {
 
   private findTableForAgent(agent?: RegisteredAgent) {
     if (agent?.kind === "resident" && isResidentAgentsEnabled()) {
-      const availableTables = this.activeTables().filter(
-        (table) => Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length) < maxPlayersPerTable,
-      );
-      const waitingForSecondSeat = availableTables.find(
-        (table) => Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length) < minPlayersToStart,
-      );
-      if (waitingForSecondSeat) {
-        return waitingForSecondSeat;
-      }
-
-      if (availableTables.length < residentTargetTables) {
-        return undefined;
-      }
-
-      const belowResidentTarget = availableTables
-        .filter((table) => Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length) < residentTargetPlayersPerTable)
-        .sort((left, right) => {
-          const leftCount = Math.max(left.runner.tableSummary().playerCount, listTableAgents(left.id).length);
-          const rightCount = Math.max(right.runner.tableSummary().playerCount, listTableAgents(right.id).length);
-          return leftCount - rightCount || left.createdAt.localeCompare(right.createdAt);
-        })[0];
-      if (belowResidentTarget) {
-        return belowResidentTarget;
-      }
+      return this.findTableForResidentAgent();
     }
 
-    return this.activeTables().find(
-      (table) => Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length) < maxPlayersPerTable,
-    );
+    return this.activeTables().find((table) => this.tableOccupancy(table) < maxPlayersPerTable);
+  }
+
+  private findTableForResidentAgent() {
+    const candidate = this.activeTables()
+      .filter((table) => {
+        const residents = this.residentCountAtTable(table.id);
+        return residents < maxResidentsPerTable && this.tableOccupancy(table) < maxPlayersPerTable;
+      })
+      .sort((left, right) => {
+        const leftResidents = this.residentCountAtTable(left.id);
+        const rightResidents = this.residentCountAtTable(right.id);
+        const leftNeedsPartner = leftResidents === 1 ? 0 : 1;
+        const rightNeedsPartner = rightResidents === 1 ? 0 : 1;
+        if (leftNeedsPartner !== rightNeedsPartner) {
+          return leftNeedsPartner - rightNeedsPartner;
+        }
+        if (leftResidents !== rightResidents) {
+          return rightResidents - leftResidents;
+        }
+        return left.createdAt.localeCompare(right.createdAt);
+      })[0];
+
+    return candidate;
+  }
+
+  private tableOccupancy(table: TableRecord) {
+    return Math.max(table.runner.tableSummary().playerCount, listTableAgents(table.id).length);
+  }
+
+  private residentCountAtTable(tableId: string) {
+    return listTableAgents(tableId).filter((agent) => agent.kind === "resident").length;
   }
 
   private fillTableWithVirtualAgents(tableId: string) {
