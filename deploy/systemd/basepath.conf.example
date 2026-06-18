@@ -1,0 +1,11 @@
+# Install on production host:
+#   /etc/systemd/system/texas-poker-agents.service.d/basepath.conf
+#
+# Then:
+#   systemctl daemon-reload
+#   systemctl restart texas-poker-agents
+#
+# Must match .env.production NEXT_PUBLIC_BASE_PATH at build time.
+
+[Service]
+Environment=NEXT_PUBLIC_BASE_PATH=/aipokerclub

@@ -1,0 +1,19 @@
+# Install: /etc/systemd/system/texas-poker-agents.service
+# Replace DATABASE_URL with production value on the server only.
+
+[Unit]
+Description=Texas Poker Agents Next.js Service
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/texas-poker-agents
+Environment=NODE_ENV=production
+Environment=DATABASE_URL=postgresql://texas_poker:CHANGE_ME@127.0.0.1:5432/texas_poker
+Environment=PATH=/opt/node-v20.19.5-linux-x64/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/npm run start -- --hostname 0.0.0.0 -p 3000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
