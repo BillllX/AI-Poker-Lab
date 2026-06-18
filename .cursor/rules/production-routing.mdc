@@ -1,0 +1,36 @@
+---
+description: 生产环境 URL 前缀与部署必配项（basePath / nginx / systemd）
+alwaysApply: true
+---
+
+# Production Routing Contract
+
+生产外网约定（2026-06-10 起）：
+
+- 主域名 **`https://aiagentswitcher.com/aipokerclub`**（nginx `:443` + Let's Encrypt）。
+- IP 备用 **`http://150.158.85.220/aipokerclub`**（nginx `:80`，`server_name _`）。
+- 根路径 `/` 是 **静态 SPA**（`/var/www/bill`），不是本应用。
+- 本应用挂载 **`/aipokerclub`**（nginx → `:3000`，`basePath=/aipokerclub`）。
+- nginx 保留 **`/api/`、`/_next/`、 `/tables` 等** 兼容反代/重定向（见 `deploy/nginx/ai-assistant.conf.example`）。
+- 小龙虾前端在 **`/lobster/`**，与本应用无关。
+
+## 部署前必须同时满足
+
+1. **构建时**：`.env.production` 含 `NEXT_PUBLIC_BASE_PATH=/aipokerclub`（会写入 Next 客户端 bundle）。
+2. **运行时**：systemd drop-in `basepath.conf` 含 `Environment=NEXT_PUBLIC_BASE_PATH=/aipokerclub`（供 `server.ts` / onboarding URL）。
+3. **改 basePath 后必须** `npm run build`，仅 restart 不够。
+4. **nginx** 使用 `deploy/nginx/ai-assistant.conf.example`（含 HTTPS + legacy 兼容）；不要把应用挂到站点根 `/`。
+
+## 开发时注意
+
+- 本地默认无 basePath；测子路径时用 `NEXT_PUBLIC_BASE_PATH=/aipokerclub npm run dev`。
+- 新增页面链接、API 调用、静态资源路径用 `withBasePath()` / `getBasePath()`，不要硬编码 `/`。
+- Agent 文档与 onboarding 返回的 URL 必须带完整前缀；见 `PROJECT_CONTEXT.md` 与 `.env.example`。
+
+## 参考文件
+
+- `deploy/DEPLOY.md` — Agent 一次性部署与迁移主文档
+- `deploy/DEPLOY-CHECKLIST.md` — 发版勾选清单
+- `deploy/systemd/basepath.conf.example`
+- `deploy/nginx/aipokerclub-location.snippet`
+- `PROJECT_CONTEXT.md` → Production Routing
