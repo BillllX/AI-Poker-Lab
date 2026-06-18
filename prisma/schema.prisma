@@ -7,18 +7,19 @@ datasource db {
 }
 
 model User {
-  id                  String               @id
-  name                String               @unique
-  email               String?              @unique
-  passwordHash        String?
-  pointsBalance       Int                  @default(10000)
-  frozenPoints        Int                  @default(0)
-  tokenHash           String
-  encryptedUserToken  String?
-  createdAt           DateTime             @default(now())
-  ledgerEntries       PointsLedger[]
-  agentQualifications AgentQualification[]
-  agentResults        AgentResult[]
+  id                   String                     @id
+  name                 String                     @unique
+  email                String?                    @unique
+  passwordHash         String?
+  pointsBalance        Int                        @default(10000)
+  frozenPoints         Int                        @default(0)
+  tokenHash            String
+  encryptedUserToken   String?
+  createdAt            DateTime                   @default(now())
+  ledgerEntries        PointsLedger[]
+  leaderboardSnapshots LeaderboardDailySnapshot[]
+  agentQualifications  AgentQualification[]
+  agentResults         AgentResult[]
   agentProfileContents AgentProfileContent[]
   agentPrivateSettings AgentPrivateSettings?
 
@@ -62,6 +63,45 @@ model PointsLedger {
   @@index([dayKey])
   @@index([dayKey, type, userId])
   @@map("points_ledger")
+}
+
+model LeaderboardDailySnapshot {
+  id            String   @id
+  dayKey        String
+  userId        String
+  rank          Int
+  pointsBalance Int
+  userCreatedAt DateTime
+  capturedAt    DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dayKey, userId])
+  @@index([dayKey, rank])
+  @@index([userId, dayKey])
+  @@map("leaderboard_daily_snapshots")
+}
+
+model HumanHandSummary {
+  id             String   @id
+  tableId        String
+  tableName      String?
+  handId         Int
+  startedAt      DateTime
+  completedAt    DateTime @default(now())
+  dealerIndex    Int
+  smallBlind     Int
+  bigBlind       Int
+  communityCards Json
+  actions        Json
+  logs           Json
+  players        Json
+  winners        Json
+  totalAwarded   Int
+  createdAt      DateTime @default(now())
+
+  @@unique([tableId, handId])
+  @@index([tableId, completedAt(sort: Desc)])
+  @@map("human_hand_summaries")
 }
 
 model AgentResult {

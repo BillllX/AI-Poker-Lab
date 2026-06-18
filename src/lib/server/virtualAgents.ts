@@ -15,12 +15,12 @@ type VirtualAgentTemplate = {
 };
 
 const defaultVirtualAgents: VirtualAgentTemplate[] = [
-  { id: "bot-tight-01", name: "Tight Bot 01", strategy: "tight" },
-  { id: "bot-aggressive-01", name: "Aggressive Bot 01", strategy: "aggressive" },
-  { id: "bot-caller-01", name: "Caller Bot 01", strategy: "caller" },
-  { id: "bot-random-01", name: "Random Bot 01", strategy: "random" },
-  { id: "bot-tight-02", name: "Tight Bot 02", strategy: "tight" },
-  { id: "bot-aggressive-02", name: "Aggressive Bot 02", strategy: "aggressive" },
+  { id: "bot-phil-hellmuth", name: "Phil Hellmuth", strategy: "tight" },
+  { id: "bot-stephen-chidwick", name: "Stephen Chidwick", strategy: "tight" },
+  { id: "bot-alan-keating", name: "Alan Keating", strategy: "aggressive" },
+  { id: "bot-tom-dwan", name: "Tom Dwan", strategy: "aggressive" },
+  { id: "bot-daniel-negreanu", name: "Daniel Negreanu", strategy: "caller" },
+  { id: "bot-bryn-kenney", name: "Bryn Kenney", strategy: "random" },
 ];
 
 export function isVirtualAgentsEnabled() {

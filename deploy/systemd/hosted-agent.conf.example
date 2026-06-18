@@ -1,0 +1,9 @@
+# Install: /etc/systemd/system/texas-poker-agents.service.d/hosted-agent.conf
+# Fill secrets on the server only. chmod 600 recommended.
+#
+# systemctl daemon-reload && systemctl restart texas-poker-agents
+
+[Service]
+Environment=MINIMAX_API_KEY=CHANGE_ME
+Environment=MINIMAX_BASE_URL=https://api.minimaxi.com/anthropic/v1
+Environment=HOSTED_AGENT_MODEL=MiniMax-M1

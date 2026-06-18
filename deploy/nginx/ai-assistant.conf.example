@@ -1,0 +1,205 @@
+# Full nginx config for aiagentswitcher.com + IP fallback.
+# Install: /etc/nginx/conf.d/ai-assistant.conf
+# Before replace: cp existing file to .bak.TIMESTAMP
+# Verify: nginx -t && systemctl reload nginx
+
+# HTTP: domain -> HTTPS
+server {
+    listen 80;
+    server_name aiagentswitcher.com www.aiagentswitcher.com;
+    return 301 https://$host$request_uri;
+}
+
+# HTTP: IP / fallback (no TLS)
+server {
+    listen 80;
+    server_name _;
+
+    location = /bill { return 301 /; }
+    location ^~ /bill/ { return 301 /; }
+
+    location = /ai-studio { return 301 /ai-studio/; }
+    location ^~ /ai-studio/ {
+        root /var/www;
+        try_files $uri $uri/ /ai-studio/index.html;
+    }
+
+    location = /dinq { return 301 /dinq/; }
+    location ^~ /dinq/ {
+        root /var/www;
+        try_files $uri $uri/ /dinq/index.html;
+    }
+
+    location = /history-timeline.html {
+        alias /usr/share/nginx/html/history-timeline.html;
+    }
+
+    location = /ai-confession.html {
+        alias /usr/share/nginx/html/ai-confession.html;
+    }
+
+    location = /neon-ebb { return 301 /neon-ebb/; }
+    location ^~ /neon-ebb/ {
+        root /var/www;
+        try_files $uri $uri/ /neon-ebb/index.html;
+    }
+
+    location = /lobster { return 301 /lobster/; }
+    location ^~ /lobster/ {
+        proxy_pass http://127.0.0.1:5176/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+    }
+
+    # Legacy poker paths without /aipokerclub prefix
+    location ~ ^/(tables|login|leaderboard|me|table|human-table|agents|journey)(/.*)?$ {
+        return 301 /aipokerclub$request_uri;
+    }
+
+    # Legacy API/static for old clients and external agents
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:3000/aipokerclub/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_read_timeout 86400;
+        proxy_redirect off;
+    }
+
+    location ^~ /_next/ {
+        proxy_pass http://127.0.0.1:3000/aipokerclub/_next/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+    }
+
+    location ^~ /aipokerclub {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_read_timeout 86400;
+        proxy_redirect off;
+    }
+
+    location / {
+        root /var/www/bill;
+        try_files $uri $uri/ /index.html;
+    }
+
+    error_page 502 503 504 /50x.html;
+    location = /50x.html { root /usr/share/nginx/html; }
+}
+
+# HTTPS: primary domain
+server {
+    listen 443 ssl;
+    server_name aiagentswitcher.com www.aiagentswitcher.com;
+
+    ssl_certificate /etc/letsencrypt/live/aiagentswitcher.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/aiagentswitcher.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = /bill { return 301 /; }
+    location ^~ /bill/ { return 301 /; }
+
+    location = /ai-studio { return 301 /ai-studio/; }
+    location ^~ /ai-studio/ {
+        root /var/www;
+        try_files $uri $uri/ /ai-studio/index.html;
+    }
+
+    location = /dinq { return 301 /dinq/; }
+    location ^~ /dinq/ {
+        root /var/www;
+        try_files $uri $uri/ /dinq/index.html;
+    }
+
+    location = /history-timeline.html {
+        alias /usr/share/nginx/html/history-timeline.html;
+    }
+
+    location = /ai-confession.html {
+        alias /usr/share/nginx/html/ai-confession.html;
+    }
+
+    location = /neon-ebb { return 301 /neon-ebb/; }
+    location ^~ /neon-ebb/ {
+        root /var/www;
+        try_files $uri $uri/ /neon-ebb/index.html;
+    }
+
+    location = /lobster { return 301 /lobster/; }
+    location ^~ /lobster/ {
+        proxy_pass http://127.0.0.1:5176/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+    }
+
+    location ~ ^/(tables|login|leaderboard|me|table|human-table|agents|journey)(/.*)?$ {
+        return 301 /aipokerclub$request_uri;
+    }
+
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:3000/aipokerclub/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_read_timeout 86400;
+        proxy_redirect off;
+    }
+
+    location ^~ /_next/ {
+        proxy_pass http://127.0.0.1:3000/aipokerclub/_next/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+    }
+
+    location ^~ /aipokerclub {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_read_timeout 86400;
+        proxy_redirect off;
+    }
+
+    location / {
+        root /var/www/bill;
+        try_files $uri $uri/ /index.html;
+    }
+
+    error_page 502 503 504 /50x.html;
+    location = /50x.html { root /usr/share/nginx/html; }
+}

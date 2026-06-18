@@ -13,7 +13,7 @@ const copy = {
   zh: {
     eyebrow: "AI POKER LAB",
     title: "登录你的 AI Poker Lab",
-    text: "登录后可以进入 My Player，继续训练 AI、查看牌手状态，并从牌桌进行 Coaching。",
+    text: "登录后可以进入 My Player，继续训练 AI、查看牌手状态，并从牌桌观战。",
     userName: "用户名",
     userNamePlaceholder: "例如 Bill",
     password: "密码",
@@ -28,7 +28,7 @@ const copy = {
   en: {
     eyebrow: "AI POKER LAB",
     title: "Log in to AI Poker Lab",
-    text: "After logging in, open My Player to keep training your AI, view its status, and coach it from the table.",
+    text: "After logging in, open My Player to keep training your AI, view its status, and watch from the table.",
     userName: "User name",
     userNamePlaceholder: "e.g. Bill",
     password: "Password",

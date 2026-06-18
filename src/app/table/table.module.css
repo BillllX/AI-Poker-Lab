@@ -132,6 +132,32 @@
   justify-content: flex-end;
 }
 
+.navLeaveAction {
+  align-items: center;
+  background: rgba(251, 113, 133, 0.12);
+  border: 1px solid rgba(251, 113, 133, 0.28);
+  border-radius: 999px;
+  color: var(--danger);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 950;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 13px;
+}
+
+.navLeaveAction:hover:not(:disabled) {
+  background: rgba(251, 113, 133, 0.18);
+  border-color: rgba(251, 113, 133, 0.4);
+}
+
+.navLeaveAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .languageTabs {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
@@ -629,6 +655,75 @@
 
 .chipRow em {
   font-style: normal;
+}
+
+.handSummaryList {
+  display: grid;
+  gap: 10px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.handSummaryCard {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+}
+
+.handSummaryHeader,
+.handSummaryPlayers span,
+.handSummaryWinners span {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.handSummaryHeader span,
+.handSummaryPlayers em {
+  font-style: normal;
+  font-weight: 900;
+}
+
+.handSummaryCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.handSummaryCards small,
+.handSummaryWinners small {
+  color: var(--muted);
+}
+
+.handSummaryWinners,
+.handSummaryPlayers {
+  display: grid;
+  gap: 6px;
+}
+
+.handSummaryWinners span {
+  color: var(--warning);
+  font-weight: 900;
+}
+
+.handSummaryWinners small {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.handSummaryPlayers {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.handSummaryPlayers span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .statRow,
