@@ -9,6 +9,15 @@ export type EngagementToast = {
 
 const storageKey = "texas-poker-engagement-toasts";
 const toastEvent = "texas-poker-engagement-toast";
+const maxVisibleToasts = 4;
+
+function stableToastId(kind: EngagementToastKind, message: string) {
+  let hash = 0;
+  for (let index = 0; index < message.length; index += 1) {
+    hash = (hash * 31 + message.charCodeAt(index)) >>> 0;
+  }
+  return `auto-${kind}-${hash.toString(36)}`;
+}
 
 function readStoredToasts(): EngagementToast[] {
   if (typeof window === "undefined") {
@@ -33,20 +42,29 @@ function writeStoredToasts(toasts: EngagementToast[]) {
   sessionStorage.setItem(storageKey, JSON.stringify(toasts));
 }
 
+function compactToasts(toasts: EngagementToast[]) {
+  const byKey = new Map<string, EngagementToast>();
+  for (const toast of toasts) {
+    byKey.set(`${toast.kind}:${toast.message}`, toast);
+  }
+  return [...byKey.values()].slice(-maxVisibleToasts);
+}
+
 export function pushEngagementToast(input: Omit<EngagementToast, "id"> & { id?: string }) {
   if (typeof window === "undefined") {
     return;
   }
   const toast: EngagementToast = {
     ...input,
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? stableToastId(input.kind, input.message),
   };
-  writeStoredToasts([...readStoredToasts(), toast]);
+  const nextToasts = compactToasts([...readStoredToasts().filter((item) => item.id !== toast.id), toast]);
+  writeStoredToasts(nextToasts);
   window.dispatchEvent(new CustomEvent(toastEvent, { detail: toast }));
 }
 
 export function drainStoredToasts(): EngagementToast[] {
-  const toasts = readStoredToasts();
+  const toasts = compactToasts(readStoredToasts());
   writeStoredToasts([]);
   return toasts;
 }

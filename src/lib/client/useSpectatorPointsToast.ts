@@ -65,6 +65,7 @@ export function useSpectatorPointsToast({
       kind: "points",
       message: copy.handWinPointsToast(myWin.amount),
       expiresMs: 4_500,
+      id: `hand-win-${tableId}-${handId}-${myPlayerId}`,
     });
     trackEngagement({
       at: new Date().toISOString(),
@@ -118,6 +119,7 @@ export function useSpectatorPointsToast({
             kind: "points",
             message: copy.accountPointsToast(delta, dailyRank),
             expiresMs: 6_500,
+            id: `account-points-${tableId}-${settledHandId}-${nextUser.id}`,
           });
           trackEngagement({
             at: new Date().toISOString(),
@@ -137,6 +139,7 @@ export function useSpectatorPointsToast({
             kind: "rank",
             message: copy.dailyRankToast(dailyRank),
             expiresMs: 5_000,
+            id: `daily-rank-${tableId}-${settledHandId}-${nextUser.id}-${dailyRank}`,
           });
           trackEngagement({
             at: new Date().toISOString(),

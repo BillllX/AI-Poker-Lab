@@ -12,11 +12,8 @@ import { trackEngagement } from "@/lib/client/engagementAnalytics";
 import { withBasePath, publicAssetBackground, publicAssetUrl } from "@/lib/client/basePath";
 import { imageSizes } from "@/lib/client/imageSizes";
 import {
-  prefetchHumanTableRoute,
-  prefetchLeaderboardRoute,
   prefetchLobbyRoute,
   prefetchTableSpectatorRoute,
-  prefetchTableSpectatorRoutes,
   tableSpectatorPath,
 } from "@/lib/client/prefetchTableRoutes";
 import { HOME_HERO_LCP_WEBP_PATH } from "@/lib/homeHeroLcp";
@@ -1006,23 +1003,6 @@ export default function Home() {
       }
     };
   }, [t.agentAccessPrompt]);
-
-  useEffect(() => {
-    if (hubLoadState !== "ready") {
-      return;
-    }
-    prefetchLobbyRoute(router);
-    prefetchLeaderboardRoute(router);
-    prefetchHumanTableRoute(router);
-    prefetchTableSpectatorRoutes(router, tables);
-  }, [hubLoadState, router, tables]);
-
-  useEffect(() => {
-    if (!recentSpectate?.tableId) {
-      return;
-    }
-    prefetchTableSpectatorRoute(router, recentSpectate.tableId);
-  }, [recentSpectate?.tableId, router]);
 
   const liveTables = tables.filter((table) => table.running).slice(0, 2);
   const dailyProfitLeaders = [...leaderboard].sort((left, right) => right.dailyProfitToday - left.dailyProfitToday).slice(0, 5);

@@ -16,7 +16,6 @@ import { LazyReactionBar } from "@/components/LazyReactionBar";
 import { SpectatorSideTabs } from "@/components/SpectatorSideTabs";
 import { TableMomentOverlay } from "@/components/TableMomentOverlay";
 import { SoundToggle } from "@/components/SoundToggle";
-import { TableFeedbackLink } from "@/components/TableFeedbackLink";
 import {
   TableEmptySeat,
   TablePlayerSeat,
@@ -27,7 +26,6 @@ import {
   visualSeatIndex,
 } from "@/components/TableSeat";
 import { withBasePath } from "@/lib/client/basePath";
-import { prefetchLeaderboardRoute, prefetchLobbyRoute } from "@/lib/client/prefetchTableRoutes";
 import { connectReconnectingEventSource } from "@/lib/client/reconnectingEventSource";
 import { pushEngagementToast } from "@/lib/client/engagementToast";
 import { useLanguage } from "@/lib/client/i18n";
@@ -316,8 +314,6 @@ type RemoteAgentTable = {
   url: string;
 };
 
-type StreamStatus = "connecting" | "live" | "recovering";
-
 type SessionEndReason = "leave" | "bust";
 
 export default function TableDetailPage({ params }: { params: Promise<{ tableId: string }> }) {
@@ -334,13 +330,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const [highlightHandId, setHighlightHandId] = useState<number>();
   const [pendingCoachingHandId, setPendingCoachingHandId] = useState<number>();
   const [coachingStreakVersion, setCoachingStreakVersion] = useState(0);
-  const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
-  const [streamTableId, setStreamTableId] = useState(tableId);
   const [remoteAgentTable, setRemoteAgentTable] = useState<RemoteAgentTable | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [sessionEndReason, setSessionEndReason] = useState<SessionEndReason | null>(null);
   const [playAgainBusy, setPlayAgainBusy] = useState(false);
-  const activeStreamStatus = streamTableId === tableId ? streamStatus : "connecting";
   const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
   const winnerRevealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastBustToastHandIdRef = useRef<number | undefined>(undefined);
@@ -410,28 +403,15 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   }
 
   useEffect(() => {
-    prefetchLobbyRoute(router);
-    prefetchLeaderboardRoute(router);
-  }, [router]);
-
-  useEffect(() => {
     return connectReconnectingEventSource({
       url: withBasePath(`/api/tables/${tableId}/events`),
-      onOpen: () => {
-        setStreamTableId(tableId);
-      },
       onSnapshot: (data) => {
-        setStreamTableId(tableId);
         const incoming = JSON.parse(data) as SlimGameSnapshotForSse;
         setState((previous) => {
           const merged = mergeGameSnapshotForSse(previous, incoming);
           revealWinnersForSnapshot(merged);
           return merged;
         });
-      },
-      onStatusChange: (status) => {
-        setStreamTableId(tableId);
-        setStreamStatus(status);
       },
       onRecover: async () => {
         const response = await fetch(withBasePath(`/api/tables/${tableId}/state`), { cache: "no-store" });
@@ -578,6 +558,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
       kind: "bust",
       message: t.agentBustToast(myPlayer.name),
       expiresMs: 8000,
+      id: `agent-bust-${tableId}-${handId}`,
     });
     setSessionEndReason("bust");
   }, [myPlayer, state?.handId, t, tableId]);
@@ -595,8 +576,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
       kind: "coaching",
       message: t.coachingAppliedToast,
       expiresMs: 5000,
+      id: `coaching-applied-${tableId}-${currentHandId}`,
     });
-  }, [pendingCoachingHandId, state?.handId, t]);
+  }, [pendingCoachingHandId, state?.handId, tableId, t]);
 
   async function refreshTableState() {
     const response = await fetch(withBasePath(`/api/tables/${tableId}/state`), { cache: "no-store" });
@@ -633,6 +615,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
           kind: "settled",
           message: t.leaveSettledToast,
           expiresMs: 5000,
+          id: `leave-settled-${tableId}`,
         });
         setSessionEndReason("leave");
       }
@@ -759,59 +742,33 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
         <div className={styles.mobileHeaderMain}>
           <p className={styles.eyebrow}>{t.eyebrow}</p>
           <h1>{state?.tableName ?? tableId}</h1>
-          <p className={styles.subtitle}>
-            {state?.running ? t.running : t.waitingStart} · {players.length}/6 {t.seats} · {t.hand} #{state?.handId ?? 0}
-          </p>
-          <div className={styles.mobileTableStatus}>
-            <span>{state?.running ? t.running : t.waitingStart}</span>
-            <span>
-              {t.hand} #{state?.handId ?? 0}
-            </span>
-            <span>
-              {t.pot} <AnimatedPotValue value={state?.pot ?? 0} />
-            </span>
-            <span className={myPlayer?.id === state?.currentPlayerId ? styles.mobileStatusMine : ""}>
-              {myPlayer && myPlayer.id === state?.currentPlayerId
-                ? `${myPlayer.name} · ${t.thinking}`
-                : activePlayer
-                  ? `${activePlayer.name} · ${t.thinking}`
-                  : t.spectatorMode}
-            </span>
-            {(state?.spectatorCount ?? 0) > 0 ? (
-              <span className={styles.spectatorCountPill}>{t.spectatorCount(state?.spectatorCount ?? 0)}</span>
-            ) : null}
-            <span className={`${styles.streamStatusPill} ${styles[`streamStatus_${activeStreamStatus}`]}`}>
-              {streamStatusLabel(activeStreamStatus, t)}
-            </span>
-          </div>
         </div>
         <div className={styles.headerActions}>
-          <span
-            className={`${styles.streamStatusPill} ${styles[`streamStatus_${activeStreamStatus}`]}`}
-            {...liveRegionProps("status")}
-          >
-            {streamStatusLabel(activeStreamStatus, t)}
-          </span>
-          {(state?.spectatorCount ?? 0) > 0 ? (
-            <span className={styles.spectatorCountDesktop} {...liveRegionProps("status")}>
-              {t.spectatorCount(state?.spectatorCount ?? 0)}
-            </span>
-          ) : null}
+          <Link aria-label={t.backLobby} className={styles.headerNavAction} href="/tables" title={t.backLobby}>
+            <HeaderActionIcon type="back" />
+          </Link>
           {myPlayer ? (
-            <button className={styles.navLeaveAction} disabled={controlBusy === "leave"} type="button" onClick={() => void leaveMyPlayer()}>
-              {controlBusy === "leave" ? t.leaving : t.leaveTable}
+            <button
+              aria-label={controlBusy === "leave" ? t.leaving : t.leaveTable}
+              className={styles.navLeaveAction}
+              disabled={controlBusy === "leave"}
+              title={controlBusy === "leave" ? t.leaving : t.leaveTable}
+              type="button"
+              onClick={() => void leaveMyPlayer()}
+            >
+              <HeaderActionIcon type="leave" />
             </button>
           ) : null}
-          <button className={styles.shareCopyAction} type="button" onClick={() => void copySpectatorShare()}>
-            {shareCopied ? t.spectatorShareCopied : t.copySpectatorShare}
+          <button
+            aria-label={shareCopied ? t.spectatorShareCopied : t.copySpectatorShare}
+            className={styles.shareCopyAction}
+            title={shareCopied ? t.spectatorShareCopied : t.copySpectatorShare}
+            type="button"
+            onClick={() => void copySpectatorShare()}
+          >
+            <HeaderActionIcon type={shareCopied ? "check" : "share"} />
           </button>
-          <TableFeedbackLink
-            handId={state?.handId}
-            phase={state?.phase}
-            tableId={tableId}
-            tableName={state?.tableName}
-          />
-          <SoundToggle />
+          <SoundToggle className={styles.headerSoundAction} />
         </div>
       </section>
 
@@ -1115,14 +1072,34 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   );
 }
 
-function streamStatusLabel(status: StreamStatus, t: (typeof copy)["zh"] | (typeof copy)["en"]) {
-  if (status === "live") {
-    return t.streamLive;
+function HeaderActionIcon({ type }: { type: "back" | "check" | "leave" | "share" }) {
+  if (type === "back") {
+    return (
+      <svg aria-hidden="true" className={styles.headerActionIcon} viewBox="0 0 24 24">
+        <path d="M10.8 5.2 4 12l6.8 6.8 1.6-1.6L8.3 13H20v-2H8.3l4.1-4.2z" />
+      </svg>
+    );
   }
-  if (status === "recovering") {
-    return t.streamRecovering;
+  if (type === "leave") {
+    return (
+      <svg aria-hidden="true" className={styles.headerActionIcon} viewBox="0 0 24 24">
+        <path d="M5 4h8.8v2H7v12h6.8v2H5z" />
+        <path d="m15.6 8.2 3.8 3.8-3.8 3.8-1.4-1.4 1.4-1.4H10v-2h5.6l-1.4-1.4z" />
+      </svg>
+    );
   }
-  return t.streamConnecting;
+  if (type === "check") {
+    return (
+      <svg aria-hidden="true" className={styles.headerActionIcon} viewBox="0 0 24 24">
+        <path d="m9.3 16.6-4-4 1.5-1.5 2.5 2.5 7.9-7.9 1.5 1.5z" />
+      </svg>
+    );
+  }
+  return (
+    <svg aria-hidden="true" className={styles.headerActionIcon} viewBox="0 0 24 24">
+      <path d="M9 7.5a3 3 0 1 1 .8 2.1l-2.1 1.2a3.2 3.2 0 0 1 0 2.4l2.1 1.2a3 3 0 1 1-1 1.8l-2.1-1.2a3 3 0 1 1 0-6l2.1-1.2A3 3 0 0 1 9 7.5" />
+    </svg>
+  );
 }
 
 function currentStreetActions(state?: GameSnapshot) {

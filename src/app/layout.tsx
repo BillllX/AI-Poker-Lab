@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
-import { HeroLcpPreload } from "@/components/HeroLcpPreload";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { EngagementChrome } from "@/components/EngagementChrome";
 import { MobileTopNav } from "@/components/MobileTopNav";
@@ -86,9 +85,6 @@ export default function RootLayout({
 }>) {
   return (
     <html className={inter.variable} lang="en" suppressHydrationWarning>
-      <head>
-        <HeroLcpPreload />
-      </head>
       <body className={inter.className}>
         <NoScriptFallback />
         <OfflineShellRegistration />

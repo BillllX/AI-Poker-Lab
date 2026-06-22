@@ -12,8 +12,6 @@ import { liveRegionProps } from "@/lib/client/liveRegion";
 import { trackEngagement } from "@/lib/client/engagementAnalytics";
 import {
   prefetchTableSpectatorRoute,
-  prefetchTableSpectatorRoutes,
-  prefetchLeaderboardRoute,
   tableSpectatorPath,
 } from "@/lib/client/prefetchTableRoutes";
 import { publicApiFetchInit } from "@/lib/client/publicApiFetch";
@@ -236,24 +234,6 @@ export default function TablesPage() {
       clearInterval(timer);
     };
   }, []);
-
-  useEffect(() => {
-    prefetchLeaderboardRoute(router);
-  }, [router]);
-
-  useEffect(() => {
-    if (loadState !== "ready" || tables.length === 0) {
-      return;
-    }
-    prefetchTableSpectatorRoutes(router, tables);
-  }, [loadState, router, tables]);
-
-  useEffect(() => {
-    if (!resumeSpectate?.tableId) {
-      return;
-    }
-    prefetchTableSpectatorRoute(router, resumeSpectate.tableId);
-  }, [resumeSpectate?.tableId, router]);
 
   return (
     <main className={styles.page}>

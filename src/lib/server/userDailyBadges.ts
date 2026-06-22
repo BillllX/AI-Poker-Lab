@@ -20,20 +20,15 @@ export async function listTodayBadges(userId: string) {
 
 export async function awardDailyBadge(userId: string, badge: DailyBadgeKind) {
   const dayKey = currentClubDay();
-  const existing = await prisma.userDailyBadge.findUnique({
-    where: { userId_dayKey_badge: { badge, dayKey, userId } },
-  });
-  if (existing) {
-    return existing;
-  }
-
-  return prisma.userDailyBadge.create({
-    data: {
+  return prisma.userDailyBadge.upsert({
+    create: {
       badge,
       dayKey,
       id: randomUUID(),
       userId,
     },
+    update: {},
+    where: { userId_dayKey_badge: { badge, dayKey, userId } },
   });
 }
 

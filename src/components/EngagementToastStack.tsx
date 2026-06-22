@@ -14,7 +14,7 @@ export function EngagementToastStack() {
 
   useEffect(() => {
     function appendToast(toast: EngagementToast) {
-      setToasts((current) => [...current.filter((item) => item.id !== toast.id), toast]);
+      setToasts((current) => [...current.filter((item) => item.id !== toast.id), toast].slice(-4));
     }
 
     for (const toast of drainStoredToasts()) {

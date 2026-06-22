@@ -12,30 +12,38 @@
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
   border: 1px solid var(--border);
-  border-radius: 28px;
-  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.18);
+  border-radius: 22px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.16);
   display: flex;
-  gap: 24px;
+  gap: 10px;
   justify-content: space-between;
-  margin: 0 auto 20px;
+  margin: 0 auto 10px;
   max-width: 1500px;
-  padding: 22px;
+  min-height: 76px;
+  padding: 10px 12px;
   position: relative;
+}
+
+.mobileHeaderMain {
+  min-width: 0;
 }
 
 .eyebrow {
   color: var(--accent);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.16em;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   text-transform: uppercase;
 }
 
 .header h1 {
-  font-size: clamp(32px, 5vw, 64px);
-  line-height: 0.95;
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .subtitle,
@@ -128,8 +136,41 @@
   align-items: center;
   display: flex;
   flex: 0 0 auto;
-  gap: 10px;
+  flex-wrap: nowrap;
+  gap: 7px;
   justify-content: flex-end;
+}
+
+.headerNavAction,
+.navLeaveAction,
+.shareCopyAction {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 850;
+  justify-content: center;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  text-decoration: none;
+  width: 38px;
+}
+
+.headerNavAction:hover {
+  background: rgba(110, 231, 168, 0.1);
+  border-color: rgba(110, 231, 168, 0.28);
+  color: var(--accent);
+}
+
+.headerActionIcon {
+  display: block;
+  fill: currentColor;
+  height: 20px;
+  width: 20px;
 }
 
 .spectatorCountDesktop {
@@ -184,19 +225,11 @@
 }
 
 .navLeaveAction {
-  align-items: center;
   background: rgba(251, 113, 133, 0.12);
   border: 1px solid rgba(251, 113, 133, 0.28);
-  border-radius: 999px;
   color: var(--danger);
   cursor: pointer;
-  display: inline-flex;
   font: inherit;
-  font-size: 13px;
-  font-weight: 950;
-  justify-content: center;
-  min-height: var(--touch-target-min, 44px);
-  padding: 8px 13px;
 }
 
 .navLeaveAction:hover:not(:disabled) {
@@ -210,19 +243,11 @@
 }
 
 .shareCopyAction {
-  align-items: center;
   background: rgba(34, 211, 238, 0.12);
   border: 1px solid rgba(34, 211, 238, 0.32);
-  border-radius: 999px;
   color: #a5f3fc;
   cursor: pointer;
-  display: inline-flex;
   font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  justify-content: center;
-  min-height: var(--touch-target-min, 44px);
-  padding: 8px 13px;
 }
 
 .shareCopyAction:hover {
@@ -231,31 +256,16 @@
 }
 
 .shareCopyAction:focus-visible,
-.feedbackLink:focus-visible,
 .coachingCollapseToggle:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 2px;
 }
 
-.feedbackLink {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  color: rgba(226, 232, 240, 0.88);
-  display: inline-flex;
-  font-size: 13px;
-  font-weight: 700;
-  justify-content: center;
-  min-height: var(--touch-target-min, 44px);
-  padding: 8px 13px;
-  text-decoration: none;
-}
-
-.feedbackLink:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.22);
-  color: #f8fafc;
+.headerSoundAction {
+  box-shadow: none;
+  height: 38px;
+  min-height: 38px;
+  width: 38px;
 }
 
 .languageTabs {
@@ -1993,28 +2003,60 @@
   }
 
   .header {
-    align-items: flex-start;
+    align-items: center;
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025));
     border: 1px solid var(--border);
-    border-radius: 20px;
+    border-radius: 18px;
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.2);
-    flex-direction: column;
-    gap: 12px;
+    flex-direction: row;
+    gap: 8px;
+    justify-content: space-between;
     margin-bottom: 10px;
-    padding: 12px;
+    min-height: 66px;
+    padding: 8px 10px;
   }
 
   .headerActions {
-    position: absolute;
-    right: 12px;
-    top: 12px;
+    align-self: auto;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    grid-template-columns: none;
+    justify-content: flex-end;
+    position: static;
+    width: auto;
   }
 
   .header h1 {
     font-size: 22px;
     letter-spacing: -0.045em;
     line-height: 1;
+  }
+
+  .headerNavAction,
+  .navLeaveAction,
+  .shareCopyAction,
+  .headerSoundAction {
+    font-size: 12px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+    width: 38px;
+  }
+
+  .headerSoundAction {
+    height: 38px;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+  }
+
+  .headerActionIcon {
+    height: 19px;
+    width: 19px;
   }
 
   .subtitle {

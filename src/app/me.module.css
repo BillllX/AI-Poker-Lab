@@ -1164,12 +1164,16 @@
 }
 
 .questProgressPanel {
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(118, 228, 170, 0.1), transparent 18rem),
+    rgba(15, 23, 42, 0.72);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-sizing: border-box;
   margin: 0 auto 18px;
   max-width: 1360px;
   padding: 16px 18px;
+  width: 100%;
 }
 
 .questProgressHeader {
@@ -1178,30 +1182,44 @@
   gap: 12px;
   justify-content: space-between;
   margin-bottom: 12px;
+  min-width: 0;
 }
 
 .questProgressHeaderMeta {
   align-items: flex-end;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .questBonusToday {
+  background: rgba(110, 231, 183, 0.1);
+  border: 1px solid rgba(110, 231, 183, 0.18);
+  border-radius: 999px;
   color: #6ee7b7;
   font-size: 0.78rem;
   font-weight: 700;
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
 .questProgressHeader h2 {
   font-size: 1rem;
   margin: 0;
+  min-width: 0;
 }
 
 .questProgressStars {
+  background: rgba(253, 230, 138, 0.1);
+  border: 1px solid rgba(253, 230, 138, 0.18);
+  border-radius: 999px;
   color: #fde68a;
   font-size: 0.92rem;
   font-weight: 800;
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
 .questProgressMuted {
@@ -1222,27 +1240,47 @@
 .questProgressItem {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 16px;
+  min-width: 0;
+  padding: 12px;
 }
 
 .questProgressRow {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   gap: 8px;
   justify-content: space-between;
 }
 
+.questProgressRow strong {
+  line-height: 1.35;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.questProgressRow span {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  color: var(--text);
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 6px 8px;
+}
+
 .questProgressTrack {
   background: rgba(2, 6, 23, 0.55);
   border-radius: 999px;
-  height: 6px;
-  margin-top: 8px;
+  height: 8px;
+  margin-top: 10px;
   overflow: hidden;
 }
 
 .questProgressFill {
-  background: linear-gradient(90deg, #a855f7, #22d3ee);
+  background: linear-gradient(90deg, var(--warning), var(--accent));
+  border-radius: inherit;
   display: block;
   height: 100%;
 }
@@ -1265,4 +1303,107 @@
   font-size: 0.82rem;
   gap: 8px;
   grid-template-columns: 1fr auto auto;
+  min-width: 0;
+}
+
+.questHistoryItem span {
+  min-width: 0;
+}
+
+.questHistoryItem span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .questProgressPanel {
+    border-radius: 22px;
+    margin-bottom: 14px;
+    padding: 12px;
+  }
+
+  .questProgressHeader {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .questProgressHeaderMeta {
+    align-items: center;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+  }
+
+  .questProgressHeader h2 {
+    font-size: 1rem;
+  }
+
+  .questBonusToday {
+    display: none;
+  }
+
+  .questProgressStars {
+    font-size: 0.86rem;
+    padding: 5px 8px;
+    white-space: nowrap;
+  }
+
+  .questProgressList,
+  .questHistoryList {
+    gap: 8px;
+  }
+
+  .questProgressList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .questProgressItem {
+    border-radius: 14px;
+    padding: 10px;
+  }
+
+  .questProgressRow {
+    align-items: flex-start;
+    display: flex;
+    gap: 6px;
+  }
+
+  .questProgressRow span {
+    font-size: 0.75rem;
+    padding: 5px 7px;
+  }
+
+  .questProgressMeta {
+    font-size: 0.72rem;
+    line-height: 1.45;
+    margin-top: 6px;
+  }
+
+  .questProgressTrack {
+    height: 6px;
+    margin-top: 8px;
+  }
+
+  .questHistoryItem {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 12px;
+    grid-template-columns: 1fr auto;
+    padding: 9px 10px;
+  }
+
+  .questHistoryItem span:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 360px) {
+  .questProgressList {
+    grid-template-columns: 1fr;
+  }
 }

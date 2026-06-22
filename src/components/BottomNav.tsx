@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { trackEngagement } from "@/lib/client/engagementAnalytics";
 import { withBasePath } from "@/lib/client/basePath";
-import { prefetchAppRoute, prefetchBottomNavRoutes, prefetchLobbyRoute } from "@/lib/client/prefetchTableRoutes";
+import { prefetchAppRoute, prefetchLobbyRoute } from "@/lib/client/prefetchTableRoutes";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./BottomNav.module.css";
 
@@ -99,10 +99,6 @@ export function BottomNav() {
       window.removeEventListener(authChangedEvent, loadSession);
     };
   }, [router]);
-
-  useEffect(() => {
-    prefetchBottomNavRoutes(router, profileHref);
-  }, [profileHref, router]);
 
   function prefetchNavRoute(href: string) {
     if (href === "/tables") {

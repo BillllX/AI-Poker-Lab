@@ -4,6 +4,7 @@ export type TableFeedbackContext = {
   handId?: number;
   pageUrl?: string;
   phase?: string;
+  reportedAt?: string;
   tableId: string;
   tableName?: string;
 };
@@ -26,7 +27,7 @@ export function buildTableFeedbackUrl(context: TableFeedbackContext): string {
     `- Hand: #${context.handId ?? "—"}`,
     `- Phase: ${context.phase ?? "—"}`,
     `- URL: ${context.pageUrl ?? "—"}`,
-    `- Time: ${new Date().toISOString()}`,
+    ...(context.reportedAt ? [`- Time: ${context.reportedAt}`] : []),
   ].join("\n");
 
   if (base.startsWith("mailto:")) {
