@@ -1,0 +1,5 @@
+# Install: /etc/systemd/system/texas-poker-agents-test.service.d/basepath.conf
+# Must match .env.production NEXT_PUBLIC_BASE_PATH at build time.
+
+[Service]
+Environment=NEXT_PUBLIC_BASE_PATH=/aipokerclubtest

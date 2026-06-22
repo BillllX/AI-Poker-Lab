@@ -1,0 +1,20 @@
+# Install: /etc/systemd/system/texas-poker-agents-test.service
+# Independent test stack — port 3001, DB texas_poker_test, basePath /aipokerclubtest
+
+[Unit]
+Description=Texas Poker Agents Test (Next.js)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/texas-poker-agents-test
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=DATABASE_URL=postgresql://texas_poker_test:CHANGE_ME@127.0.0.1:5432/texas_poker_test
+Environment=PATH=/opt/node-v20.19.5-linux-x64/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/npm run start -- --hostname 0.0.0.0 -p 3001
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+{
+  "lastCompletedIteration": 28,
+  "pendingIteration": 29,
+  "maxIterations": 40,
+  "status": "done",
+  "doneReason": "backlog_exhausted",
+  "pacing": "completion-driven",
+  "autonomous": true,
+  "updatedAt": "2026-06-22T16:30:00.000Z"
+}

@@ -1,0 +1,28 @@
+---
+description: useSyncExternalStore snapshot stability — prevents React #185 white screen
+globs:
+  - src/**/*.ts
+  - src/**/*.tsx
+---
+
+# External Store Snapshots (React #185)
+
+`useSyncExternalStore` compares snapshots with `Object.is`. **If `getSnapshot` returns a new object/array every call while values are unchanged, React enters an infinite re-render loop (minified error #185) and the page goes white.**
+
+## Required patterns
+
+1. **Cache module-level snapshot** when returning objects/arrays (see `dailyCheckIn.ts`, `dailyTasks.ts`, `questOptionalProgress.ts`, `recentSpectate.ts`).
+2. **Primitives only** in inline snapshots, e.g. `() => isDismissed(id)` not `() => ({ dismissed: isDismissed(id) })`.
+3. **Never** `getSnapshot: () => ({ ... })` or `getSnapshot: () => [ ... ]` without caching.
+4. After mutating `localStorage`, update the same cache instance or dispatch a change event so the next read returns a stable reference.
+
+## Layout engagement chrome
+
+- Global strips (`ActivityStrip`, `DailyTasksStrip`, `MobileQuestHub`) must be wrapped in `EngagementChromeErrorBoundary` via `EngagementChrome`.
+- On mobile (`≤640px`), do not mount `DailyTasksStrip` — use `MobileQuestHub` only (avoid duplicate `dailyTasks` subscribers).
+
+## Before merging UI that uses `useSyncExternalStore`
+
+- Run `npm run check:external-store-snapshots` (static scan + runtime smoke).
+- Run `NEXT_PUBLIC_BASE_PATH=/aipokerclubtest npm run build && npx next start` and load `/` with DevTools open; confirm no error #185.
+- Grep for `useSyncExternalStore` and audit every `getSnapshot`.

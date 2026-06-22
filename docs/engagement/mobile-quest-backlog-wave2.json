@@ -1,0 +1,97 @@
+{
+  "wave": 2,
+  "label": "Post-tracker · 奖励闭环与 polish",
+  "items": [
+    {
+      "id": "B16",
+      "iteration": 16,
+      "pillar": "quest-reward",
+      "title": "POST /api/users/me/quest-bonus（Pass A：ledger + 幂等）",
+      "status": "implemented"
+    },
+    {
+      "id": "B17",
+      "iteration": 17,
+      "pillar": "mobile-ux",
+      "title": "Hub ≥3⭐ 自动 claim quest_master + 调用 quest-bonus + toast",
+      "status": "implemented"
+    },
+    {
+      "id": "B18",
+      "iteration": 18,
+      "pillar": "quest-product",
+      "title": "/me 展示今日 quest_bonus 实验积分",
+      "status": "implemented"
+    },
+    {
+      "id": "B19",
+      "iteration": 19,
+      "pillar": "quest-impl",
+      "title": "engagement.quest.bonus_* analytics + METRICS 条目",
+      "status": "implemented"
+    },
+    {
+      "id": "B20",
+      "iteration": 20,
+      "pillar": "quest-reward",
+      "title": "quest_core / quest_master bonus reason 服务端校验加强",
+      "status": "implemented"
+    },
+    {
+      "id": "B21",
+      "iteration": 21,
+      "pillar": "mobile-ux",
+      "title": "Grinder 领取成功后自动尝试 quest_core bonus",
+      "status": "implemented"
+    },
+    {
+      "id": "B22",
+      "iteration": 22,
+      "pillar": "quest-product",
+      "title": "Hub 奖励 footer 展示已获实验积分总额",
+      "status": "implemented"
+    },
+    {
+      "id": "B23",
+      "iteration": 23,
+      "pillar": "quest-impl",
+      "title": "quest-bonus GET 返回分项 breakdown",
+      "status": "implemented"
+    },
+    {
+      "id": "B24",
+      "iteration": 24,
+      "pillar": "quest-reward",
+      "title": "实现 quest-micro-bonus-design Pass B 全链路验收文档",
+      "status": "implemented"
+    },
+    {
+      "id": "B25",
+      "iteration": 25,
+      "pillar": "mobile-ux",
+      "title": "/me 展示 bonus breakdown 分项列表",
+      "status": "implemented"
+    },
+    {
+      "id": "B26",
+      "iteration": 26,
+      "pillar": "quest-product",
+      "title": "Hub Sheet 空态未登录引导优化",
+      "status": "implemented"
+    },
+    {
+      "id": "B27",
+      "iteration": 27,
+      "pillar": "quest-impl",
+      "title": "questBonus 单元测试（幂等 + eligibility）",
+      "status": "implemented"
+    },
+    {
+      "id": "B28",
+      "iteration": 28,
+      "pillar": "quest-reward",
+      "title": "ActivityStrip 与 Quest Hub 移动端总高度 ≤96px 验收",
+      "status": "implemented"
+    }
+  ]
+}
