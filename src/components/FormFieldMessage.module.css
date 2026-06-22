@@ -1,0 +1,23 @@
+.error {
+  background: rgba(251, 113, 133, 0.14);
+  border: 1px solid rgba(251, 113, 133, 0.35);
+  border-radius: 14px;
+  color: var(--danger);
+  margin: 0;
+  padding: 12px;
+}
+
+.errorInline {
+  background: none;
+  border: none;
+  border-radius: 0;
+  font-weight: 800;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: -4px 0 0;
+}

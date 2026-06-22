@@ -160,7 +160,7 @@
 .trainingCard::after {
   background:
     linear-gradient(90deg, rgba(11, 33, 24, 0) 0%, rgba(11, 33, 24, 0.36) 42%, rgba(11, 33, 24, 0.88) 100%),
-    url("/images/landing/my-player-training-console.png") right center / cover no-repeat;
+    var(--me-training-bg, url("/images/landing/my-player-training-console.webp")) right center / cover no-repeat;
   content: "";
   inset: 0 0 0 auto;
   opacity: 0.28;
@@ -544,6 +544,13 @@
   text-align: center;
 }
 
+.heroActions .primaryLink:focus-visible,
+.heroActions .secondaryLink:focus-visible,
+.heroActions button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
 .eyebrow {
   color: #67e8f9;
   font-size: 12px;
@@ -578,6 +585,10 @@
   margin: 0 0 18px;
 }
 
+.seasonEventBadge {
+  margin-bottom: 10px;
+}
+
 .badges span {
   background: rgba(34, 211, 238, 0.1);
   border: 1px solid rgba(34, 211, 238, 0.22);
@@ -586,6 +597,12 @@
   font-size: 12px;
   font-weight: 900;
   padding: 7px 10px;
+}
+
+.dailyHonorBadge {
+  background: rgba(245, 200, 75, 0.12) !important;
+  border-color: rgba(245, 200, 75, 0.32) !important;
+  color: var(--warning) !important;
 }
 
 .playerCard {
@@ -646,7 +663,7 @@
 }
 
 .playerCardBody p {
-  color: rgba(226, 232, 240, 0.62);
+  color: var(--text-secondary);
   margin: 8px 0 0;
   overflow-wrap: anywhere;
 }
@@ -680,6 +697,69 @@
   grid-column: 1 / -1;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .playerHero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .heroMetrics,
+  .growthStats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .playerCard {
+    gap: 14px;
+    grid-template-areas:
+      "avatar body"
+      "metrics metrics"
+      "power power";
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .avatarOrb {
+    grid-area: avatar;
+  }
+
+  .playerCardBody {
+    grid-area: body;
+  }
+
+  .heroMetrics {
+    grid-area: metrics;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .powerBar {
+    grid-area: power;
+  }
+
+  .playerCardBody strong {
+    white-space: normal;
+  }
+
+  .heroActions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .playerCard {
+    grid-template-areas:
+      "avatar"
+      "body"
+      "power"
+      "metrics";
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .heroMetrics {
+    grid-template-columns: 1fr;
+  }
 }
 
 .statCard,
@@ -872,6 +952,16 @@
   max-width: 820px;
 }
 
+.loadError {
+  color: var(--danger);
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+  margin: 0 auto;
+  max-width: 820px;
+  padding: var(--space-card);
+}
+
 @media (max-width: 980px) {
   .page {
     padding: 10px;
@@ -891,10 +981,31 @@
 
   .playerCard {
     align-items: center;
+    gap: 14px;
+    grid-template-areas:
+      "avatar body"
+      "metrics metrics"
+      "power power";
     grid-template-columns: auto minmax(0, 1fr);
     justify-items: start;
     padding: 12px;
     row-gap: 10px;
+  }
+
+  .avatarOrb {
+    grid-area: avatar;
+  }
+
+  .playerCardBody {
+    grid-area: body;
+  }
+
+  .heroMetrics {
+    grid-area: metrics;
+  }
+
+  .powerBar {
+    grid-area: power;
   }
 
   .avatarOrb {
@@ -1050,4 +1161,108 @@
 
 .powerBar span {
   background: linear-gradient(90deg, var(--warning), var(--accent));
+}
+
+.questProgressPanel {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 20px;
+  margin: 0 auto 18px;
+  max-width: 1360px;
+  padding: 16px 18px;
+}
+
+.questProgressHeader {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.questProgressHeaderMeta {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.questBonusToday {
+  color: #6ee7b7;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.questProgressHeader h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.questProgressStars {
+  color: #fde68a;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.questProgressMuted {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.questProgressList,
+.questHistoryList {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.questProgressItem {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.questProgressRow {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.questProgressTrack {
+  background: rgba(2, 6, 23, 0.55);
+  border-radius: 999px;
+  height: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.questProgressFill {
+  background: linear-gradient(90deg, #a855f7, #22d3ee);
+  display: block;
+  height: 100%;
+}
+
+.questProgressMeta {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 8px 0 0;
+}
+
+.questHistoryTitle {
+  font-size: 0.88rem;
+  margin: 16px 0 8px;
+}
+
+.questHistoryItem {
+  align-items: center;
+  color: var(--muted);
+  display: grid;
+  font-size: 0.82rem;
+  gap: 8px;
+  grid-template-columns: 1fr auto auto;
 }

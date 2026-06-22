@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { FormFieldError } from "@/components/FormFieldMessage";
 import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./login.module.css";
@@ -109,7 +110,7 @@ export default function LoginPage() {
               value={password}
             />
           </label>
-          {error ? <p className={styles.error}>{error}</p> : null}
+          <FormFieldError message={error} />
           <button disabled={busy} type="submit">
             {busy ? t.submitting : t.submit}
           </button>

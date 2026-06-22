@@ -1,4 +1,5 @@
 import { getSimulator } from "@/lib/server/simulator";
+import { slimGameSnapshotForSse } from "@/lib/server/sseSnapshot";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
       }
 
       function sendSnapshot() {
-        send("snapshot", getSimulator(origin).snapshot());
+        send("snapshot", slimGameSnapshotForSse(getSimulator(origin).snapshot()));
       }
 
       sendSnapshot();

@@ -26,6 +26,11 @@
   transform: translateY(-1px);
 }
 
+.soundToggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
 .muted {
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.12);
@@ -46,4 +51,14 @@
   right: 5px;
   top: 5px;
   width: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soundToggle {
+    transition: none;
+  }
+
+  .soundToggle:hover {
+    transform: none;
+  }
 }

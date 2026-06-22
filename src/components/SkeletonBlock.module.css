@@ -1,0 +1,66 @@
+@keyframes skeletonPulse {
+  0% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.55;
+  }
+}
+
+.block {
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  display: block;
+  max-width: 100%;
+}
+
+.rounded_sm {
+  border-radius: 8px;
+}
+
+.rounded_md {
+  border-radius: 16px;
+}
+
+.rounded_pill {
+  border-radius: 999px;
+}
+
+.stack {
+  display: grid;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.cardGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  width: 100%;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    animation: none;
+    opacity: 0.75;
+  }
+}

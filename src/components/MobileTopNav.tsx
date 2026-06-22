@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage, type Language } from "@/lib/client/i18n";
 import styles from "./MobileTopNav.module.css";
 
@@ -45,7 +46,9 @@ export function MobileTopNav() {
         <Link className={styles.action} href={action.href}>
           {action.label}
         </Link>
-      ) : null}
+      ) : (
+        <LanguageToggle className={styles.languageToggle} />
+      )}
     </nav>
   );
 }

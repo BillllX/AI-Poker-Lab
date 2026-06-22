@@ -1,5 +1,7 @@
 "use client";
 
+import { withBasePath } from "./basePath";
+
 export type TableSoundName =
   | "allin"
   | "bet"
@@ -8,6 +10,7 @@ export type TableSoundName =
   | "check"
   | "deal"
   | "fold"
+  | "myAgentDeciding"
   | "raise"
   | "win"
   | "yourTurn";
@@ -25,17 +28,20 @@ type QueuedSound = {
 };
 
 const soundPreferenceKey = "texas-poker-sound-enabled";
+/** Warm a small set on unlock; everything else loads on first play. */
+const essentialSounds: TableSoundName[] = ["check", "deal", "win"];
 const soundPaths: Record<TableSoundName, string> = {
-  allin: "/audio/actions/all-in.wav",
-  bet: "/audio/actions/bet.wav",
-  blind: "/audio/actions/blind.wav",
-  call: "/audio/actions/call.wav",
-  check: "/audio/actions/check.wav",
-  deal: "/audio/table/deal.wav",
-  fold: "/audio/actions/fold.wav",
-  raise: "/audio/actions/raise.wav",
-  win: "/audio/table/win.wav",
-  yourTurn: "/audio/table/your-turn.wav",
+  allin: withBasePath("/audio/actions/all-in.wav"),
+  bet: withBasePath("/audio/actions/bet.wav"),
+  blind: withBasePath("/audio/actions/blind.wav"),
+  call: withBasePath("/audio/actions/call.wav"),
+  check: withBasePath("/audio/actions/check.wav"),
+  deal: withBasePath("/audio/table/deal.wav"),
+  fold: withBasePath("/audio/actions/fold.wav"),
+  myAgentDeciding: withBasePath("/audio/table/your-turn.wav"),
+  raise: withBasePath("/audio/actions/raise.wav"),
+  win: withBasePath("/audio/table/win.wav"),
+  yourTurn: withBasePath("/audio/table/your-turn.wav"),
 };
 
 class AudioManager {
@@ -76,15 +82,15 @@ class AudioManager {
         await context.resume();
         this.playUnlockTick(context);
         this.unlocked = context.state === "running";
-        void this.preload();
+        void this.preloadEssentials();
       } else {
         const audio = this.cloneFallbackAudio("check");
+        audio.preload = "auto";
         audio.volume = 0.01;
         await audio.play();
         audio.pause();
         audio.currentTime = 0;
         this.unlocked = true;
-        this.preloadFallback();
       }
     } catch {
       this.unlocked = false;
@@ -121,9 +127,18 @@ class AudioManager {
     void this.drainQueue();
   }
 
+  /** @deprecated Prefer lazy play(); kept for compatibility — warms essentials only. */
   preload() {
+    this.preloadEssentials();
+  }
+
+  preloadEssentials() {
     this.ensureInitialized();
-    for (const sound of Object.keys(soundPaths) as TableSoundName[]) {
+    if (!this.unlocked) {
+      return;
+    }
+
+    for (const sound of essentialSounds) {
       void this.loadBuffer(sound);
     }
   }
@@ -172,6 +187,7 @@ class AudioManager {
       }
 
       const audio = this.cloneFallbackAudio(sound);
+      audio.preload = "auto";
       audio.volume = volume;
       audio.currentTime = 0;
       await audio.play();
@@ -211,18 +227,19 @@ class AudioManager {
   }
 
   private async loadBuffer(sound: TableSoundName) {
-    const existing = this.audioBuffers.get(sound);
+    const bufferKey = sharedBufferKey(sound);
+    const existing = this.audioBuffers.get(bufferKey);
     if (existing) {
       return existing;
     }
 
-    const existingLoad = this.bufferLoads.get(sound);
+    const existingLoad = this.bufferLoads.get(bufferKey);
     if (existingLoad) {
       return existingLoad;
     }
 
-    const load = this.fetchAndDecode(sound);
-    this.bufferLoads.set(sound, load);
+    const load = this.fetchAndDecode(bufferKey);
+    this.bufferLoads.set(bufferKey, load);
     return load;
   }
 
@@ -243,12 +260,6 @@ class AudioManager {
     }
   }
 
-  private preloadFallback() {
-    for (const sound of Object.keys(soundPaths) as TableSoundName[]) {
-      this.fallbackPoolFor(sound);
-    }
-  }
-
   private cloneFallbackAudio(sound: TableSoundName) {
     const pool = this.fallbackPoolFor(sound);
     const reusable = pool.find((audio) => audio.paused || audio.ended);
@@ -257,7 +268,7 @@ class AudioManager {
     }
 
     const next = new Audio(soundPaths[sound]);
-    next.preload = "auto";
+    next.preload = "none";
     pool.push(next);
     return next;
   }
@@ -268,11 +279,7 @@ class AudioManager {
       return existing;
     }
 
-    const pool = Array.from({ length: 2 }, () => {
-      const audio = new Audio(soundPaths[sound]);
-      audio.preload = "auto";
-      return audio;
-    });
+    const pool: HTMLAudioElement[] = [];
     this.fallbackBuffers.set(sound, pool);
     return pool;
   }
@@ -303,6 +310,11 @@ export const audioManager = new AudioManager();
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** myAgentDeciding shares the your-turn clip — avoid duplicate decode/fetch. */
+function sharedBufferKey(sound: TableSoundName): TableSoundName {
+  return sound === "myAgentDeciding" ? "yourTurn" : sound;
 }
 
 declare global {

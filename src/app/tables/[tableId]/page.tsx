@@ -1,21 +1,75 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { use, useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { AnimatedPotValue } from "@/components/AnimatedPotValue";
+import { FormFieldError, FormFieldHint } from "@/components/FormFieldMessage";
+import { SkeletonStack } from "@/components/SkeletonBlock";
+import { resetCoachingStreak } from "@/lib/client/coachingStreak";
+import { trackEngagement } from "@/lib/client/engagementAnalytics";
+import { LazyEngagementToastStack } from "@/components/LazyEngagementToastStack";
+import { LazySpectatorActionLogList } from "@/components/LazySpectatorActionLogList";
+import { LazyHandReviewList } from "@/components/LazyHandReviewList";
+import { LazyReactionBar } from "@/components/LazyReactionBar";
+import { SpectatorSideTabs } from "@/components/SpectatorSideTabs";
+import { TableMomentOverlay } from "@/components/TableMomentOverlay";
 import { SoundToggle } from "@/components/SoundToggle";
+import { TableFeedbackLink } from "@/components/TableFeedbackLink";
+import {
+  TableEmptySeat,
+  TablePlayerSeat,
+  formatSeatDelta,
+  seatDeltaClassName,
+  seatPositionLabel,
+  tableSeatStyle,
+  visualSeatIndex,
+} from "@/components/TableSeat";
 import { withBasePath } from "@/lib/client/basePath";
+import { prefetchLeaderboardRoute, prefetchLobbyRoute } from "@/lib/client/prefetchTableRoutes";
+import { connectReconnectingEventSource } from "@/lib/client/reconnectingEventSource";
+import { pushEngagementToast } from "@/lib/client/engagementToast";
 import { useLanguage } from "@/lib/client/i18n";
+import { liveRegionProps } from "@/lib/client/liveRegion";
+import { mergeGameSnapshotForSse } from "@/lib/client/sseSnapshotMerge";
+import {
+  DAILY_TASKS_COMPLETE_COPY,
+  getDailyTasksProgress,
+  recordDailySpectatedHand,
+} from "@/lib/client/dailyTasks";
+import { recordRecentSpectate } from "@/lib/client/recentSpectate";
+import { recordQuestQuickPlayComplete, recordQuestShareComplete } from "@/lib/client/questOptionalProgress";
+import { useSpectatorPointsToast } from "@/lib/client/useSpectatorPointsToast";
 import { useTableSounds } from "@/lib/client/tableSoundEvents";
+import { analyzeDecisionHand } from "@/lib/poker/handAnalysis";
+import type { SlimGameSnapshotForSse } from "@/lib/server/sseSnapshot";
 import type { Card, GameSnapshot } from "@/lib/poker/types";
 import styles from "../../table/table.module.css";
 
+const CoachDock = dynamic(
+  () => import("@/components/CoachDock").then((mod) => ({ default: mod.CoachDock })),
+  {
+    loading: () => <SkeletonStack label="Loading coach panel" rows={3} />,
+    ssr: false,
+  },
+);
+
+const HandInsightPanel = dynamic(
+  () => import("@/components/HandInsightPanel").then((mod) => ({ default: mod.HandInsightPanel })),
+  {
+    loading: () => <SkeletonStack label="Loading hand insight" rows={3} />,
+    ssr: false,
+  },
+);
+
 const copy = {
   zh: {
-    eyebrow: "Texas Poker Table",
+    eyebrow: "AI 观战牌桌",
     running: "运行中",
     waitingStart: "等待开局",
-    seats: "seats",
-    hand: "hand",
+    seats: "座位",
+    hand: "手",
     home: "首页",
     backLobby: "返回大厅",
     pot: "底池",
@@ -29,6 +83,7 @@ const copy = {
     actionLog: "行动日志",
     recentActions: "最近动作",
     noActions: "还没有行动。",
+    logCapHint: "仅显示最近 {shown} 条，另有 {hidden} 条较早记录未展示。",
     virtualAgent: "BOT",
     currentBet: "当前注额",
     chipChange: "筹码变化",
@@ -42,7 +97,7 @@ const copy = {
     joinTableHint: "你已登录，可以让自己的托管牌手加入这张桌，从下一手开始参与。",
     joinTableFailed: "上桌失败。",
     joinTableQueued: "已加入这张桌，等待下一手入局。",
-    leaveTable: "Leave",
+    leaveTable: "离桌",
     leaveFailed: "离开牌桌失败。",
     leaving: "离开中...",
     loadingLogin: "正在读取登录状态...",
@@ -51,17 +106,85 @@ const copy = {
     hostedAgent: "托管 Agent",
     externalAgent: "本地 Agent",
     spectatorMode: "观战模式",
+    spectatorHint: "观战模式：你不是本桌下注玩家，可观察 AI 决策与互动条；登录后可创建牌手并 Coaching。",
+    spectatorCount: (count: number) => `${count} 人正在观战`,
     thinking: "正在思考",
     preparingHand: "准备发牌",
     handWinners: "本局赢家",
     wonChips: "赢得筹码",
+    viewHandLog: "查看本手日志",
+    handReview: "最近复盘",
+    noHandSummaries: "还没有完成的手牌摘要。",
+    noCommunity: "暂无公共牌",
+    handInsightTitle: "本手牌力",
+    handInsightMadeHand: "成牌",
+    handInsightBoard: "牌面",
+    handInsightDraws: "听牌",
+    handInsightNone: "无",
+    handInsightReasoning: "决策",
+    lastReasoning: "最近决策",
+    coachingTitle: "下一手 Coaching",
+    coachingCollapse: "收起",
+    coachingExpand: "展开",
+    coachingCollapsedSummary: "给下一手发送策略建议 — 点击展开 Coaching 面板",
+    coachingHint: "建议会在下一手开始时注入你的 AI 牌手 Prompt。",
+    coachingPlaceholder: "例如：这手后收紧范围，少在边缘 spot 加注。",
+    coachingSubmit: "提交 Coaching",
+    coachingSubmitting: "提交中...",
+    coachingAppliedFromHand: (handId: number) => `已从第 ${handId} 手起生效。`,
+    coachingRecent: "最近 3 条 Coaching",
+    coachingFailed: "Coaching 提交失败。",
+    noCoachingHistory: "还没有 Coaching 记录。",
+    coachingHistoryLoading: "正在加载 Coaching 记录…",
+    coachingHistoryLoadFailed: "无法加载 Coaching 历史。",
+    coachingStreakActive: "活跃教练",
+    coachingStreakProgress: (count: number, target: number) => `${count}/${target} 活跃教练`,
+    coachingMilestoneToast: (count: number) => `第 ${count} 次 Coaching 里程碑达成！`,
+    coachingStreakMilestoneToast: "第 3 次 Coaching — 活跃教练达成！",
+    coachingPending: (handId: number) => `Coaching 待生效 · 手 #${handId}`,
+    coachingAppliedToast: "你的 Coaching 已在本手生效",
+    leaveSettledToast: "已离桌并结算，积分已回账",
+    agentBustToast: (name: string) => `${name} 已清台，本局已结算`,
+    handWinPointsToast: (amount: number) => `本手 +${amount.toLocaleString()}`,
+    accountPointsToast: (delta: number, dailyRank?: number) => {
+      const signed = `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`;
+      return dailyRank ? `实验积分 ${signed} · 今日第 ${dailyRank} 名` : `实验积分 ${signed} 已更新`;
+    },
+    dailyRankToast: (rank: number) => `你的牌手升到今日第 ${rank} 名`,
+    reactionTitle: "观战互动",
+    reactionShortcutHint: "按键 1–8 快捷发送",
+    reactionRecentLabel: "最近互动",
+    reactionRateLimited: "发送太频繁，请稍后再试",
+    reactionSendFailed: "发送失败，请重试",
+    winBadge: "胜",
+    streamConnecting: "连接中",
+    streamLive: "实时连接",
+    streamRecovering: "重连中",
+    myAgentOtherTable: (tableName: string) => `你的牌手正在「${tableName}」`,
+    goToMyAgentTable: "前往我的牌手所在桌",
+    tableFull: "本桌已满，暂无法入座。",
+    tabLog: "日志",
+    tabCoach: "教练",
+    tabInsight: "洞察",
+    coachTabEmpty: "登录并让牌手入座后，可在此发送 Coaching。",
+    insightTabEmpty: "摊牌后会显示你的牌手牌力分析。",
+    insightTabWaiting: "本手进行中，摊牌后查看牌力洞察。",
+    copySpectatorShare: "复制观战链接",
+    spectatorShareCopied: "已复制",
+    sessionEndLeaveTitle: "本局已结算",
+    sessionEndBustTitle: "你的牌手已清台",
+    sessionEndLeaveText: "积分已回账。要再开一局，还是回大厅看看其他牌桌？",
+    sessionEndBustText: "这手结束后已自动结算。再来一局，或回大厅选别的桌。",
+    playAgainCta: "再来一局",
+    backToLobbyCta: "回大厅",
+    playAgainStarting: "正在匹配牌桌…",
   },
   en: {
     eyebrow: "Texas Poker Table",
     running: "Running",
     waitingStart: "Waiting to start",
-    seats: "seats",
-    hand: "hand",
+    seats: "Seats",
+    hand: "Hand",
     home: "Home",
     backLobby: "Back to Lobby",
     pot: "Pot",
@@ -74,6 +197,7 @@ const copy = {
     waiting: "Waiting",
     actionLog: "Action Log",
     recentActions: "Recent Actions",
+    logCapHint: "Showing {shown} recent entries ({hidden} older entries hidden).",
     noActions: "No actions yet.",
     virtualAgent: "BOT",
     currentBet: "Current bet",
@@ -97,10 +221,78 @@ const copy = {
     hostedAgent: "Hosted Agent",
     externalAgent: "Local Agent",
     spectatorMode: "Spectator mode",
+    spectatorHint: "Spectator mode: you're not betting at this table. Watch AI decisions and reactions; log in to seat your player or coach.",
+    spectatorCount: (count: number) => `${count} watching`,
     thinking: "Thinking",
     preparingHand: "Preparing cards",
     handWinners: "Hand Winners",
     wonChips: "Won chips",
+    viewHandLog: "View this hand's log",
+    handReview: "Recent Review",
+    noHandSummaries: "No completed hand summaries yet.",
+    noCommunity: "No community cards",
+    handInsightTitle: "Hand Insight",
+    handInsightMadeHand: "Made hand",
+    handInsightBoard: "Board",
+    handInsightDraws: "Draws",
+    handInsightNone: "None",
+    handInsightReasoning: "Decision",
+    lastReasoning: "Latest reasoning",
+    coachingTitle: "Next-hand coaching",
+    coachingCollapse: "Collapse",
+    coachingExpand: "Expand",
+    coachingCollapsedSummary: "Coach your player for the next hand — expand to open the panel",
+    coachingHint: "Advice is injected into your AI player prompt from the next hand.",
+    coachingPlaceholder: "Example: tighten up after this hand and avoid marginal raises.",
+    coachingSubmit: "Send coaching",
+    coachingSubmitting: "Sending...",
+    coachingAppliedFromHand: (handId: number) => `Active from hand #${handId}.`,
+    coachingRecent: "Recent 3 coaching notes",
+    coachingFailed: "Unable to send coaching.",
+    noCoachingHistory: "No coaching notes yet.",
+    coachingHistoryLoading: "Loading coaching notes…",
+    coachingHistoryLoadFailed: "Couldn't load coaching history.",
+    coachingStreakActive: "Active coach",
+    coachingStreakProgress: (count: number, target: number) => `${count}/${target} active coach`,
+    coachingMilestoneToast: (count: number) => `Coaching milestone: submission #${count}!`,
+    coachingStreakMilestoneToast: "3 coaching submissions in 3 hands — Active coach unlocked!",
+    coachingPending: (handId: number) => `Coaching pending · hand #${handId}`,
+    coachingAppliedToast: "Your coaching is active this hand",
+    leaveSettledToast: "Left the table and settled back to your balance",
+    agentBustToast: (name: string) => `${name} busted out and this session was settled`,
+    handWinPointsToast: (amount: number) => `This hand +${amount.toLocaleString()}`,
+    accountPointsToast: (delta: number, dailyRank?: number) => {
+      const signed = `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`;
+      return dailyRank ? `Lab points ${signed} · #${dailyRank} today` : `Lab points ${signed} updated`;
+    },
+    dailyRankToast: (rank: number) => `Your player moved up to #${rank} on today's board`,
+    reactionTitle: "Spectator reactions",
+    reactionShortcutHint: "Keys 1–8 for quick send",
+    reactionRecentLabel: "Recent reactions",
+    reactionRateLimited: "Too many reactions — please wait a moment",
+    reactionSendFailed: "Could not send reaction",
+    winBadge: "WIN",
+    streamConnecting: "Connecting",
+    streamLive: "Live",
+    streamRecovering: "Reconnecting",
+    myAgentOtherTable: (tableName: string) => `Your player is at "${tableName}"`,
+    goToMyAgentTable: "Go to my player's table",
+    tableFull: "This table is full.",
+    tabLog: "Log",
+    tabCoach: "Coach",
+    tabInsight: "Insight",
+    coachTabEmpty: "Log in and seat your player to send coaching here.",
+    insightTabEmpty: "Hand strength insights appear after showdown.",
+    insightTabWaiting: "Hand in progress — insights unlock at showdown.",
+    copySpectatorShare: "Copy watch link",
+    spectatorShareCopied: "Copied",
+    sessionEndLeaveTitle: "Session settled",
+    sessionEndBustTitle: "Your player busted out",
+    sessionEndLeaveText: "Points are back in your balance. Play again or return to the lobby?",
+    sessionEndBustText: "This session was settled. Start another table or browse the lobby.",
+    playAgainCta: "Play again",
+    backToLobbyCta: "Back to lobby",
+    playAgainStarting: "Finding a table…",
   },
 };
 
@@ -112,23 +304,53 @@ type WinnerReveal = {
 };
 
 type ClubUser = {
+  dailyProfitToday: number;
   id: string;
   name: string;
+  pointsBalance: number;
 };
+
+type RemoteAgentTable = {
+  id: string;
+  name: string;
+  url: string;
+};
+
+type StreamStatus = "connecting" | "live" | "recovering";
+
+type SessionEndReason = "leave" | "bust";
 
 export default function TableDetailPage({ params }: { params: Promise<{ tableId: string }> }) {
   const { tableId } = use(params);
+  const router = useRouter();
   const { language } = useLanguage();
   const t = copy[language];
   const [state, setState] = useState<GameSnapshot>();
   const [me, setMe] = useState<ClubUser | null>();
   const [controlStatus, setControlStatus] = useState<string>();
+  const [controlStatusIsError, setControlStatusIsError] = useState(false);
   const [controlBusy, setControlBusy] = useState<"join" | "leave">();
   const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
+  const [highlightHandId, setHighlightHandId] = useState<number>();
+  const [pendingCoachingHandId, setPendingCoachingHandId] = useState<number>();
+  const [coachingStreakVersion, setCoachingStreakVersion] = useState(0);
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
+  const [streamTableId, setStreamTableId] = useState(tableId);
+  const [remoteAgentTable, setRemoteAgentTable] = useState<RemoteAgentTable | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [sessionEndReason, setSessionEndReason] = useState<SessionEndReason | null>(null);
+  const [playAgainBusy, setPlayAgainBusy] = useState(false);
+  const activeStreamStatus = streamTableId === tableId ? streamStatus : "connecting";
   const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
   const winnerRevealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const lastBustToastHandIdRef = useRef<number | undefined>(undefined);
+  const lastCoachingToastHandIdRef = useRef<number | undefined>(undefined);
+  const sessionStartedAtRef = useRef<number>(0);
+  const sessionStartHandIdRef = useRef<number>(0);
+  const lastSeenHandIdRef = useRef<number>(0);
   const players = state?.players ?? [];
   const myPlayer = me ? players.find((player) => player.ownerUserId === me.id) : undefined;
+  const myAgentRemoteTable = me && !myPlayer ? remoteAgentTable : null;
   const tableIsFull = players.length >= 6;
   const canJoinThisTable = Boolean(me && !myPlayer && !tableIsFull);
   const myPlayerSeatIndex = myPlayer ? players.findIndex((player) => player.id === myPlayer.id) : -1;
@@ -136,8 +358,35 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const waitingForFirstDeal = Boolean(state?.running && state.handId === 0 && players.length >= 2 && players.every((player) => (player.holeCards?.length ?? 0) === 0));
   const streetActions = currentStreetActions(state);
   const handWinners = winnerReveal?.winners ?? [];
+  const winningPlayerIds = new Set(handWinners.map((winner) => winner.playerId));
 
-  useTableSounds(state);
+  useTableSounds(state, {
+    enableMyAgentDeciding: Boolean(me?.id),
+    myAgentOwnerUserId: me?.id,
+  });
+
+  const pointsToastCopy = useMemo(
+    () => ({
+      accountPointsToast: t.accountPointsToast,
+      dailyRankToast: t.dailyRankToast,
+      handWinPointsToast: t.handWinPointsToast,
+    }),
+    [t],
+  );
+
+  const handleMePointsUpdate = useCallback((user: Pick<ClubUser, "dailyProfitToday" | "id" | "pointsBalance">) => {
+    setMe((previous) => (previous ? { ...previous, ...user } : previous));
+  }, []);
+
+  useSpectatorPointsToast({
+    copy: pointsToastCopy,
+    handId: winnerReveal?.handId ?? state?.handId,
+    handWinners,
+    me,
+    myPlayerId: myPlayer?.id,
+    onMeUpdate: handleMePointsUpdate,
+    tableId,
+  });
 
   function revealWinnersForSnapshot(snapshot: GameSnapshot) {
     if (snapshot.handId === lastWinnerRevealHandIdRef.current) {
@@ -161,22 +410,93 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   }
 
   useEffect(() => {
-    const events = new EventSource(withBasePath(`/api/tables/${tableId}/events`));
-    events.addEventListener("snapshot", (event) => {
-      const nextState = JSON.parse((event as MessageEvent<string>).data) as GameSnapshot;
-      setState(nextState);
-      revealWinnersForSnapshot(nextState);
+    prefetchLobbyRoute(router);
+    prefetchLeaderboardRoute(router);
+  }, [router]);
+
+  useEffect(() => {
+    return connectReconnectingEventSource({
+      url: withBasePath(`/api/tables/${tableId}/events`),
+      onOpen: () => {
+        setStreamTableId(tableId);
+      },
+      onSnapshot: (data) => {
+        setStreamTableId(tableId);
+        const incoming = JSON.parse(data) as SlimGameSnapshotForSse;
+        setState((previous) => {
+          const merged = mergeGameSnapshotForSse(previous, incoming);
+          revealWinnersForSnapshot(merged);
+          return merged;
+        });
+      },
+      onStatusChange: (status) => {
+        setStreamTableId(tableId);
+        setStreamStatus(status);
+      },
+      onRecover: async () => {
+        const response = await fetch(withBasePath(`/api/tables/${tableId}/state`), { cache: "no-store" });
+        if (response.ok) {
+          const nextState = (await response.json()) as GameSnapshot;
+          setState(nextState);
+          revealWinnersForSnapshot(nextState);
+        }
+      },
     });
-    events.onerror = async () => {
-      const response = await fetch(withBasePath(`/api/tables/${tableId}/state`), { cache: "no-store" });
-      if (response.ok) {
-        const nextState = (await response.json()) as GameSnapshot;
-        setState(nextState);
-        revealWinnersForSnapshot(nextState);
-      }
-    };
-    return () => events.close();
   }, [tableId]);
+
+  useEffect(() => {
+    const tableName = state?.tableName;
+    if (!tableName) {
+      return;
+    }
+    recordRecentSpectate(tableId, tableName);
+  }, [state?.tableName, tableId]);
+
+  useEffect(() => {
+    sessionStartedAtRef.current = Date.now();
+    sessionStartHandIdRef.current = 0;
+    lastSeenHandIdRef.current = 0;
+  }, [tableId]);
+
+  useEffect(() => {
+    const startedAt = sessionStartedAtRef.current;
+    return () => {
+      trackEngagement({
+        at: new Date().toISOString(),
+        durationMs: Date.now() - startedAt,
+        handsSeen: Math.max(0, lastSeenHandIdRef.current - sessionStartHandIdRef.current),
+        name: "engagement.spectator.session_end",
+        tableId,
+      });
+    };
+  }, [tableId]);
+
+  useEffect(() => {
+    const handId = state?.handId ?? 0;
+    if (handId <= 0) {
+      return;
+    }
+    if (sessionStartHandIdRef.current === 0) {
+      sessionStartHandIdRef.current = handId;
+    }
+    lastSeenHandIdRef.current = Math.max(lastSeenHandIdRef.current, handId);
+
+    const before = getDailyTasksProgress();
+    recordDailySpectatedHand(tableId, handId);
+    const after = getDailyTasksProgress();
+    if (after.complete && !before.complete) {
+      trackEngagement({
+        at: new Date().toISOString(),
+        name: "engagement.daily_tasks.complete",
+      });
+      pushEngagementToast({
+        expiresMs: 6500,
+        id: `daily-tasks-complete-${tableId}-${handId}`,
+        kind: "coaching",
+        message: DAILY_TASKS_COMPLETE_COPY[language],
+      });
+    }
+  }, [language, state?.handId, tableId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -200,12 +520,83 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   }, []);
 
   useEffect(() => {
+    if (!me || myPlayer) {
+      return;
+    }
+
+    let cancelled = false;
+    async function loadRemoteAgentTable() {
+      const response = await fetch(withBasePath("/api/users/me/agent"), { cache: "no-store" });
+      if (!response.ok || cancelled) {
+        return;
+      }
+
+      const payload = await response.json();
+      const remoteId = payload.agentProfile?.table?.id ?? payload.hostedAgent?.agent?.tableId;
+      if (!remoteId || remoteId === tableId) {
+        if (!cancelled) {
+          setRemoteAgentTable(null);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setRemoteAgentTable({
+          id: remoteId,
+          name: payload.agentProfile?.table?.name ?? remoteId,
+          url: payload.agentProfile?.table?.url ?? `/tables/${encodeURIComponent(remoteId)}`,
+        });
+      }
+    }
+
+    void loadRemoteAgentTable();
+    return () => {
+      cancelled = true;
+    };
+  }, [me, myPlayer, tableId]);
+
+  useEffect(() => {
     return () => {
       if (winnerRevealTimerRef.current) {
         clearTimeout(winnerRevealTimerRef.current);
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!myPlayer || myPlayer.stack > 0 || myPlayer.status !== "out") {
+      return;
+    }
+    const handId = state?.handId ?? 0;
+    if (handId <= 0 || lastBustToastHandIdRef.current === handId) {
+      return;
+    }
+    lastBustToastHandIdRef.current = handId;
+    resetCoachingStreak(tableId);
+    setCoachingStreakVersion((version) => version + 1);
+    pushEngagementToast({
+      kind: "bust",
+      message: t.agentBustToast(myPlayer.name),
+      expiresMs: 8000,
+    });
+    setSessionEndReason("bust");
+  }, [myPlayer, state?.handId, t, tableId]);
+
+  useEffect(() => {
+    if (pendingCoachingHandId === undefined) {
+      return;
+    }
+    const currentHandId = state?.handId ?? 0;
+    if (currentHandId < pendingCoachingHandId || lastCoachingToastHandIdRef.current === currentHandId) {
+      return;
+    }
+    lastCoachingToastHandIdRef.current = currentHandId;
+    pushEngagementToast({
+      kind: "coaching",
+      message: t.coachingAppliedToast,
+      expiresMs: 5000,
+    });
+  }, [pendingCoachingHandId, state?.handId, t]);
 
   async function refreshTableState() {
     const response = await fetch(withBasePath(`/api/tables/${tableId}/state`), { cache: "no-store" });
@@ -223,6 +614,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
 
     setControlBusy("leave");
     setControlStatus(undefined);
+    setControlStatusIsError(false);
     try {
       const response = await fetch(withBasePath("/api/users/me/agent/leave"), {
         body: JSON.stringify({ tableId }),
@@ -232,23 +624,49 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
       const payload = await response.json();
       if (!response.ok) {
         setControlStatus(payload.error ?? t.leaveFailed);
+        setControlStatusIsError(true);
         return;
       }
       setControlStatus(payload.removed ? t.leaveSettled : t.leaveNoPlayer);
+      if (payload.removed) {
+        pushEngagementToast({
+          kind: "settled",
+          message: t.leaveSettledToast,
+          expiresMs: 5000,
+        });
+        setSessionEndReason("leave");
+      }
       await refreshTableState();
     } finally {
       setControlBusy(undefined);
     }
   }
 
+  function scrollToHandLogs() {
+    const handId = winnerReveal?.handId ?? state?.handId;
+    if (handId !== undefined) {
+      setHighlightHandId(handId);
+    }
+    sessionStorage.setItem(`spectator-side-tab:${tableId}`, "log");
+    window.dispatchEvent(new Event("spectator-side-tab"));
+    document.getElementById("hand-action-logs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setWinnerReveal(undefined);
+    if (winnerRevealTimerRef.current) {
+      clearTimeout(winnerRevealTimerRef.current);
+      winnerRevealTimerRef.current = undefined;
+    }
+  }
+
   async function joinThisTable() {
     setControlBusy("join");
     setControlStatus(undefined);
+    setControlStatusIsError(false);
     try {
       const response = await fetch(withBasePath(`/api/tables/${tableId}/join`), { method: "POST" });
       const payload = await response.json();
       if (!response.ok) {
         setControlStatus(payload.error ?? t.joinTableFailed);
+        setControlStatusIsError(true);
         return;
       }
       setControlStatus(t.joinTableQueued);
@@ -258,22 +676,141 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     }
   }
 
+  const showCoachingPending =
+    pendingCoachingHandId !== undefined && (state?.handId ?? 0) < pendingCoachingHandId;
+
+  const handInsightAnalysis =
+    myPlayer?.holeCards?.length ? analyzeDecisionHand(myPlayer.holeCards, state?.communityCards ?? []) : undefined;
+
+  const showHandInsight = Boolean(
+    handInsightAnalysis &&
+      myPlayer &&
+      (state?.phase === "showdown" || handWinners.length > 0),
+  );
+
+  const spectatorShareText = useMemo(() => {
+    if (typeof window === "undefined") {
+      return "";
+    }
+    const url = window.location.href;
+    const name = state?.tableName ?? tableId;
+    return language === "zh"
+      ? `来 AI Poker Lab 观战「${name}」：${url}`
+      : `Watch "${name}" live on AI Poker Lab: ${url}`;
+  }, [language, state?.tableName, tableId]);
+
+  async function copySpectatorShare() {
+    if (!spectatorShareText || !navigator.clipboard?.writeText) {
+      return;
+    }
+    await navigator.clipboard.writeText(spectatorShareText);
+    recordQuestShareComplete();
+    setShareCopied(true);
+    trackEngagement({
+      at: new Date().toISOString(),
+      name: "engagement.share.copy",
+      agentId: `spectator:${tableId}`,
+    });
+    window.setTimeout(() => setShareCopied(false), 2000);
+  }
+
+  async function playAgainAfterSettlement() {
+    if (!sessionEndReason) {
+      return;
+    }
+    trackEngagement({
+      at: new Date().toISOString(),
+      name: "engagement.settlement.play_again",
+      reason: sessionEndReason,
+      tableId,
+    });
+    setSessionEndReason(null);
+    setPlayAgainBusy(true);
+    try {
+      const response = await fetch(withBasePath("/api/users/quick-play"), {
+        body: JSON.stringify({}),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = await response.json();
+      const tableUrl =
+        (typeof payload.tableUrl === "string" && payload.tableUrl) ||
+        (typeof payload.tableId === "string" ? `/tables/${encodeURIComponent(payload.tableId)}` : "/tables");
+      if (response.ok) {
+        trackEngagement({
+          at: new Date().toISOString(),
+          name: "engagement.quick_play.success",
+          tableId: payload.tableId ?? undefined,
+        });
+        recordQuestQuickPlayComplete();
+      }
+      router.push(tableUrl);
+    } catch {
+      router.push("/tables");
+    } finally {
+      setPlayAgainBusy(false);
+    }
+  }
+
   return (
     <main className={styles.page}>
+      <LazyEngagementToastStack />
       <section className={styles.header}>
-        <div>
+        <div className={styles.mobileHeaderMain}>
           <p className={styles.eyebrow}>{t.eyebrow}</p>
           <h1>{state?.tableName ?? tableId}</h1>
           <p className={styles.subtitle}>
             {state?.running ? t.running : t.waitingStart} · {players.length}/6 {t.seats} · {t.hand} #{state?.handId ?? 0}
           </p>
+          <div className={styles.mobileTableStatus}>
+            <span>{state?.running ? t.running : t.waitingStart}</span>
+            <span>
+              {t.hand} #{state?.handId ?? 0}
+            </span>
+            <span>
+              {t.pot} <AnimatedPotValue value={state?.pot ?? 0} />
+            </span>
+            <span className={myPlayer?.id === state?.currentPlayerId ? styles.mobileStatusMine : ""}>
+              {myPlayer && myPlayer.id === state?.currentPlayerId
+                ? `${myPlayer.name} · ${t.thinking}`
+                : activePlayer
+                  ? `${activePlayer.name} · ${t.thinking}`
+                  : t.spectatorMode}
+            </span>
+            {(state?.spectatorCount ?? 0) > 0 ? (
+              <span className={styles.spectatorCountPill}>{t.spectatorCount(state?.spectatorCount ?? 0)}</span>
+            ) : null}
+            <span className={`${styles.streamStatusPill} ${styles[`streamStatus_${activeStreamStatus}`]}`}>
+              {streamStatusLabel(activeStreamStatus, t)}
+            </span>
+          </div>
         </div>
         <div className={styles.headerActions}>
+          <span
+            className={`${styles.streamStatusPill} ${styles[`streamStatus_${activeStreamStatus}`]}`}
+            {...liveRegionProps("status")}
+          >
+            {streamStatusLabel(activeStreamStatus, t)}
+          </span>
+          {(state?.spectatorCount ?? 0) > 0 ? (
+            <span className={styles.spectatorCountDesktop} {...liveRegionProps("status")}>
+              {t.spectatorCount(state?.spectatorCount ?? 0)}
+            </span>
+          ) : null}
           {myPlayer ? (
             <button className={styles.navLeaveAction} disabled={controlBusy === "leave"} type="button" onClick={() => void leaveMyPlayer()}>
               {controlBusy === "leave" ? t.leaving : t.leaveTable}
             </button>
           ) : null}
+          <button className={styles.shareCopyAction} type="button" onClick={() => void copySpectatorShare()}>
+            {shareCopied ? t.spectatorShareCopied : t.copySpectatorShare}
+          </button>
+          <TableFeedbackLink
+            handId={state?.handId}
+            phase={state?.phase}
+            tableId={tableId}
+            tableName={state?.tableName}
+          />
           <SoundToggle />
         </div>
       </section>
@@ -284,7 +821,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
             <div className={styles.tableCenter}>
               <div className={styles.centerStats}>
                 <span className={styles.phase}>{state?.phase ?? "preflop"}</span>
-                <span className={styles.centerPot}>{t.pot} {state?.pot ?? 0}</span>
+                <span className={styles.centerPot}>
+                  {t.pot} <AnimatedPotValue value={state?.pot ?? 0} />
+                </span>
               </div>
               <div className={styles.cards}>
                 {state?.communityCards.length ? (
@@ -297,181 +836,293 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
 
             {Array.from({ length: 6 }, (_, index) => {
               const player = players[index];
-              return player ? (
-                <article
-                  className={`${styles.seat} ${player.id === state?.currentPlayerId ? styles.currentSeat : ""} ${styles[`status_${player.status.replace("-", "_")}`] ?? ""}`}
+              const seatStyle = tableSeatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6);
+              if (!player) {
+                return (
+                  <TableEmptySeat
+                    key={`empty-${index}`}
+                    seatStyle={seatStyle}
+                    subtitle={t.waitingAssign}
+                    title={t.emptySeat}
+                  />
+                );
+              }
+
+              return (
+                <TablePlayerSeat
+                  copy={{ profit: t.profit, stack: t.stack, virtualAgent: t.virtualAgent, winBadge: t.winBadge }}
+                  isCurrent={player.id === state?.currentPlayerId}
+                  isMine={player.ownerUserId === me?.id}
+                  isWinning={winningPlayerIds.has(player.id)}
                   key={player.id}
-                  style={seatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6)}
-                >
-                  <div className={styles.seatHeader}>
-                    <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
-                      {player.name}
-                      {player.kind === "virtual" && <small>{t.virtualAgent}</small>}
-                    </Link>
-                    <div className={styles.seatBadges}>
-                      <span>{positionLabel(index, state?.dealerIndex ?? 0, players.length)}</span>
-                      <span>{player.status}</span>
-                    </div>
-                  </div>
-                  <div className={styles.streetAction}>{streetActions.get(player.id) ?? (player.id === state?.currentPlayerId ? t.thinking : t.waiting)}</div>
-                  <div className={styles.seatMeta}>
-                    <span><small>{t.stack}</small><strong>{player.stack}</strong></span>
-                  </div>
-                  <div className={`${styles.chipDelta} ${deltaClass(player.stack - initialStack)}`}>
-                    {t.profit} {formatDelta(player.stack - initialStack)}
-                  </div>
-                  <div className={styles.holeCards}>
-                    {player.holeCards?.map((card, cardIndex) => (
-                      <PlayingCard card={card} key={`${player.id}-${card.rank}${card.suit}-${cardIndex}`} small />
-                    ))}
-                    {(player.holeCards?.length ?? 0) === 0 && player.stack > 0 ? (
-                      <>
-                        <PlayingCardBack />
-                        <PlayingCardBack />
-                      </>
-                    ) : null}
-                  </div>
-                </article>
-              ) : (
-                <article className={`${styles.seat} ${styles.emptySeatCard}`} key={`empty-${index}`} style={seatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6)}>
-                  <div className={styles.seatHeader}>
-                    <strong>{t.emptySeat}</strong>
-                    <span>{t.waitingAssign}</span>
-                  </div>
-                </article>
+                  player={player}
+                  position={seatPositionLabel(index, state?.dealerIndex ?? 0, players.length)}
+                  profitDelta={player.stack - initialStack}
+                  seatStyle={seatStyle}
+                  showProfileLink
+                  showReasoning={player.ownerUserId === me?.id && Boolean(player.lastReasoning)}
+                  streetAction={streetActions.get(player.id) ?? (player.id === state?.currentPlayerId ? t.thinking : t.waiting)}
+                />
               );
             })}
           </div>
           <div className={styles.tableInfoBar}>
-            <span>{t.pot} {state?.pot ?? 0}</span>
+            <span>
+              {t.pot} <AnimatedPotValue value={state?.pot ?? 0} />
+            </span>
             <span>{t.hand} #{state?.handId ?? 0}</span>
             <span>{t.currentBet} {state?.currentBet ?? 0}</span>
             <span>{waitingForFirstDeal ? t.preparingHand : activePlayer ? `${activePlayer.name} ${t.thinking}` : t.spectatorMode}</span>
           </div>
+          <LazyReactionBar
+            copy={{
+              rateLimited: t.reactionRateLimited,
+              recentLabel: t.reactionRecentLabel,
+              sendFailed: t.reactionSendFailed,
+              shortcutHint: t.reactionShortcutHint,
+              title: t.reactionTitle,
+            }}
+            recentReactions={state?.recentReactions}
+            tableId={tableId}
+          />
         </div>
 
         <aside className={styles.sidePanel}>
+          {!myPlayer && state ? (
+            <p className={styles.spectatorBanner} {...liveRegionProps("status")}>
+              {t.spectatorHint}
+            </p>
+          ) : null}
           <section className={`${styles.panel} ${myPlayer ? styles.myPlayerPanel : ""}`}>
             <h2>{t.myPlayer}</h2>
             {myPlayer ? (
               <>
-                {controlStatus ? <p className={styles.muted}>{controlStatus}</p> : null}
+                {controlStatus ? (
+                  controlStatusIsError ? (
+                    <FormFieldError message={controlStatus} />
+                  ) : (
+                    <FormFieldHint message={controlStatus} />
+                  )
+                ) : null}
                 <div className={styles.myPlayerSummary}>
                   <div>
                     <strong>{myPlayer.name}</strong>
                     <span>{myPlayer.kind === "hosted" ? t.hostedAgent : t.externalAgent}</span>
                   </div>
-                  <em className={deltaClass(myPlayer.stack - initialStack)}>{formatDelta(myPlayer.stack - initialStack)}</em>
+                  <em className={seatDeltaClassName(myPlayer.stack - initialStack)}>{formatSeatDelta(myPlayer.stack - initialStack)}</em>
                 </div>
+                {showCoachingPending ? (
+                  <span className={styles.coachingPendingBadge} {...liveRegionProps("status")}>
+                    {t.coachingPending(pendingCoachingHandId!)}
+                  </span>
+                ) : null}
                 <div className={styles.myPlayerStats}>
                   <span>{t.stack} {myPlayer.stack}</span>
                   <span>{t.bet} {myPlayer.currentBet}</span>
                   <span>{t.action} {myPlayer.lastAction ?? t.waiting}</span>
                   <span>{myPlayer.id === state?.currentPlayerId ? t.thinking : myPlayer.status}</span>
                 </div>
+                {myPlayer.lastReasoning ? (
+                  <div className={styles.reasoningBlock}>
+                    <strong>{t.lastReasoning}</strong>
+                    <p>{myPlayer.lastReasoning}</p>
+                  </div>
+                ) : null}
               </>
             ) : canJoinThisTable ? (
               <>
                 <p className={styles.muted}>{t.joinTableHint}</p>
-                {controlStatus ? <p className={styles.muted}>{controlStatus}</p> : null}
+                {controlStatus ? (
+                  controlStatusIsError ? (
+                    <FormFieldError message={controlStatus} />
+                  ) : (
+                    <FormFieldHint message={controlStatus} />
+                  )
+                ) : null}
                 <button disabled={controlBusy === "join"} type="button" onClick={() => void joinThisTable()}>
                   {controlBusy === "join" ? t.joiningTable : t.joinTable}
                 </button>
               </>
+            ) : myAgentRemoteTable ? (
+              <>
+                <p className={styles.muted}>{t.myAgentOtherTable(myAgentRemoteTable.name)}</p>
+                <Link className={styles.remoteAgentTableLink} href={`/tables/${encodeURIComponent(myAgentRemoteTable.id)}`}>
+                  {t.goToMyAgentTable}
+                </Link>
+              </>
+            ) : me && tableIsFull ? (
+              <p className={styles.muted}>{t.tableFull}</p>
             ) : (
               <p className={styles.muted}>{me === undefined ? t.loadingLogin : t.loginToView}</p>
             )}
           </section>
 
-          <section className={styles.panel}>
-            <h2>{t.chipChange}</h2>
-            <div className={styles.chipBoard}>
-              {players.map((player) => {
-                const delta = player.stack - initialStack;
-                return (
-                  <article className={styles.chipRow} key={player.id}>
-                    <div>
-                      <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
-                        {player.name}
-                      </Link>
-                      <small>{player.kind === "virtual" ? t.virtualAgent : player.status}</small>
-                    </div>
-                    <span>{player.stack}</span>
-                    <em className={deltaClass(delta)}>{formatDelta(delta)}</em>
-                  </article>
-                );
-              })}
-              {players.length === 0 && <p className={styles.muted}>{t.noActions}</p>}
-            </div>
-          </section>
+          <SpectatorSideTabs
+            coachAvailable={Boolean(myPlayer)}
+            coachPanel={
+              myPlayer ? (
+                <CoachDock
+                  agentId={myPlayer.id}
+                  coachingStreakVersion={coachingStreakVersion}
+                  copy={{
+                    appliedFromHand: t.coachingAppliedFromHand,
+                    coachingHistoryLoadFailed: t.coachingHistoryLoadFailed,
+                    coachingHistoryLoading: t.coachingHistoryLoading,
+                    coachingStreakActive: t.coachingStreakActive,
+                    coachingStreakProgress: t.coachingStreakProgress,
+                    coachingMilestoneToast: t.coachingMilestoneToast,
+                    coachingStreakMilestoneToast: t.coachingStreakMilestoneToast,
+                    collapsedSummary: t.coachingCollapsedSummary,
+                    collapse: t.coachingCollapse,
+                    expand: t.coachingExpand,
+                    failed: t.coachingFailed,
+                    hint: t.coachingHint,
+                    loginRequired: t.loginToView,
+                    noCoachingHistory: t.noCoachingHistory,
+                    placeholder: t.coachingPlaceholder,
+                    recentTitle: t.coachingRecent,
+                    submit: t.coachingSubmit,
+                    submitting: t.coachingSubmitting,
+                    title: t.coachingTitle,
+                  }}
+                  currentHandId={state?.handId ?? 0}
+                  tableId={tableId}
+                  onCoachingApplied={setPendingCoachingHandId}
+                />
+              ) : (
+                <p className={styles.muted}>{t.coachTabEmpty}</p>
+              )
+            }
+            copy={{ tabCoach: t.tabCoach, tabInsight: t.tabInsight, tabLog: t.tabLog }}
+            insightPanel={
+              handInsightAnalysis && myPlayer ? (
+                showHandInsight ? (
+                  <HandInsightPanel
+                    analysis={handInsightAnalysis}
+                    copy={{
+                      board: t.handInsightBoard,
+                      draws: t.handInsightDraws,
+                      hand: t.hand,
+                      handInsightTitle: t.handInsightTitle,
+                      madeHand: t.handInsightMadeHand,
+                      none: t.handInsightNone,
+                      reasoning: t.handInsightReasoning,
+                    }}
+                    handId={winnerReveal?.handId ?? state?.handId ?? 0}
+                    heroName={myPlayer.name}
+                    reasoning={myPlayer.lastReasoning}
+                    visible
+                  />
+                ) : (
+                  <p className={styles.muted}>{t.insightTabWaiting}</p>
+                )
+              ) : (
+                <p className={styles.muted}>{t.insightTabEmpty}</p>
+              )
+            }
+            insightReady={showHandInsight}
+            logPanel={
+              <>
+                <LazySpectatorActionLogList
+                  copy={{
+                    logCapHint: t.logCapHint,
+                    noActions: t.noActions,
+                    recentActions: t.recentActions,
+                  }}
+                  highlightHandId={highlightHandId}
+                  logs={state?.logs ?? []}
+                  myPlayerName={myPlayer?.name}
+                />
 
-          <section className={styles.panel}>
-            <h2>{t.recentActions}</h2>
-            <div className={styles.logList}>
-              {state?.logs.map((log) => (
-                <article className={styles.logItem} key={log.id}>
-                  <time>{new Date(log.createdAt).toLocaleTimeString()}</time>
-                  <span>{log.message}</span>
-                </article>
-              ))}
-              {!state?.logs.length && <p className={styles.muted}>{t.noActions}</p>}
-            </div>
-          </section>
+                <LazyHandReviewList
+                  copy={{
+                    hand: t.hand,
+                    handReview: t.handReview,
+                    noCommunity: t.noCommunity,
+                    noHandSummaries: t.noHandSummaries,
+                  }}
+                  language={language}
+                  myPlayerId={myPlayer?.id}
+                  summaries={state?.handSummaries ?? []}
+                />
+
+                <section className={styles.panel}>
+                  <h2>{t.chipChange}</h2>
+                  <div className={styles.chipBoard}>
+                    {players.map((player) => {
+                      const delta = player.stack - initialStack;
+                      return (
+                        <article className={styles.chipRow} key={player.id}>
+                          <div>
+                            <Link className={styles.playerProfileLink} href={`/agents/${encodeURIComponent(player.id)}`}>
+                              {player.name}
+                            </Link>
+                            <small>{player.kind === "virtual" ? t.virtualAgent : player.status}</small>
+                          </div>
+                          <span>{player.stack}</span>
+                          <em className={seatDeltaClassName(delta)}>{formatSeatDelta(delta)}</em>
+                        </article>
+                      );
+                    })}
+                    {players.length === 0 && <p className={styles.muted}>{t.noActions}</p>}
+                  </div>
+                </section>
+              </>
+            }
+            tableId={tableId}
+          />
         </aside>
       </section>
-      {handWinners.length > 0 ? (
-        <section className={styles.winnerOverlay} aria-live="polite">
-          <div className={styles.winnerCard}>
-            <div className={styles.trophy} aria-hidden="true">🏆</div>
-            <p className={styles.eyebrow}>{t.handWinners}</p>
-            <h2>{t.hand} #{winnerReveal?.handId ?? state?.handId ?? 0}</h2>
-            <div className={styles.winnerList}>
-              {handWinners.map((winner) => (
-                <article key={winner.playerId}>
-                  <strong>{winner.name}</strong>
-                  <span>{t.wonChips} +{winner.amount.toLocaleString()}</span>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
+      <TableMomentOverlay
+        eyebrow={t.handWinners}
+        handId={winnerReveal?.handId ?? state?.handId ?? 0}
+        handLabel={t.hand}
+        open={handWinners.length > 0}
+        variant="handWin"
+        viewLogLabel={t.viewHandLog}
+        winners={handWinners.map((winner) => ({
+          amount: winner.amount,
+          name: winner.name,
+          playerId: winner.playerId,
+          wonChipsLabel: t.wonChips,
+        }))}
+        onViewLog={scrollToHandLogs}
+      />
+      <TableMomentOverlay
+        description={sessionEndReason === "bust" ? t.sessionEndBustText : t.sessionEndLeaveText}
+        eyebrow={sessionEndReason === "bust" ? t.sessionEndBustTitle : t.sessionEndLeaveTitle}
+        open={Boolean(sessionEndReason)}
+        primaryBusy={playAgainBusy}
+        primaryLabel={playAgainBusy ? t.playAgainStarting : t.playAgainCta}
+        secondaryHref="/tables"
+        secondaryLabel={t.backToLobbyCta}
+        title={sessionEndReason === "bust" ? t.sessionEndBustTitle : t.sessionEndLeaveTitle}
+        variant="sessionEnd"
+        onPrimary={() => void playAgainAfterSettlement()}
+        onSecondaryClick={() => {
+          if (sessionEndReason) {
+            trackEngagement({
+              at: new Date().toISOString(),
+              name: "engagement.settlement.back_lobby",
+              reason: sessionEndReason,
+              tableId,
+            });
+          }
+          setSessionEndReason(null);
+        }}
+      />
     </main>
   );
 }
 
-function seatStyle(index: number, totalSeats: number) {
-  const fixedSeats = [
-    { left: 50, top: 14 },
-    { left: 82, top: 30 },
-    { left: 82, top: 70 },
-    { left: 50, top: 86 },
-    { left: 18, top: 70 },
-    { left: 18, top: 30 },
-  ];
-
-  if (totalSeats === fixedSeats.length) {
-    return {
-      left: `${fixedSeats[index]?.left ?? 50}%`,
-      top: `${fixedSeats[index]?.top ?? 50}%`,
-    };
+function streamStatusLabel(status: StreamStatus, t: (typeof copy)["zh"] | (typeof copy)["en"]) {
+  if (status === "live") {
+    return t.streamLive;
   }
-
-  const angle = -90 + (360 / totalSeats) * index;
-  const radius = 43;
-  return {
-    left: `${50 + radius * Math.cos((angle * Math.PI) / 180)}%`,
-    top: `${50 + radius * Math.sin((angle * Math.PI) / 180)}%`,
-  };
-}
-
-function visualSeatIndex(logicalIndex: number, ownSeatIndex: number, totalSeats: number) {
-  if (ownSeatIndex < 0) {
-    return logicalIndex;
+  if (status === "recovering") {
+    return t.streamRecovering;
   }
-
-  const bottomSeatIndex = Math.floor(totalSeats / 2);
-  return (logicalIndex - ownSeatIndex + bottomSeatIndex + totalSeats) % totalSeats;
+  return t.streamConnecting;
 }
 
 function currentStreetActions(state?: GameSnapshot) {
@@ -521,42 +1172,12 @@ function formatStreetAction(item: GameSnapshot["actionHistory"][number]) {
   return item.action;
 }
 
-function positionLabel(index: number, dealerIndex: number, playerCount: number) {
-  if (playerCount <= 0) {
-    return "Seat";
-  }
-
-  const distance = (index - dealerIndex + playerCount) % playerCount;
-  if (playerCount === 2) {
-    return distance === 0 ? "BTN/SB" : "BB";
-  }
-
-  const labels = ["BTN", "SB", "BB", "UTG", "HJ", "CO"];
-  return labels[Math.min(distance, labels.length - 1)] ?? `P${distance + 1}`;
-}
-
-function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {
+const PlayingCard = memo(function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {
   const red = card.suit === "h" || card.suit === "d";
   const suit = { s: "♠", h: "♥", d: "♦", c: "♣" }[card.suit];
   return <span className={`${styles.playingCard} ${small ? styles.smallCard : ""} ${red ? styles.redCard : ""}`}>{`${card.rank}${suit}`}</span>;
-}
+});
 
 function PlayingCardBack() {
   return <span className={`${styles.playingCard} ${styles.smallCard} ${styles.cardBack}`} aria-label="card pending" />;
-}
-
-function formatDelta(delta: number) {
-  return delta > 0 ? `+${delta}` : String(delta);
-}
-
-function deltaClass(delta: number) {
-  if (delta > 0) {
-    return styles.positive;
-  }
-
-  if (delta < 0) {
-    return styles.negative;
-  }
-
-  return styles.neutral;
 }

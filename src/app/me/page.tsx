@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { withBasePath } from "@/lib/client/basePath";
+import { FormFieldError, FormFieldHint } from "@/components/FormFieldMessage";
+import { EmptyState } from "@/components/EmptyState";
+import { LazyFavoriteAgentsPanel } from "@/components/LazyFavoriteAgentsPanel";
+import { SeasonEventBadge } from "@/components/SeasonEventBadge";
+import { MeQuestProgressPanel } from "@/components/MeQuestProgressPanel";
+import { withBasePath, publicAssetBackground } from "@/lib/client/basePath";
+import { liveRegionProps } from "@/lib/client/liveRegion";
 import { useLanguage, type Language } from "@/lib/client/i18n";
 import styles from "../me.module.css";
 
@@ -18,6 +24,7 @@ type MeAgentPayload = {
     createdAt: string;
   } | null;
   rank?: number;
+  dailyBadges?: Array<{ badge: string; earnedAt: string }>;
   credentials?: {
     ownerUserId: string;
     tokenAvailable: boolean;
@@ -115,6 +122,7 @@ type HostedAgentStatus = {
 const copy = {
   zh: {
     loading: "正在加载我的 AI 牌手...",
+    loadFailed: "加载失败，请刷新页面。",
     loginEyebrow: "MY AI PLAYER",
     loginTitle: "登录后查看你的 AI 牌手",
     loginText: "请先登录俱乐部账号。",
@@ -180,6 +188,11 @@ const copy = {
     hostedJoined: "托管 Agent 已创建并加入匹配队列。",
     resetTokenFailed: "重置 userToken 失败。",
     statusCreated: "已创建",
+    dailyBadgeClimber: "今日爬升",
+    dailyBadgeGrinder: "今日劳模",
+    dailyBadgeQuestMaster: "任务大师",
+    dailyBadgeHighlight: "今日高光",
+    dailyBadgesTitle: "今日荣誉",
     statusNotCreated: "未创建",
     statusOnlinePlaying: "在线比赛中",
     statusOnlineWaiting: "在线待入座",
@@ -206,6 +219,7 @@ const copy = {
   },
   en: {
     loading: "Loading My AI Player...",
+    loadFailed: "Couldn't load your dashboard. Refresh the page.",
     loginEyebrow: "MY AI PLAYER",
     loginTitle: "Log in to view your AI player",
     loginText: "Please log in to your club account first.",
@@ -271,6 +285,11 @@ const copy = {
     hostedJoined: "Hosted Agent created and joined the match queue.",
     resetTokenFailed: "Failed to reset userToken.",
     statusCreated: "Created",
+    dailyBadgeClimber: "Today's Climber",
+    dailyBadgeGrinder: "Today's Grinder",
+    dailyBadgeQuestMaster: "Quest Master",
+    dailyBadgeHighlight: "Today's Highlight",
+    dailyBadgesTitle: "Today's honors",
     statusNotCreated: "Not Created",
     statusOnlinePlaying: "Playing Live",
     statusOnlineWaiting: "Online, Waiting",
@@ -304,6 +323,7 @@ export default function MyAgentPage() {
   const [payload, setPayload] = useState<MeAgentPayload>();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [copied, setCopied] = useState<string>();
   const [promptDraft, setPromptDraft] = useState("");
   const [promptStatus, setPromptStatus] = useState<string>();
@@ -316,6 +336,7 @@ export default function MyAgentPage() {
   const [currentRank, setCurrentRank] = useState<number>();
   const [showStylePicker, setShowStylePicker] = useState(false);
   const profile = payload?.agentProfile;
+  const dailyBadges = payload?.dailyBadges ?? [];
   const user = payload?.user;
   const credentials = payload?.credentials;
   const privateSettings = payload?.privateSettings;
@@ -332,6 +353,7 @@ export default function MyAgentPage() {
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError(undefined);
+    setLoadFailed(false);
     try {
       const response = await fetch(withBasePath("/api/users/me/agent"), { cache: "no-store" });
       const data = await response.json();
@@ -344,6 +366,10 @@ export default function MyAgentPage() {
       setPayload(data);
       setPromptDraft(data.privateSettings?.agentPrompt ?? "");
       setCurrentRank(typeof data.rank === "number" ? data.rank : undefined);
+    } catch {
+      setLoadFailed(true);
+      setPayload(undefined);
+      setCurrentRank(undefined);
     } finally {
       setLoading(false);
     }
@@ -476,7 +502,19 @@ export default function MyAgentPage() {
   if (loading) {
     return (
       <main className={styles.page}>
-        <section className={styles.emptyState}>{t.loading}</section>
+        <EmptyState className={styles.emptyState} live="status" variant="panel">
+          {t.loading}
+        </EmptyState>
+      </main>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <main className={styles.page}>
+        <section className={styles.loadError} {...liveRegionProps("alert")}>
+          {t.loadFailed}
+        </section>
       </main>
     );
   }
@@ -484,20 +522,31 @@ export default function MyAgentPage() {
   if (error || !user) {
     return (
       <main className={styles.page}>
-        <section className={styles.emptyState}>
-          <p className={styles.eyebrow}>{t.loginEyebrow}</p>
-          <h1>{t.loginTitle}</h1>
-          <p>{error ?? t.loginText}</p>
-          <Link className={styles.primaryLink} href="/">
-            {t.loginBackHome}
-          </Link>
-        </section>
+        <EmptyState
+          action={
+            <Link className={styles.primaryLink} href="/">
+              {t.loginBackHome}
+            </Link>
+          }
+          className={styles.emptyState}
+          description={error ?? t.loginText}
+          eyebrow={t.loginEyebrow}
+          title={t.loginTitle}
+          variant="panel"
+        />
       </main>
     );
   }
 
   return (
-    <main className={styles.page}>
+    <main
+      className={styles.page}
+      style={
+        {
+          "--me-training-bg": publicAssetBackground("/images/landing/my-player-training-console.png"),
+        } as React.CSSProperties
+      }
+    >
       <div className={styles.shell}>
         <section className={styles.playerHero}>
           <aside className={styles.playerCard}>
@@ -521,11 +570,17 @@ export default function MyAgentPage() {
           </aside>
 
           <div className={styles.heroCopy}>
+            <SeasonEventBadge className={styles.seasonEventBadge} compact show="event" />
             <p className={styles.eyebrow}>{t.roomEyebrow}</p>
             <div className={styles.badges}>
               <span>{creationStatus}</span>
               <span>{hostedStatusText(hostedAgent, language)}</span>
               <span>{statusText}</span>
+              {dailyBadges.map((entry) => (
+                <span className={styles.dailyHonorBadge} key={entry.badge}>
+                  {dailyBadgeLabel(entry.badge, t)}
+                </span>
+              ))}
             </div>
             <div className={styles.heroActions}>
               {primaryTableUrl ? (
@@ -539,9 +594,17 @@ export default function MyAgentPage() {
               )}
               <a className={styles.secondaryLink} href="#agent-access">{t.agentAccess}</a>
             </div>
-            {hostedStatus ? <p className={styles.heroStatus}>{hostedStatus}</p> : null}
+            {hostedStatus ? (
+              hostedStatus === t.hostedCreateFailed ? (
+                <FormFieldError message={hostedStatus} />
+              ) : (
+                <FormFieldHint message={hostedStatus} />
+              )
+            ) : null}
           </div>
         </section>
+
+        <MeQuestProgressPanel />
 
         <section className={styles.trainingLayout}>
           <article className={styles.trainingCard}>
@@ -565,7 +628,13 @@ export default function MyAgentPage() {
                 {promptSaving ? t.saving : t.saveStyle}
               </button>
             </div>
-            {promptStatus ? <p className={styles.muted}>{promptStatus}</p> : null}
+            {promptStatus ? (
+              promptStatus === t.resetTokenFailed || promptStatus === t.promptSaveFailed || promptStatus === t.chooseStyleBeforeCreate ? (
+                <FormFieldError message={promptStatus} />
+              ) : (
+                <FormFieldHint message={promptStatus} />
+              )
+            ) : null}
             {showStylePicker ? (
               <div className={styles.stylePicker}>
                 <strong>{t.chooseInitialStyle}</strong>
@@ -669,6 +738,8 @@ export default function MyAgentPage() {
           </div>
         </details>
 
+        <LazyFavoriteAgentsPanel />
+
         <section className={styles.bottomActionGrid}>
           <Link className={styles.humanTablePanel} href="/human-table">
             <strong>{t.humanTable}</strong>
@@ -678,7 +749,7 @@ export default function MyAgentPage() {
             <button type="button" disabled={logoutBusy} onClick={() => void logout()}>
               {logoutBusy ? t.loggingOut : t.logout}
             </button>
-            {logoutError ? <p className={styles.muted}>{logoutError}</p> : null}
+            <FormFieldError message={logoutError} />
           </div>
         </section>
 
@@ -724,6 +795,22 @@ function hostedStatusText(hostedAgent: HostedAgentStatus | undefined, language: 
     return t.hostedPlaying;
   }
   return hostedAgent.agent.assignmentStatus;
+}
+
+function dailyBadgeLabel(badge: string, t: (typeof copy)[Language]) {
+  if (badge === "climber") {
+    return t.dailyBadgeClimber;
+  }
+  if (badge === "grinder") {
+    return t.dailyBadgeGrinder;
+  }
+  if (badge === "quest_master") {
+    return t.dailyBadgeQuestMaster;
+  }
+  if (badge === "highlight") {
+    return t.dailyBadgeHighlight;
+  }
+  return badge;
 }
 
 function formatSigned(value: number) {

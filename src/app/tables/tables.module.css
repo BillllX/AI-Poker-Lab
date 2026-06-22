@@ -92,7 +92,9 @@
   background: transparent;
   border: 0;
   color: var(--muted);
-  padding: 7px 10px;
+  min-height: var(--touch-target-min, 44px);
+  min-width: var(--touch-target-min, 44px);
+  padding: 8px 12px;
 }
 
 .languageTabs .activeLanguage {
@@ -141,6 +143,7 @@
   cursor: pointer;
   font: inherit;
   font-weight: 900;
+  min-height: var(--touch-target-min, 44px);
   padding: 12px 16px;
   text-decoration: none;
   white-space: nowrap;
@@ -149,6 +152,30 @@
 .myPlayerBanner button:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+.myPlayerBannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.myPlayerBannerSecondaryLink {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+
+.myPlayerBannerSecondaryLink:hover {
+  background: rgba(118, 228, 170, 0.1) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--accent) !important;
+}
+
+.myPlayerBannerSecondaryLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
 }
 
 .bannerError {
@@ -171,7 +198,7 @@
 .hero::after {
   background:
     linear-gradient(90deg, rgba(7, 26, 18, 0.94) 0%, rgba(7, 26, 18, 0.74) 46%, rgba(7, 26, 18, 0.26) 100%),
-    url("/images/landing/arena-lobby-panorama.png") right center / cover no-repeat;
+    var(--tables-hero-bg, url("/images/landing/arena-lobby-panorama.webp")) right center / cover no-repeat;
   content: "";
   inset: 0;
   opacity: 0.58;
@@ -182,6 +209,11 @@
 
 .heroCopy {
   max-width: 720px;
+}
+
+.heroBadges {
+  display: inline-flex;
+  margin-bottom: 10px;
 }
 
 .eyebrow {
@@ -467,23 +499,32 @@
   color: #052014;
 }
 
-.emptyState {
-  align-items: center;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035));
-  border: 1px dashed rgba(110, 231, 168, 0.28);
-  border-radius: 30px;
-  display: grid;
-  gap: 10px;
+.emptyStateSlot {
   grid-column: 1 / -1;
-  justify-items: center;
-  min-height: 260px;
+}
+
+.emptyStateAction {
+  background: linear-gradient(135deg, var(--accent), #b8f5cf);
+  border-radius: 999px;
+  color: var(--button-text);
+  display: inline-flex;
+  font-weight: 900;
+  min-height: var(--touch-target-min, 44px);
+  padding: 12px 18px;
+  text-decoration: none;
+}
+
+.lobbyLoading,
+.lobbyLoadError {
+  color: var(--text-secondary);
+  grid-column: 1 / -1;
+  margin: 0;
   padding: 32px;
   text-align: center;
 }
 
-.emptyState strong {
-  font-size: 26px;
+.lobbyLoadError {
+  color: var(--danger);
 }
 
 .emptyState p,
@@ -644,7 +685,6 @@
 @media (max-width: 640px) {
   .page {
     overflow-x: hidden;
-    padding-bottom: 92px;
   }
 
   .nav {
@@ -721,6 +761,18 @@
     margin-inline: 16px;
   }
 
+  .myPlayerBannerActions {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .myPlayerBannerActions a,
+  .myPlayerBannerActions button {
+    flex: 1 1 100%;
+    text-align: center;
+    width: 100%;
+  }
+
   .myPlayerBanner a,
   .myPlayerBanner button {
     text-align: center;
@@ -735,7 +787,7 @@
   .hero::after {
     background:
       linear-gradient(180deg, rgba(7, 26, 18, 0.94) 0%, rgba(7, 26, 18, 0.74) 100%),
-      url("/images/landing/arena-lobby-panorama.png") center / cover no-repeat;
+      var(--tables-hero-bg, url("/images/landing/arena-lobby-panorama.webp")) center / cover no-repeat;
     opacity: 0.38;
   }
 

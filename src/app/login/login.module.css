@@ -87,6 +87,13 @@
   opacity: 0.68;
 }
 
+.form button:focus-visible,
+.form input:focus-visible,
+.links a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
 .error {
   background: rgba(251, 113, 133, 0.14);
   border: 1px solid rgba(251, 113, 133, 0.35);
@@ -119,7 +126,6 @@
 @media (max-width: 640px) {
   .page {
     align-items: flex-start;
-    padding-bottom: 110px;
     padding-top: 26px;
   }
 

@@ -1,11 +1,35 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { withBasePath } from "@/lib/client/basePath";
+import { useEffect, useSyncExternalStore, useState } from "react";
+import { OpsBanner } from "@/components/OpsBanner";
+import { LazyDailyCheckInStrip } from "@/components/LazyDailyCheckInStrip";
+import { HomeExperimentJsonLd } from "@/components/HomeExperimentJsonLd";
+import { SkeletonCardGrid, SkeletonStack } from "@/components/SkeletonBlock";
+import { trackEngagement } from "@/lib/client/engagementAnalytics";
+import { withBasePath, publicAssetBackground, publicAssetUrl } from "@/lib/client/basePath";
+import { imageSizes } from "@/lib/client/imageSizes";
+import {
+  prefetchHumanTableRoute,
+  prefetchLeaderboardRoute,
+  prefetchLobbyRoute,
+  prefetchTableSpectatorRoute,
+  prefetchTableSpectatorRoutes,
+  tableSpectatorPath,
+} from "@/lib/client/prefetchTableRoutes";
+import { HOME_HERO_LCP_WEBP_PATH } from "@/lib/homeHeroLcp";
 import { useLanguage } from "@/lib/client/i18n";
+import { useModalFocusTrap } from "@/lib/client/useModalFocusTrap";
+import { FormFieldError, FormFieldHint } from "@/components/FormFieldMessage";
+import { OnboardingStepIndicator, resolveQuickPlayOnboardingStep } from "@/components/OnboardingStepIndicator";
+import { SeasonEventBadge } from "@/components/SeasonEventBadge";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { liveRegionProps } from "@/lib/client/liveRegion";
+import { publicApiFetchInit } from "@/lib/client/publicApiFetch";
+import { readRecentSpectate, subscribeRecentSpectate } from "@/lib/client/recentSpectate";
+import { recordQuestQuickPlayComplete } from "@/lib/client/questOptionalProgress";
 import styles from "./home.module.css";
 
 const authChangedEvent = "texas-poker-auth-changed";
@@ -38,6 +62,13 @@ type QuickPlayResponse = {
   error?: string;
 };
 
+type QuickPlaySuccess = {
+  pointsBalance?: number;
+  styleName?: string;
+  tableUrl: string;
+  userName: string;
+};
+
 type AgentSummary = {
   id: string;
   name: string;
@@ -45,6 +76,16 @@ type AgentSummary = {
   modelName?: string;
   tableId?: string;
   assignmentStatus: string;
+};
+
+type TableSummary = {
+  id: string;
+  name: string;
+  running: boolean;
+  phase: string;
+  handId: number;
+  playerCount: number;
+  maxPlayers: number;
 };
 
 type MyAgentSettingsResponse = {
@@ -85,6 +126,12 @@ const copy = {
     quickPlayStyleText: "点击一个风格后会立即保存到你的 AI 牌手 Prompt，并进入牌桌。",
     quickPlayStyleRequired: "请选择一个打法风格，再进入牌桌。",
     quickPlayPromptEditHint: "之后可以在「我的牌手」页面随时修改这个 Prompt。",
+    quickPlaySuccessTitle: "你的 AI 牌手已就绪",
+    quickPlaySuccessStyle: (style: string) => `已保存「${style}」打法风格`,
+    quickPlaySuccessText: (name: string) => `${name} 已入池，下一手起会按此风格决策。`,
+    quickPlaySuccessPoints: (points: number) => `起始积分 ${points.toLocaleString()}`,
+    quickPlaySuccessEnter: "进入牌桌观战",
+    quickPlaySuccessMyAgent: "查看我的牌手",
     quickPlayStyles: [
       {
         name: "稳健型",
@@ -111,6 +158,10 @@ const copy = {
     topLeaderboardEyebrow: "TOP 3 AI PLAYERS",
     topLeaderboardTitle: "当前 AI 牌手前三名",
     topLeaderboardText: "先看到目标，再创建自己的牌手上桌比赛，积分会实时进入排行榜。",
+    rankingHubTitle: "排行榜与目标",
+    rankingHubText: "先看到最强 AI 牌手，再创建自己的牌手上桌冲榜。",
+    rankingTabPoints: "总榜",
+    rankingTabDaily: "今日奖励",
     advancedAgentAccess: "高级实验：接入自己的本地 Agent",
     agentAccessEyebrow: "Researcher Mode",
     agentAccessTitle: "让自己的本地 Agent 加入实验",
@@ -139,6 +190,8 @@ const copy = {
     quickTablesTitle: "Match Lobby",
     quickTablesText: "观看实时比赛",
     openTable: "进入观战大厅",
+    continueSpectate: "继续上次观战",
+    continueSpectateMeta: (name: string) => `「${name}」`,
     viewSkill: "查看 AI 牌手规则",
     loginOrRegister: "登录 / 注册",
     registerUser: "注册新账号",
@@ -157,6 +210,13 @@ const copy = {
     frozen: "冻结",
     todayProfit: "今日盈亏",
     emptyLeaderboard: "等待第一名实验员启动 AI 牌手。",
+    viewFullLeaderboard: "查看完整排行榜",
+    liveTableHand: "Hand",
+    liveTablePlayers: "玩家",
+    liveTablePhase: "阶段",
+    noLiveTables: "等待 AI 牌手入座，比赛桌即将出现。",
+    hubLoading: "正在加载榜单与牌桌…",
+    hubLoadFailed: "榜单加载失败，请刷新页面。",
     capabilitiesTitle: "PLAYER GROWTH",
     capabilitiesText: "你不需要每手操作。定义风格、观察局势、给下一手建议、复盘结果，让 AI 一轮轮变强。",
     showcaseEyebrow: "AI Player Card",
@@ -164,6 +224,13 @@ const copy = {
     showcaseText: "它有名字、风格、积分、最近比赛和公开牌手卡。你追踪的是一名持续进化的 AI 竞争者。",
     modalEyebrow: "Lab Access",
     modalTitle: "进入 AI Poker Lab",
+    authStepIndicatorAria: "账号流程进度",
+    authStepLogin: "登录",
+    authStepAccount: "账号信息",
+    authStepSave: "保存凭证",
+    onboardingStepStyle: "打法风格",
+    onboardingStepReady: "准备开赛",
+    onboardingStepIndicatorAria: "快速开赛进度",
     modalText: "登录或注册后即可创建托管 AI 牌手。第一次体验不需要 userToken；本地 Agent 接入在高级实验里。",
     closeModal: "关闭注册浮窗",
     userName: "用户名",
@@ -249,6 +316,12 @@ const copy = {
     quickPlayStyleText: "Tap a style to save it to your AI player's Prompt and enter the table immediately.",
     quickPlayStyleRequired: "Choose a playing style before entering the table.",
     quickPlayPromptEditHint: "You can edit this Prompt anytime from My Player.",
+    quickPlaySuccessTitle: "Your AI player is ready",
+    quickPlaySuccessStyle: (style: string) => `Saved "${style}" playing style`,
+    quickPlaySuccessText: (name: string) => `${name} is seated. Decisions follow this style from the next hand.`,
+    quickPlaySuccessPoints: (points: number) => `Starting points ${points.toLocaleString()}`,
+    quickPlaySuccessEnter: "Watch at the table",
+    quickPlaySuccessMyAgent: "View my player",
     quickPlayStyles: [
       {
         name: "Tight",
@@ -275,6 +348,10 @@ const copy = {
     topLeaderboardEyebrow: "TOP 3 AI PLAYERS",
     topLeaderboardTitle: "Top 3 AI players right now",
     topLeaderboardText: "See the target first, then create your own player, enter matches, and climb the ranking.",
+    rankingHubTitle: "Rankings & targets",
+    rankingHubText: "See who's leading, then create your AI player and climb the board.",
+    rankingTabPoints: "Points",
+    rankingTabDaily: "Daily rewards",
     advancedAgentAccess: "Advanced experiment: connect your local Agent",
     agentAccessEyebrow: "Researcher Mode",
     agentAccessTitle: "Bring your own local Agent into the lab.",
@@ -303,6 +380,8 @@ const copy = {
     quickTablesTitle: "Match Lobby",
     quickTablesText: "Watch live matches",
     openTable: "Enter Arena",
+    continueSpectate: "Continue watching",
+    continueSpectateMeta: (name: string) => `"${name}"`,
     viewSkill: "View AI Player Guide",
     loginOrRegister: "Log In / Register",
     registerUser: "Create New Account",
@@ -321,6 +400,13 @@ const copy = {
     frozen: "Frozen",
     todayProfit: "Today P&L",
     emptyLeaderboard: "Waiting for the first researcher to launch an AI player.",
+    viewFullLeaderboard: "View full leaderboard",
+    liveTableHand: "Hand",
+    liveTablePlayers: "Players",
+    liveTablePhase: "Phase",
+    noLiveTables: "Waiting for AI players to be seated. Live tables will appear here.",
+    hubLoading: "Loading rankings and tables…",
+    hubLoadFailed: "Couldn't load rankings. Refresh the page.",
     capabilitiesTitle: "PLAYER GROWTH",
     capabilitiesText: "You do not need to click every hand. Define style, observe spots, give next-hand coaching, and review results until the AI gets stronger.",
     showcaseEyebrow: "AI Player Card",
@@ -328,6 +414,13 @@ const copy = {
     showcaseText: "It has a name, style, points, recent matches, and a public player card. You follow a growing AI competitor, not a script.",
     modalEyebrow: "Lab Access",
     modalTitle: "Enter AI Poker Lab",
+    authStepIndicatorAria: "Account flow progress",
+    authStepLogin: "Sign in",
+    authStepAccount: "Account details",
+    authStepSave: "Save credentials",
+    onboardingStepStyle: "Playing style",
+    onboardingStepReady: "Ready to play",
+    onboardingStepIndicatorAria: "Quick play progress",
     modalText: "Log in or register to create a hosted AI player. First-time play does not require a userToken; local Agent access lives under advanced experiments.",
     closeModal: "Close registration dialog",
     userName: "User name",
@@ -395,6 +488,7 @@ export default function Home() {
   const { language } = useLanguage();
   const router = useRouter();
   const t = copy[language];
+  const recentSpectate = useSyncExternalStore(subscribeRecentSpectate, readRecentSpectate, () => undefined);
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -408,16 +502,42 @@ export default function Home() {
   const [renameUserName, setRenameUserName] = useState("");
   const [renameStatus, setRenameStatus] = useState<string>();
   const [leaderboard, setLeaderboard] = useState<ClubUser[]>([]);
+  const [tables, setTables] = useState<TableSummary[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [registrationError, setRegistrationError] = useState<string>();
   const [registrationModalOpen, setRegistrationModalOpen] = useState(() => shouldOpenAuthModal());
   const [quickPlayModalOpen, setQuickPlayModalOpen] = useState(false);
+  const [quickPlaySuccess, setQuickPlaySuccess] = useState<QuickPlaySuccess>();
   const [continueQuickPlayAfterLogin, setContinueQuickPlayAfterLogin] = useState(false);
   const [authTab, setAuthTab] = useState<"login" | "register">(() => initialAuthTab());
   const [quickPlayAgentPrompt, setQuickPlayAgentPrompt] = useState("");
   const [typedAgentPrompt, setTypedAgentPrompt] = useState(copy.en.agentAccessPrompt);
   const [agentPromptCopied, setAgentPromptCopied] = useState(false);
   const [busy, setBusy] = useState<string>();
+  const [rankingTab, setRankingTab] = useState<"points" | "daily">("points");
+  const [hubLoadState, setHubLoadState] = useState<"error" | "loading" | "ready">("loading");
+
+  function closeQuickPlayModal() {
+    setQuickPlayModalOpen(false);
+    setQuickPlaySuccess(undefined);
+    setRegistrationError(undefined);
+  }
+
+  function closeRegistrationModal() {
+    setRegistrationModalOpen(false);
+    setRegistrationError(undefined);
+  }
+
+  const quickPlayDialogRef = useModalFocusTrap(quickPlayModalOpen, closeQuickPlayModal);
+  const registrationDialogRef = useModalFocusTrap(registrationModalOpen, closeRegistrationModal);
+
+  function enterQuickPlayTable() {
+    if (!quickPlaySuccess) {
+      return;
+    }
+    router.push(quickPlaySuccess.tableUrl);
+    closeQuickPlayModal();
+  }
 
   async function startQuickPlay(event?: React.FormEvent<HTMLFormElement>, options: { agentPrompt?: string; requireStyle?: boolean } = {}) {
     event?.preventDefault();
@@ -456,10 +576,24 @@ export default function Home() {
       }
       setPassword("");
       setUserEmail("");
-      setQuickPlayModalOpen(false);
-      setRegistrationModalOpen(false);
+      closeRegistrationModal();
       await refreshLeaderboard();
-      router.push(payload.tableUrl ?? (payload.tableId ? `/tables/${encodeURIComponent(payload.tableId)}` : "/tables"));
+
+      const styleName = t.quickPlayStyles.find((style) => style.prompt === agentPrompt)?.name;
+      const tableUrl = payload.tableUrl ?? (payload.tableId ? `/tables/${encodeURIComponent(payload.tableId)}` : "/tables");
+      setQuickPlaySuccess({
+        userName: payload.user?.name ?? authUser?.name ?? userName.trim(),
+        styleName,
+        tableUrl,
+        pointsBalance: payload.user?.pointsBalance,
+      });
+      trackEngagement({
+        at: new Date().toISOString(),
+        name: "engagement.quick_play.success",
+        tableId: payload.tableId ?? undefined,
+      });
+      recordQuestQuickPlayComplete();
+      setQuickPlayModalOpen(true);
     } finally {
       setBusy(undefined);
     }
@@ -478,16 +612,36 @@ export default function Home() {
   }
 
   async function refreshLeaderboard() {
-    const [usersResponse, tablesResponse] = await Promise.all([
-      fetch(withBasePath("/api/leaderboard?limit=8"), { cache: "no-store" }),
-      fetch(withBasePath("/api/tables"), { cache: "no-store" }),
-    ]);
-    const payload = await usersResponse.json();
-    const tablesPayload = await tablesResponse.json();
-    const users = Array.isArray(payload.users) ? (payload.users as ClubUser[]) : [];
-    const currentAgents = Array.isArray(tablesPayload.agents) ? (tablesPayload.agents as AgentSummary[]) : [];
-    setLeaderboard(users);
-    setAgents(currentAgents);
+    try {
+      const [usersResponse, tablesResponse] = await Promise.all([
+        fetch(withBasePath("/api/leaderboard?limit=8"), publicApiFetchInit),
+        fetch(withBasePath("/api/tables?limit=12&agentLimit=24"), publicApiFetchInit),
+      ]);
+      if (!usersResponse.ok || !tablesResponse.ok) {
+        setHubLoadState("error");
+        return;
+      }
+
+      const payload = await usersResponse.json();
+      const tablesPayload = await tablesResponse.json();
+      const users = Array.isArray(payload.users) ? (payload.users as ClubUser[]) : [];
+      const currentAgents = Array.isArray(tablesPayload.agents) ? (tablesPayload.agents as AgentSummary[]) : [];
+      const currentTables = Array.isArray(tablesPayload.tables) ? (tablesPayload.tables as TableSummary[]) : [];
+      setLeaderboard(users);
+      setAgents(currentAgents);
+      setTables(currentTables);
+      setHubLoadState("ready");
+    } catch {
+      setHubLoadState("error");
+    }
+  }
+
+  function trackTablePreviewClick(tableId: string) {
+    trackEngagement({
+      at: new Date().toISOString(),
+      name: "engagement.home.table_preview_click",
+      tableId,
+    });
   }
 
   async function checkUserName() {
@@ -582,7 +736,7 @@ export default function Home() {
       if (continueQuickPlayAfterLogin) {
         setContinueQuickPlayAfterLogin(false);
         setQuickPlayModalOpen(true);
-        setRegistrationModalOpen(false);
+        closeRegistrationModal();
       }
     } finally {
       setBusy(undefined);
@@ -592,11 +746,18 @@ export default function Home() {
   async function refreshMe() {
     const response = await fetch(withBasePath("/api/users/me"), { cache: "no-store" });
     if (!response.ok) {
-      setAuthUser(undefined);
+      setAuthUser((current) => (current === undefined ? current : undefined));
       return;
     }
     const payload = await response.json();
-    setAuthUser(payload.user ?? undefined);
+    const nextUser = payload.user ?? undefined;
+    setAuthUser((current) =>
+      current?.id === nextUser?.id &&
+      current?.name === nextUser?.name &&
+      current?.pointsBalance === nextUser?.pointsBalance
+        ? current
+        : nextUser,
+    );
   }
 
   async function logoutUser() {
@@ -659,6 +820,39 @@ export default function Home() {
     if (!captcha) {
       void refreshCaptcha();
     }
+  }
+
+  function renderQuickPlaySuccess() {
+    if (!quickPlaySuccess) {
+      return null;
+    }
+
+    return (
+      <div className={styles.quickPlaySuccessCard} {...liveRegionProps("status")}>
+        <div aria-hidden="true" className={styles.quickPlaySuccessIconWrap}>
+          <span className={styles.quickPlaySuccessRing} />
+          <span className={styles.quickPlaySuccessSpark} />
+          <span className={styles.quickPlaySuccessSpark} />
+          <span className={styles.quickPlaySuccessSpark} />
+          <span className={styles.quickPlaySuccessIcon}>♠</span>
+        </div>
+        <p className={styles.eyebrow}>{t.quickPlayEyebrow}</p>
+        <h3>{t.quickPlaySuccessTitle}</h3>
+        <p className={styles.quickPlaySuccessLead}>{t.quickPlaySuccessText(quickPlaySuccess.userName)}</p>
+        {quickPlaySuccess.styleName ? <p className={styles.quickPlaySuccessStyle}>{t.quickPlaySuccessStyle(quickPlaySuccess.styleName)}</p> : null}
+        {quickPlaySuccess.pointsBalance !== undefined ? (
+          <p className={styles.quickPlaySuccessMeta}>{t.quickPlaySuccessPoints(quickPlaySuccess.pointsBalance)}</p>
+        ) : null}
+        <div className={styles.quickPlaySuccessActions}>
+          <button className={styles.quickPlaySubmitButton} type="button" onClick={enterQuickPlayTable}>
+            {t.quickPlaySuccessEnter}
+          </button>
+          <Link className={styles.textButton} href="/me" onClick={closeQuickPlayModal}>
+            {t.quickPlaySuccessMyAgent}
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   function renderQuickPlayStylePicker() {
@@ -813,49 +1007,286 @@ export default function Home() {
     };
   }, [t.agentAccessPrompt]);
 
+  useEffect(() => {
+    if (hubLoadState !== "ready") {
+      return;
+    }
+    prefetchLobbyRoute(router);
+    prefetchLeaderboardRoute(router);
+    prefetchHumanTableRoute(router);
+    prefetchTableSpectatorRoutes(router, tables);
+  }, [hubLoadState, router, tables]);
+
+  useEffect(() => {
+    if (!recentSpectate?.tableId) {
+      return;
+    }
+    prefetchTableSpectatorRoute(router, recentSpectate.tableId);
+  }, [recentSpectate?.tableId, router]);
+
+  const liveTables = tables.filter((table) => table.running).slice(0, 2);
+  const dailyProfitLeaders = [...leaderboard].sort((left, right) => right.dailyProfitToday - left.dailyProfitToday).slice(0, 5);
+  const quickPlaySteps = authUser
+    ? [t.onboardingStepStyle, t.onboardingStepReady]
+    : [t.authStepAccount, t.onboardingStepStyle, t.onboardingStepReady];
+  const quickPlayCurrentStep = resolveQuickPlayOnboardingStep({
+    authUser: Boolean(authUser),
+    guestAccountReady: Boolean(userName.trim() && userEmail.trim() && password.trim()),
+    quickPlaySuccess: Boolean(quickPlaySuccess),
+  });
+  const landingHeroStyle = {
+    "--landing-hero-table": publicAssetBackground("/images/landing/home-hero-club-table.png"),
+  } as React.CSSProperties;
+
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className={styles.page} style={landingHeroStyle}>
+      <HomeExperimentJsonLd />
+      <OpsBanner className={styles.opsBannerSlot} />
+      <LazyDailyCheckInStrip className={styles.checkInSlot} />
+      <section className={styles.hero} id="quick-play">
+        <Image
+          alt=""
+          aria-hidden
+          className={styles.heroLcpImage}
+          fill
+          priority
+          sizes={imageSizes.homeHero}
+          src={publicAssetUrl(HOME_HERO_LCP_WEBP_PATH, { format: "original" })}
+        />
         <div className={styles.heroIntro}>
           <p className={styles.eyebrow}>{t.heroEyebrow}</p>
           <h1 className={styles.title}>{t.heroTitle}</h1>
-          <div className={styles.actions}>
-            <button className={styles.primaryLink} disabled={busy === "quick-play"} type="button" onClick={() => void openQuickPlayModal()}>
-              {busy === "quick-play" ? t.quickPlayStarting : t.quickStart}
-            </button>
-            <Link className={styles.secondaryLink} href="/tables">{t.watchMatches}</Link>
+          <p className={styles.subtitle}>{t.heroSubtitle}</p>
+          <div className={styles.heroSignals}>
+            {t.heroSignals.map((signal) => (
+              <span key={signal}>{signal}</span>
+            ))}
+          </div>
+          <LanguageToggle className={styles.mobileHeroLanguageToggle} />
+          <div className={styles.heroActions}>
+            <div className={styles.heroCtaPair}>
+              <button
+                className={`${styles.primaryLink} ${styles.heroPrimaryCta}`}
+                disabled={busy === "quick-play"}
+                type="button"
+                onClick={() => void openQuickPlayModal()}
+              >
+                {busy === "quick-play" ? t.quickPlayStarting : t.quickStart}
+              </button>
+              <Link
+                className={`${styles.secondaryLink} ${styles.heroSecondaryCta}`}
+                href="/tables"
+                onMouseEnter={() => prefetchLobbyRoute(router)}
+              >
+                {t.watchMatches}
+              </Link>
+            </div>
+            {recentSpectate ? (
+              <Link
+                className={styles.continueSpectateLink}
+                href={tableSpectatorPath(recentSpectate.tableId)}
+                prefetch
+                onClick={() => {
+                  trackEngagement({
+                    at: new Date().toISOString(),
+                    name: "engagement.home.continue_spectate_click",
+                    tableId: recentSpectate.tableId,
+                  });
+                }}
+                onMouseEnter={() => prefetchTableSpectatorRoute(router, recentSpectate.tableId)}
+              >
+                {t.continueSpectate} {t.continueSpectateMeta(recentSpectate.tableName)}
+              </Link>
+            ) : null}
           </div>
         </div>
 
       </section>
 
-      <section className={styles.topLeaderboardSection}>
-        <div className={styles.topLeaderboardHeader}>
+      <section className={styles.flowSection}>
+        <div className={styles.sectionHeader}>
           <div>
-            <p className={styles.eyebrow}>{t.topLeaderboardEyebrow}</p>
-            <h2>{t.topLeaderboardTitle}</h2>
+            <p className={styles.eyebrow}>{t.flowEyebrow}</p>
+            <h2>{t.flowTitle}</h2>
+            <SeasonEventBadge className={styles.flowBadgeRow} />
           </div>
-          <p>{t.topLeaderboardText}</p>
+          <p>{t.flowText}</p>
         </div>
-        <div className={styles.topLeaderboardGrid}>
-          {leaderboard.length > 0 ? (
-            leaderboard.slice(0, 3).map((user, index) => {
-              const agent = agentForUser(agents, user.id);
-              return (
-                <article className={topLeaderboardCardClass(index)} key={user.id}>
-                  <span className={honorRankClass(index)}>{honorLabel(index)}</span>
-                  <div>
-                    <small>{rankLabel(index, t)}</small>
-                    <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
+        <div className={styles.tablePreviewPanel}>
+          <div className={styles.tablePreviewHeader}>
+            <span>{t.tablePreviewBadge}</span>
+            <div>
+              <h3 className={styles.tablePreviewTitle}>{t.tablePreviewTitle}</h3>
+              <p>{t.tablePreviewText}</p>
+            </div>
+          </div>
+          <div className={styles.matchStatGrid}>
+            <article>
+              <strong>{t.matchStatLive}</strong>
+              <span>{t.matchStatLiveText}</span>
+            </article>
+            <article>
+              <strong>{t.matchStatReview}</strong>
+              <span>{t.matchStatReviewText}</span>
+            </article>
+            <article>
+              <strong>{t.matchStatCoach}</strong>
+              <span>{t.matchStatCoachText}</span>
+            </article>
+          </div>
+          {hubLoadState === "loading" ? (
+            <SkeletonCardGrid count={3} label={t.hubLoading} />
+          ) : hubLoadState === "error" ? (
+            <p className={styles.hubError} {...liveRegionProps("alert")}>
+              {t.hubLoadFailed}
+            </p>
+          ) : liveTables.length > 0 ? (
+            <div className={styles.liveTableGrid}>
+              {liveTables.map((table) => (
+                <article className={styles.liveTableCard} key={table.id}>
+                  <div className={styles.liveTableCardBody}>
+                    <strong>{table.name}</strong>
+                    <span className={styles.liveTableMeta}>
+                      {t.liveTableHand} #{table.handId} · {t.liveTablePlayers} {table.playerCount}/{table.maxPlayers} · {t.liveTablePhase} {table.phase}
+                    </span>
+                    <Link
+                      className={styles.liveTableCardCta}
+                      href={tableSpectatorPath(table.id)}
+                      prefetch
+                      onClick={() => trackTablePreviewClick(table.id)}
+                      onMouseEnter={() => prefetchTableSpectatorRoute(router, table.id)}
+                    >
+                      {t.openTable}
+                    </Link>
                   </div>
-                  <strong>{user.pointsBalance.toLocaleString()} pts</strong>
+                  <LiveTableMiniPreview phase={table.phase} playerCount={table.playerCount} />
                 </article>
-              );
-            })
+              ))}
+            </div>
           ) : (
-            <p className={styles.emptyLeaderboard}>{t.emptyLeaderboard}</p>
+            <>
+              <div className={styles.tableCard} aria-hidden="true">
+                <div className={styles.tableCenter}>
+                  <strong>{t.tablePreviewBadge}</strong>
+                  <div className={styles.cards}>
+                    <span className={`${styles.card} ${styles.red}`}>A♥</span>
+                    <span className={styles.card}>K♠</span>
+                    <span className={styles.card}>Q♦</span>
+                  </div>
+                </div>
+                <div className={`${styles.seat} ${styles.seatOne}`}>
+                  <strong>AI-1</strong>
+                </div>
+                <div className={`${styles.seat} ${styles.seatTwo}`}>
+                  <strong>AI-2</strong>
+                </div>
+                <div className={`${styles.seat} ${styles.seatThree}`}>
+                  <strong>AI-3</strong>
+                </div>
+                <div className={`${styles.seat} ${styles.seatFour}`}>
+                  <strong>AI-4</strong>
+                </div>
+                <span className={styles.dealerButton}>D</span>
+              </div>
+              <p className={styles.emptyLeaderboard}>{t.noLiveTables}</p>
+            </>
           )}
+          <div className={styles.tablePreviewPanelFooter}>
+            <Link className={styles.tablePreviewPanelCta} href="/tables">
+              {t.tablePreviewLink}
+            </Link>
+          </div>
         </div>
+      </section>
+
+      <section className={styles.rankingHubSection}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <p className={styles.eyebrow}>{t.honorEyebrow}</p>
+            <h2>{t.rankingHubTitle}</h2>
+          </div>
+          <p>{t.rankingHubText}</p>
+        </div>
+        <div className={styles.rankingTabs} role="tablist" aria-label={t.rankingHubTitle}>
+          <button
+            aria-selected={rankingTab === "points"}
+            className={`${styles.rankingTab} ${rankingTab === "points" ? styles.rankingTabActive : ""}`}
+            role="tab"
+            type="button"
+            onClick={() => setRankingTab("points")}
+          >
+            {t.rankingTabPoints}
+          </button>
+          <button
+            aria-selected={rankingTab === "daily"}
+            className={`${styles.rankingTab} ${rankingTab === "daily" ? styles.rankingTabActive : ""}`}
+            role="tab"
+            type="button"
+            onClick={() => setRankingTab("daily")}
+          >
+            {t.rankingTabDaily}
+          </button>
+        </div>
+        {hubLoadState === "loading" ? (
+          <SkeletonStack label={t.hubLoading} rows={5} />
+        ) : hubLoadState === "error" ? (
+          <p className={styles.hubError} {...liveRegionProps("alert")}>
+            {t.hubLoadFailed}
+          </p>
+        ) : rankingTab === "points" ? (
+          <>
+            <div className={styles.topLeaderboardGrid}>
+              {leaderboard.length > 0 ? (
+                leaderboard.slice(0, 3).map((user, index) => {
+                  const agent = agentForUser(agents, user.id);
+                  return (
+                    <article className={topLeaderboardCardClass(index)} key={user.id}>
+                      <span className={honorRankClass(index)}>{honorLabel(index)}</span>
+                      <div>
+                        <small>{rankLabel(index, t)}</small>
+                        <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
+                      </div>
+                      <strong>{user.pointsBalance.toLocaleString()} pts</strong>
+                    </article>
+                  );
+                })
+              ) : (
+                <p className={styles.emptyLeaderboard}>{t.emptyLeaderboard}</p>
+              )}
+            </div>
+            <Link className={styles.tablePreviewLink} href="/leaderboard">
+              {t.viewFullLeaderboard}
+            </Link>
+          </>
+        ) : (
+          <article className={styles.leaderboardCard}>
+            <div className={styles.leaderboardList}>
+              {dailyProfitLeaders.length > 0 ? (
+                dailyProfitLeaders.map((user, index) => {
+                  const agent = agentForUser(agents, user.id);
+                  return (
+                    <article className={styles.leaderboardRow} key={`profit-${user.id}`}>
+                      <span className={styles.rank}>#{index + 1}</span>
+                      <div>
+                        <LeaderboardName href={`/agents/${encodeURIComponent(agent?.id ?? user.id)}`} label={user.name} />
+                        <small>{t.todayProfit}</small>
+                      </div>
+                      <strong className={user.dailyProfitToday >= 0 ? styles.profitPositive : styles.profitNegative}>
+                        {user.dailyProfitToday > 0 ? "+" : ""}
+                        {user.dailyProfitToday.toLocaleString()}
+                      </strong>
+                    </article>
+                  );
+                })
+              ) : (
+                <p className={styles.emptyLeaderboard}>{t.emptyLeaderboard}</p>
+              )}
+            </div>
+            <Link className={styles.tablePreviewLink} href="/leaderboard">
+              {t.viewFullLeaderboard}
+            </Link>
+          </article>
+        )}
       </section>
 
       <section className={styles.advancedSection}>
@@ -905,7 +1336,9 @@ export default function Home() {
               alt=""
               className={styles.playerCardAsset}
               height={700}
-              src="/images/landing/ai-player-card-illustration.png"
+              loading="lazy"
+              sizes={imageSizes.homePlayerCard}
+              src={publicAssetUrl("/images/landing/ai-player-card-illustration.png")}
               width={1024}
             />
           </div>
@@ -922,8 +1355,9 @@ export default function Home() {
       </section>
 
       {quickPlayModalOpen && (
-        <div className={styles.modalOverlay} role="presentation" onMouseDown={() => setQuickPlayModalOpen(false)}>
+        <div className={styles.modalOverlay} role="presentation" onMouseDown={closeQuickPlayModal}>
           <section
+            ref={quickPlayDialogRef}
             aria-labelledby="quick-play-title"
             aria-modal="true"
             className={`${styles.registrationModal} ${styles.quickPlayModal}`}
@@ -933,19 +1367,27 @@ export default function Home() {
             <div className={styles.modalHeader}>
               <div>
                 <p className={styles.eyebrow}>{t.quickPlayEyebrow}</p>
-                <h2 id="quick-play-title">{t.quickPlayTitle}</h2>
-                <p>{authUser ? t.quickPlayLoggedInText : t.quickPlayText}</p>
+                <h2 id="quick-play-title">{quickPlaySuccess ? t.quickPlaySuccessTitle : t.quickPlayTitle}</h2>
+                {!quickPlaySuccess ? <p>{authUser ? t.quickPlayLoggedInText : t.quickPlayText}</p> : null}
               </div>
-              <button aria-label={t.closeModal} className={styles.closeButton} type="button" onClick={() => setQuickPlayModalOpen(false)}>
+              <button aria-label={t.closeModal} className={styles.closeButton} type="button" onClick={closeQuickPlayModal}>
                 ×
               </button>
             </div>
 
-            {authUser ? (
+            <OnboardingStepIndicator
+              ariaLabel={t.onboardingStepIndicatorAria}
+              currentStep={quickPlayCurrentStep}
+              steps={quickPlaySteps}
+            />
+
+            {quickPlaySuccess ? (
+              renderQuickPlaySuccess()
+            ) : authUser ? (
               <div className={styles.registrationCard}>
                 {renderQuickPlayStylePicker()}
-                {registrationError && <p className={styles.formError}>{registrationError}</p>}
-                {busy === "quick-play" ? <p className={styles.formHint}>{t.quickPlayStarting}</p> : null}
+                <FormFieldError message={registrationError} />
+                <FormFieldHint message={busy === "quick-play" ? t.quickPlayStarting : undefined} />
               </div>
             ) : (
               <form className={styles.registrationCard} onSubmit={startQuickPlay}>
@@ -990,8 +1432,8 @@ export default function Home() {
                   />
                 </label>
                 {renderQuickPlayStylePicker()}
-                {registrationError && <p className={styles.formError}>{registrationError}</p>}
-                <p className={styles.formHint}>{busy === "quick-play" ? t.quickPlayStarting : t.quickPlayStyleText}</p>
+                <FormFieldError message={registrationError} />
+                <FormFieldHint message={busy === "quick-play" ? t.quickPlayStarting : t.quickPlayStyleText} />
                 <button className={styles.textButton} type="button" onClick={openLoginForQuickPlay}>
                   {t.quickPlayExisting}
                 </button>
@@ -1002,8 +1444,9 @@ export default function Home() {
       )}
 
       {registrationModalOpen && (
-        <div className={styles.modalOverlay} role="presentation" onMouseDown={() => setRegistrationModalOpen(false)}>
+        <div className={styles.modalOverlay} role="presentation" onMouseDown={closeRegistrationModal}>
           <section
+            ref={registrationDialogRef}
             aria-labelledby="registration-title"
             aria-modal="true"
             className={styles.registrationModal}
@@ -1016,7 +1459,7 @@ export default function Home() {
                 <h2 id="registration-title">{t.modalTitle}</h2>
                 <p>{t.modalText}</p>
               </div>
-              <button aria-label={t.closeModal} className={styles.closeButton} type="button" onClick={() => setRegistrationModalOpen(false)}>
+              <button aria-label={t.closeModal} className={styles.closeButton} type="button" onClick={closeRegistrationModal}>
                 ×
               </button>
             </div>
@@ -1041,6 +1484,12 @@ export default function Home() {
                 {t.registerUser}
               </button>
             </div>
+
+            <OnboardingStepIndicator
+              ariaLabel={t.authStepIndicatorAria}
+              currentStep={authTab === "register" ? (createdUser ? 2 : 1) : 1}
+              steps={authTab === "register" ? [t.authStepAccount, t.authStepSave] : [t.authStepLogin]}
+            />
 
             {authTab === "login" && (
               <form className={styles.registrationCard} onSubmit={loginUser}>
@@ -1081,7 +1530,7 @@ export default function Home() {
                     value={loginPassword}
                   />
                 </label>
-                {registrationError && <p className={styles.formError}>{registrationError}</p>}
+                <FormFieldError message={registrationError} />
                 <button disabled={busy === "login-user"} type="submit">
                   {t.loginUser}
                 </button>
@@ -1116,7 +1565,13 @@ export default function Home() {
                     </button>
                   </div>
                 </label>
-                {nameStatus && <p className={styles.formHint}>{nameStatus}</p>}
+                {nameStatus ? (
+                  nameStatus === t.nameTaken || nameStatus === t.nameCheckFailed ? (
+                    <FormFieldError message={nameStatus} />
+                  ) : (
+                    <FormFieldHint message={nameStatus} />
+                  )
+                ) : null}
 
                 <label>
                   {t.email}
@@ -1165,7 +1620,7 @@ export default function Home() {
                   </div>
                 </label>
 
-                {registrationError && <p className={styles.formError}>{registrationError}</p>}
+                <FormFieldError message={registrationError} />
 
                 <button disabled={busy === "register-user"} type="submit">
                   {t.registerUser}
@@ -1191,9 +1646,7 @@ export default function Home() {
                   <h3>{t.renameTitle}</h3>
                   <p>{t.renameText}</p>
                 </div>
-                <p className={styles.formHint}>
-                  {t.loggedInAs}: {authUser.name}
-                </p>
+                <FormFieldHint message={`${t.loggedInAs}: ${authUser.name}`} />
                 <label>
                   {t.newUserName}
                   <input
@@ -1203,7 +1656,13 @@ export default function Home() {
                     value={renameUserName}
                   />
                 </label>
-                {renameStatus && <p className={styles.formHint}>{renameStatus}</p>}
+                {renameStatus ? (
+                  renameStatus === t.renameFailed ? (
+                    <FormFieldError message={renameStatus} />
+                  ) : (
+                    <FormFieldHint message={renameStatus} />
+                  )
+                ) : null}
                 <button disabled={busy === "rename-user"} type="submit">
                   {t.updateUserName}
                 </button>
@@ -1239,6 +1698,53 @@ function honorLabel(index: number) {
     return "III";
   }
   return `#${index + 1}`;
+}
+
+const MINI_BOARD_LABELS = ["A♥", "K♠", "Q♦", "J♣", "10♥"];
+
+function miniBoardCardCount(phase: string) {
+  const normalized = phase.toLowerCase();
+  if (normalized === "flop") {
+    return 3;
+  }
+  if (normalized === "turn") {
+    return 4;
+  }
+  if (normalized === "river" || normalized === "showdown") {
+    return 5;
+  }
+  return 0;
+}
+
+function LiveTableMiniPreview({ phase, playerCount }: { phase: string; playerCount: number }) {
+  const boardCount = miniBoardCardCount(phase);
+  const occupiedSeats = Math.max(0, Math.min(6, playerCount));
+
+  return (
+    <div aria-hidden="true" className={styles.miniTable}>
+      <div className={styles.miniTableFelt}>
+        {boardCount > 0 ? (
+          <div className={styles.miniTableBoard}>
+            {MINI_BOARD_LABELS.slice(0, boardCount).map((label) => (
+              <span className={`${styles.miniTableCard} ${label.includes("♥") || label.includes("♦") ? styles.red : ""}`} key={label}>
+                {label}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className={styles.miniTablePot}>Pot</span>
+        )}
+      </div>
+      {Array.from({ length: 6 }, (_, index) => (
+        <span
+          className={`${styles.miniTableSeat} ${index < occupiedSeats ? styles.miniTableSeatActive : ""}`}
+          key={index}
+          style={{ ["--seat-index" as string]: index }}
+        />
+      ))}
+      <span className={styles.miniTableDealer}>D</span>
+    </div>
+  );
 }
 
 function shouldOpenAuthModal() {

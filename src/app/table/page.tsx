@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+import { FormFieldError } from "@/components/FormFieldMessage";
 import { withBasePath } from "@/lib/client/basePath";
+import { mergeGameSnapshotForSse } from "@/lib/client/sseSnapshotMerge";
+import { connectReconnectingEventSource } from "@/lib/client/reconnectingEventSource";
 import { useLanguage, type Language } from "@/lib/client/i18n";
 import type { Card, GameSnapshot, PublicPlayerState } from "@/lib/poker/types";
+import type { SlimGameSnapshotForSse } from "@/lib/server/sseSnapshot";
 import styles from "./table.module.css";
 
 type RegisteredAgent = {
@@ -251,13 +255,16 @@ export default function TablePage() {
     const initial = setTimeout(() => {
       void refreshRoster();
     }, 0);
-    const events = new EventSource(withBasePath("/api/game/events"));
-    events.addEventListener("snapshot", (event) => {
-      setState(JSON.parse((event as MessageEvent<string>).data) as GameSnapshot);
+    const stopEvents = connectReconnectingEventSource({
+      url: withBasePath("/api/game/events"),
+      onSnapshot: (data) => {
+        const incoming = JSON.parse(data) as SlimGameSnapshotForSse;
+        setState((previous) => mergeGameSnapshotForSse(previous, incoming));
+      },
+      onRecover: () => {
+        void refreshState();
+      },
     });
-    events.onerror = () => {
-      void refreshState();
-    };
     const timer = setInterval(() => {
       void refreshRoster();
     }, 5_000);
@@ -265,7 +272,7 @@ export default function TablePage() {
     return () => {
       clearTimeout(initial);
       clearInterval(timer);
-      events.close();
+      stopEvents();
     };
   }, []);
 
@@ -277,7 +284,7 @@ export default function TablePage() {
           <h1>{t.title}</h1>
           <p className={styles.subtitle}>{t.subtitle}</p>
           <p className={styles.lifecycleStatus}>{lifecycleStatus(state, pollingAgentIds.size, t)}</p>
-          {error && <p className={styles.error}>{error}</p>}
+          <FormFieldError message={error} />
         </div>
 
         <div className={styles.controls}>
@@ -464,7 +471,7 @@ function lifecycleStatus(state: GameSnapshot | undefined, pollingAgentCount: num
   return state && state.handId > 0 ? text.lifecycleSettled : text.lifecycleWaitingStart;
 }
 
-function SeatCard({
+const SeatCard = memo(function SeatCard({
   current,
   dealerIndex,
   player,
@@ -519,7 +526,7 @@ function SeatCard({
       </p>
     </article>
   );
-}
+});
 
 function positionLabel(index: number, dealerIndex: number, playerCount: number) {
   if (playerCount <= 0) {

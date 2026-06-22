@@ -1,4 +1,6 @@
 import { getTableManager } from "@/lib/server/simulator";
+import { slimGameSnapshotForSse } from "@/lib/server/sseSnapshot";
+import { decrementTableSpectators, incrementTableSpectators, withSpectatorSnapshot } from "@/lib/server/tableSpectators";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,6 +18,8 @@ export async function GET(request: Request, context: { params: Promise<{ tableId
       let lastHeartbeatAt = 0;
       let lastVersion = "";
 
+      incrementTableSpectators(tableId);
+
       function send(event: string, data: unknown) {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       }
@@ -27,10 +31,11 @@ export async function GET(request: Request, context: { params: Promise<{ tableId
           return;
         }
         const cached = table.runner.cachedSnapshot();
-        if (cached.version !== lastVersion) {
-          lastVersion = cached.version;
+        const payload = withSpectatorSnapshot(tableId, cached.snapshot, cached.version);
+        if (payload.version !== lastVersion) {
+          lastVersion = payload.version;
           lastHeartbeatAt = Date.now();
-          send("snapshot", cached.snapshot);
+          send("snapshot", slimGameSnapshotForSse(payload.snapshot));
           return;
         }
         if (Date.now() - lastHeartbeatAt >= idleHeartbeatMs) {
@@ -44,6 +49,7 @@ export async function GET(request: Request, context: { params: Promise<{ tableId
 
       request.signal.addEventListener("abort", () => {
         clearInterval(timer);
+        decrementTableSpectators(tableId);
         controller.close();
       });
     },

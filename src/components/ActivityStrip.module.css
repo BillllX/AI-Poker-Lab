@@ -1,0 +1,108 @@
+.strip {
+  align-items: center;
+  background: linear-gradient(90deg, rgba(250, 204, 21, 0.16), rgba(110, 231, 168, 0.12));
+  border-bottom: 1px solid rgba(250, 204, 21, 0.32);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  justify-content: center;
+  padding: 8px 16px;
+  position: relative;
+  z-index: 12;
+}
+
+.message {
+  color: #fef3c7;
+  flex: 1 1 200px;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  margin: 0;
+  text-align: center;
+}
+
+.actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.cta {
+  background: rgba(250, 204, 21, 0.18);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  border-radius: 999px;
+  color: #fde68a;
+  font-size: 0.8rem;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.cta:hover {
+  background: rgba(250, 204, 21, 0.28);
+}
+
+.dismiss {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 0.78rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 12px;
+}
+
+.dismiss:hover {
+  border-color: rgba(226, 232, 240, 0.55);
+  color: #f1f5f9;
+}
+
+.cta:focus-visible,
+.dismiss:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .strip {
+    flex-wrap: nowrap;
+    gap: 8px;
+    max-height: 48px;
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+
+  .message {
+    flex: 1 1 auto;
+    font-size: 0.78rem;
+    min-width: 0;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .actions {
+    flex-shrink: 0;
+    gap: 6px;
+    justify-content: flex-end;
+    width: auto;
+  }
+
+  .cta {
+    font-size: 0.72rem;
+    min-height: 32px;
+    padding: 4px 10px;
+  }
+
+  .dismiss {
+    font-size: 0.72rem;
+    min-height: 32px;
+    min-width: 32px;
+    padding: 4px 8px;
+  }
+}

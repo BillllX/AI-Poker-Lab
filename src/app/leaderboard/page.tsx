@@ -1,9 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { RankTrend } from "@/lib/leaderboard/rankChange";
-import { withBasePath } from "@/lib/client/basePath";
+import { prefersReducedMotion } from "@/lib/client/motionPreference";
+import { prefetchAgentProfileRoutes } from "@/lib/client/prefetchTableRoutes";
+import { publicApiFetchInit } from "@/lib/client/publicApiFetch";
+import { SkeletonStack } from "@/components/SkeletonBlock";
+import { SeasonEventBadge } from "@/components/SeasonEventBadge";
+import { EmptyState } from "@/components/EmptyState";
+import { withBasePath, publicAssetBackground } from "@/lib/client/basePath";
+import { trackEngagement } from "@/lib/client/engagementAnalytics";
+import { liveRegionProps } from "@/lib/client/liveRegion";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./leaderboard.module.css";
 
@@ -13,11 +22,16 @@ type ClubUser = {
   pointsBalance: number;
   frozenPoints: number;
   dailyProfitToday: number;
+  weeklyProfit?: number;
   currentRank?: number;
   previousRank?: number;
   rankDelta?: number;
   rankTrend?: RankTrend;
 };
+
+type LeaderboardTab = "daily" | "points" | "weekly";
+
+const LEADERBOARD_TAB_KEY = "leaderboard-tab";
 
 type AgentSummary = {
   id: string;
@@ -27,7 +41,13 @@ type AgentSummary = {
 type MePayload = {
   user?: {
     id?: string;
+    name?: string;
   } | null;
+};
+
+type MyRankSnapshot = {
+  rank: number;
+  user: ClubUser;
 };
 
 type RankCelebration = {
@@ -43,8 +63,14 @@ const copy = {
     title: "AI 牌手排行榜",
     text: "积分只代表训练成绩，不涉及充值或真钱输赢。点击牌手名字可以查看公开牌手主页。",
     loading: "正在加载排行榜...",
+    loadFailed: "排行榜加载失败，请刷新页面。",
     today: "今日",
+    week: "本周",
+    points: "积分",
     frozen: "冻结",
+    tabPoints: "积分榜",
+    tabDaily: "日榜",
+    tabWeekly: "周榜",
     empty: "等待第一名实验员启动 AI 牌手。",
     rankUp: "上升",
     rankDown: "下降",
@@ -60,14 +86,22 @@ const copy = {
     newText: "已经进入排行榜，继续打出更强表现。",
     currentRank: "当前排名",
     closeCelebration: "继续看榜",
+    myRankLabel: "我的排名",
+    scrollToMe: "定位到我的行",
   },
   en: {
     eyebrow: "LEADERBOARD",
     title: "AI Player Leaderboard",
     text: "Points only measure training performance. No deposits or real-money outcomes. Click a player name to view its public profile.",
     loading: "Loading leaderboard...",
+    loadFailed: "Couldn't load the leaderboard. Refresh the page.",
     today: "Today",
+    week: "This week",
+    points: "Points",
     frozen: "Frozen",
+    tabPoints: "Points",
+    tabDaily: "Daily",
+    tabWeekly: "Weekly",
     empty: "Waiting for the first researcher to launch an AI player.",
     rankUp: "Up",
     rankDown: "Down",
@@ -83,18 +117,24 @@ const copy = {
     newText: "You are on the leaderboard. Keep pushing for a stronger result.",
     currentRank: "Current rank",
     closeCelebration: "Back to leaderboard",
+    myRankLabel: "My rank",
+    scrollToMe: "Jump to my row",
   },
 };
 
 export default function LeaderboardPage() {
+  const router = useRouter();
   const { language } = useLanguage();
   const t = copy[language];
+  const [activeTab, setActiveTab] = useState<LeaderboardTab>(() => readStoredLeaderboardTab());
   const [users, setUsers] = useState<ClubUser[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadState, setLoadState] = useState<"error" | "loading" | "ready">("loading");
   const [displayedUserIds, setDisplayedUserIds] = useState<string[]>([]);
   const [activeMovingUserId, setActiveMovingUserId] = useState<string>();
   const [celebration, setCelebration] = useState<RankCelebration>();
+  const [meUser, setMeUser] = useState<{ id: string; name: string }>();
+  const [offListRank, setOffListRank] = useState<MyRankSnapshot>();
   const rowRefs = useRef(new Map<string, HTMLElement>());
   const previousPositions = useRef(new Map<string, number>());
 
@@ -103,6 +143,27 @@ export default function LeaderboardPage() {
     const ids = displayedUserIds.length > 0 ? displayedUserIds : users.map((user) => user.id);
     return ids.map((id) => usersById.get(id)).filter((user): user is ClubUser => Boolean(user));
   }, [displayedUserIds, users, usersById]);
+
+  const myListEntry = useMemo(
+    () => (meUser ? users.find((user) => user.id === meUser.id) : undefined),
+    [meUser, users],
+  );
+
+  const myRankSnapshot = useMemo((): MyRankSnapshot | undefined => {
+    if (!meUser) {
+      return undefined;
+    }
+    if (myListEntry) {
+      const rank =
+        activeTab === "points" && Number.isInteger(myListEntry.currentRank)
+          ? myListEntry.currentRank!
+          : users.findIndex((user) => user.id === meUser.id) + 1;
+      return { rank, user: myListEntry };
+    }
+    return offListRank;
+  }, [activeTab, meUser, myListEntry, offListRank, users]);
+
+  const myRowInView = Boolean(myListEntry && displayedUsers.some((user) => user.id === meUser?.id));
 
   useLayoutEffect(() => {
     const nextPositions = new Map<string, number>();
@@ -113,7 +174,7 @@ export default function LeaderboardPage() {
       }
     }
 
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduceMotion = prefersReducedMotion();
     if (!reduceMotion) {
       for (const user of displayedUsers) {
         const element = rowRefs.current.get(user.id);
@@ -148,27 +209,67 @@ export default function LeaderboardPage() {
     const intervals: number[] = [];
 
     async function loadLeaderboard() {
+      setLoadState("loading");
+      setCelebration(undefined);
+      setActiveMovingUserId(undefined);
+      setOffListRank(undefined);
       try {
+        const sort = activeTab;
         const [usersResponse, tablesResponse, meResponse] = await Promise.all([
-          fetch(withBasePath("/api/leaderboard?limit=50"), { cache: "no-store" }),
-          fetch(withBasePath("/api/tables"), { cache: "no-store" }),
+          fetch(withBasePath(`/api/leaderboard?limit=50&sort=${sort}`), publicApiFetchInit),
+          fetch(withBasePath("/api/tables?limit=8&agentLimit=40"), publicApiFetchInit),
           fetch(withBasePath("/api/users/me"), { cache: "no-store" }),
         ]);
+        if (!usersResponse.ok || !tablesResponse.ok) {
+          setLoadState("error");
+          return;
+        }
         const usersPayload = await usersResponse.json();
         const tablesPayload = await tablesResponse.json();
         const mePayload = meResponse.ok ? await meResponse.json() as MePayload : { user: null };
         if (!cancelled) {
           const nextUsers = Array.isArray(usersPayload.users) ? usersPayload.users as ClubUser[] : [];
           const nextAgents = Array.isArray(tablesPayload.agents) ? tablesPayload.agents as AgentSummary[] : [];
-          const focusUser = pickFocusRankMoveUser(nextUsers, mePayload.user?.id);
-          const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          const nextMeUser =
+            mePayload.user?.id && mePayload.user.name
+              ? { id: mePayload.user.id, name: mePayload.user.name }
+              : undefined;
           setUsers(nextUsers);
           setAgents(nextAgents);
-          setCelebration(undefined);
+          setMeUser(nextMeUser);
+          setLoadState("ready");
+          prefetchAgentProfileRoutes(
+            router,
+            nextUsers.map((user) => ({
+              ownerUserId: user.id,
+              agentId: nextAgents.find((agent) => agent.ownerUserId === user.id)?.id,
+            })),
+          );
+
+          if (nextMeUser && !nextUsers.some((user) => user.id === nextMeUser.id)) {
+            void fetch(withBasePath(`/api/users/me/rank?sort=${sort}`), { cache: "no-store" })
+              .then(async (response) => {
+                if (!response.ok || cancelled) {
+                  return;
+                }
+                const payload = await response.json() as MyRankSnapshot;
+                if (payload.rank && payload.user && !cancelled) {
+                  setOffListRank(payload);
+                }
+              })
+              .catch(() => undefined);
+          }
+
+          if (sort !== "points") {
+            setDisplayedUserIds(nextUsers.map((user) => user.id));
+            return;
+          }
+
+          const focusUser = pickFocusRankMoveUser(nextUsers, mePayload.user?.id);
+          const reduceMotion = prefersReducedMotion();
 
           if (!focusUser || reduceMotion) {
             setDisplayedUserIds(nextUsers.map((user) => user.id));
-            setActiveMovingUserId(undefined);
             return;
           }
 
@@ -199,12 +300,20 @@ export default function LeaderboardPage() {
                 timeouts.push(window.setTimeout(() => {
                   if (!cancelled) {
                     setActiveMovingUserId(undefined);
+                    const trend = focusUser.rankTrend ?? "same";
                     setCelebration({
                       currentRank: endRank,
                       delta: Math.abs(focusUser.rankDelta ?? 0),
                       name: focusUser.name,
-                      trend: focusUser.rankTrend ?? "same",
+                      trend,
                     });
+                    if (trend === "up") {
+                      void fetch(withBasePath("/api/users/me/daily-badges"), {
+                        body: JSON.stringify({ badge: "climber" }),
+                        headers: { "Content-Type": "application/json" },
+                        method: "POST",
+                      });
+                    }
                   }
                 }, 700));
               }
@@ -212,9 +321,9 @@ export default function LeaderboardPage() {
             intervals.push(interval);
           }, 650));
         }
-      } finally {
+      } catch {
         if (!cancelled) {
-          setLoading(false);
+          setLoadState("error");
         }
       }
     }
@@ -229,19 +338,83 @@ export default function LeaderboardPage() {
         window.clearInterval(interval);
       }
     };
-  }, []);
+  }, [activeTab, router]);
+
+  function switchTab(tab: LeaderboardTab) {
+    setActiveTab(tab);
+    try {
+      sessionStorage.setItem(LEADERBOARD_TAB_KEY, tab);
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  function scrollToMyRow() {
+    if (!meUser) {
+      return;
+    }
+    trackEngagement({
+      at: new Date().toISOString(),
+      name: "engagement.leaderboard.rank_jump",
+      tab: activeTab,
+    });
+    const row = rowRefs.current.get(meUser.id);
+    row?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
+    <main className={`${styles.page} ${myRankSnapshot ? styles.pageWithStickyRank : ""}`}>
+      <section
+        className={styles.hero}
+        style={
+          {
+            "--leaderboard-hero-bg": publicAssetBackground("/images/landing/leaderboard-trophy-podium.png"),
+          } as React.CSSProperties
+        }
+      >
+        <SeasonEventBadge show="event" />
         <p className={styles.eyebrow}>{t.eyebrow}</p>
         <h1>{t.title}</h1>
         <p>{t.text}</p>
       </section>
 
-      <section className={styles.board}>
-        {loading ? (
-          <p className={styles.empty}>{t.loading}</p>
+      <div className={styles.boardTabs} role="tablist" aria-label={t.title}>
+        <button
+          aria-selected={activeTab === "points"}
+          className={`${styles.boardTab} ${activeTab === "points" ? styles.boardTabActive : ""}`}
+          role="tab"
+          type="button"
+          onClick={() => switchTab("points")}
+        >
+          {t.tabPoints}
+        </button>
+        <button
+          aria-selected={activeTab === "daily"}
+          className={`${styles.boardTab} ${activeTab === "daily" ? styles.boardTabActive : ""}`}
+          role="tab"
+          type="button"
+          onClick={() => switchTab("daily")}
+        >
+          {t.tabDaily}
+        </button>
+        <button
+          aria-selected={activeTab === "weekly"}
+          className={`${styles.boardTab} ${activeTab === "weekly" ? styles.boardTabActive : ""}`}
+          role="tab"
+          type="button"
+          onClick={() => switchTab("weekly")}
+        >
+          {t.tabWeekly}
+        </button>
+      </div>
+
+      <section className={`${styles.board} ${styles.boardMobileCards}`}>
+        {loadState === "loading" ? (
+          <SkeletonStack label={t.loading} rows={6} />
+        ) : loadState === "error" ? (
+          <p className={styles.loadError} {...liveRegionProps("alert")}>
+            {t.loadFailed}
+          </p>
         ) : displayedUsers.length > 0 ? (
           displayedUsers.map((user, index) => {
             const agent = agents.find((item) => item.ownerUserId === user.id);
@@ -266,19 +439,19 @@ export default function LeaderboardPage() {
                 <span className={styles.rank}>#{visibleRank}</span>
                 <div className={styles.player}>
                   <Link href={href}>{user.name}</Link>
-                  <small>
-                    {t.today} {formatSigned(user.dailyProfitToday)} · {t.frozen} {user.frozenPoints.toLocaleString()}
-                  </small>
+                  <small>{leaderboardRowMeta(user, activeTab, t)}</small>
                 </div>
                 <div className={styles.score}>
-                  {rankMoveLabel(user, t) ? <span className={rankMoveClass(user.rankTrend)}>{rankMoveLabel(user, t)}</span> : null}
-                  <strong>{user.pointsBalance.toLocaleString()} pts</strong>
+                  {activeTab === "points" && rankMoveLabel(user, t) ? (
+                    <span className={rankMoveClass(user.rankTrend)}>{rankMoveLabel(user, t)}</span>
+                  ) : null}
+                  <strong>{leaderboardScoreLabel(user, activeTab, t)}</strong>
                 </div>
               </article>
             );
           })
         ) : (
-          <p className={styles.empty}>{t.empty}</p>
+          <EmptyState className={styles.emptySlot} description={t.empty} variant="card" />
         )}
       </section>
 
@@ -298,12 +471,71 @@ export default function LeaderboardPage() {
           </span>
         </button>
       ) : null}
+
+      {myRankSnapshot && loadState === "ready" ? (
+        <aside
+          aria-label={t.myRankLabel}
+          className={styles.myRankSticky}
+        >
+          <div className={styles.myRankInner}>
+            <span className={styles.myRankEyebrow}>{t.myRankLabel}</span>
+            <span className={styles.myRankValue}>#{myRankSnapshot.rank}</span>
+            <div className={styles.myRankPlayer}>
+              <strong>{myRankSnapshot.user.name}</strong>
+              <small>{leaderboardRowMeta(myRankSnapshot.user, activeTab, t)}</small>
+            </div>
+            <strong className={styles.myRankScore}>
+              {leaderboardScoreLabel(myRankSnapshot.user, activeTab, t)}
+            </strong>
+          </div>
+          {myRowInView ? (
+            <button className={styles.myRankJump} type="button" onClick={scrollToMyRow}>
+              {t.scrollToMe}
+            </button>
+          ) : null}
+        </aside>
+      ) : null}
     </main>
   );
 }
 
 function formatSigned(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+}
+
+function readStoredLeaderboardTab(): LeaderboardTab {
+  if (typeof window === "undefined") {
+    return "points";
+  }
+  try {
+    const stored = sessionStorage.getItem(LEADERBOARD_TAB_KEY);
+    if (stored === "daily" || stored === "weekly" || stored === "points") {
+      return stored;
+    }
+  } catch {
+    // ignore storage failures
+  }
+  return "points";
+}
+
+function leaderboardRowMeta(user: ClubUser, tab: LeaderboardTab, t: typeof copy.zh) {
+  if (tab === "daily") {
+    return `${t.points} ${user.pointsBalance.toLocaleString()} · ${t.frozen} ${user.frozenPoints.toLocaleString()}`;
+  }
+  if (tab === "weekly") {
+    return `${t.today} ${formatSigned(user.dailyProfitToday)} · ${t.points} ${user.pointsBalance.toLocaleString()}`;
+  }
+  return `${t.today} ${formatSigned(user.dailyProfitToday)} · ${t.frozen} ${user.frozenPoints.toLocaleString()}`;
+}
+
+function leaderboardScoreLabel(user: ClubUser, tab: LeaderboardTab, t: typeof copy.zh) {
+  if (tab === "daily") {
+    return formatSigned(user.dailyProfitToday);
+  }
+  if (tab === "weekly") {
+    return `${t.week} ${formatSigned(user.weeklyProfit ?? 0)}`;
+  }
+  return `${user.pointsBalance.toLocaleString()} pts`;
 }
 
 function pickFocusRankMoveUser(users: ClubUser[], currentUserId?: string) {

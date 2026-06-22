@@ -25,9 +25,12 @@ export async function POST(request: Request) {
     }
     const appliesFromHandId = table.runner.snapshot().handId + 1;
 
-    const note = addRuntimeInstruction(agent.id, `用户下一手起生效的 Coaching：${String(input.message ?? "")}`, "operator", {
-      tableId,
+    const userMessage = String(input.message ?? "").trim();
+    const note = addRuntimeInstruction(agent.id, `用户下一手起生效的 Coaching：${userMessage}`, "operator", {
       appliesFromHandId,
+      displayMessage: userMessage,
+      sourceType: "coaching",
+      tableId,
     });
     return Response.json({
       ok: true,

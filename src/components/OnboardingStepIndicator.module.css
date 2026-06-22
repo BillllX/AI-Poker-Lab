@@ -1,0 +1,98 @@
+.wrap {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.progressTrack {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.progressFill {
+  background: linear-gradient(90deg, var(--accent), var(--lab-cyan));
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 8%;
+  transition: width 220ms ease;
+}
+
+.stepList {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stepItem {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  display: flex;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+}
+
+.stepNumber {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 900;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.stepLabel {
+  line-height: 1.2;
+}
+
+.stepActive {
+  background: rgba(110, 231, 168, 0.12);
+  border-color: rgba(110, 231, 168, 0.35);
+  color: var(--text);
+}
+
+.stepActive .stepNumber {
+  background: var(--accent);
+  color: #052014;
+}
+
+.stepComplete {
+  border-color: rgba(110, 231, 168, 0.24);
+  color: var(--accent);
+}
+
+.stepComplete .stepNumber {
+  background: rgba(110, 231, 168, 0.18);
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressFill {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .stepList {
+    flex-direction: column;
+  }
+
+  .stepItem {
+    width: 100%;
+  }
+}

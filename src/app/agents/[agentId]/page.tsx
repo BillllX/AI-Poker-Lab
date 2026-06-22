@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormFieldError } from "@/components/FormFieldMessage";
+import { CoachCard } from "@/components/CoachCard";
+import { AgentComparePanel } from "@/components/AgentComparePanel";
+import { AgentFavoriteButton } from "@/components/AgentFavoriteButton";
+import { SeasonEventBadge } from "@/components/SeasonEventBadge";
+import { trackEngagement } from "@/lib/client/engagementAnalytics";
 import { withBasePath } from "@/lib/client/basePath";
 import { useLanguage } from "@/lib/client/i18n";
+import type { AgentHandSummary } from "@/lib/poker/types";
 import styles from "../agent-profile.module.css";
 
 type AgentProfile = {
@@ -20,6 +27,7 @@ type AgentProfile = {
     assignmentStatus: string;
   };
   badges: string[];
+  dailyBadges?: Array<{ badge: string; earnedAt: string }>;
   identity?: {
     profileId: string;
     agentId: string;
@@ -69,6 +77,10 @@ type AgentProfile = {
   modelStat: { modelName: string; handsPlayed: number; agents: number } | null;
   stats: { handsPlayed: number; handsWon: number; profit: number; stack?: number; status?: string } | null;
   table: { id: string; name: string; running: boolean; phase: string; handId: number; url: string } | null;
+  coachCard: {
+    coachingCount: number;
+    highlightHand: AgentHandSummary | null;
+  };
 };
 
 const copy = {
@@ -112,8 +124,22 @@ const copy = {
     netProfit: "累计盈亏",
     liveNow: "实时在线",
     offline: "离线",
-    nextStepTitle: "如何继续参与",
-    nextStep: "下一步会把 Coach Card、关键手牌和赛后复盘接入这里，让用户不只是看结果，还能理解它为什么输赢，并为下一场给出策略建议。",
+    coachCardTitle: "Coach Card",
+    dailyBadgeClimber: "今日爬升",
+    dailyBadgeGrinder: "今日劳模",
+    dailyBadgeHighlight: "今日高光",
+    coachRecentSettlements: "最近三场",
+    coachCoachingStats: "Coaching 统计",
+    coachCoachingCount: (count: number) => `${count} 条建议已注入 Prompt`,
+    coachHighlightTitle: "高光手牌",
+    coachHighlightHand: (handId: number, amount: number) => `手 #${handId} · 底池 ${amount.toLocaleString()}`,
+    coachNoHighlight: "完成几手后会出现高光手牌。",
+    coachWatchTable: "去观战继续 Coaching",
+    compareTitle: "对比其他 AI 牌手",
+    compareText: "积分榜上排名靠前的牌手，一键跳转公开主页。",
+    compareLeaderboard: "完整排行榜",
+    comparePoints: "积分",
+    compareYou: "vs 你",
     loading: "加载 AI 牌手主页...",
     notFound: "没有找到这名 AI 牌手。",
   },
@@ -157,8 +183,22 @@ const copy = {
     netProfit: "Net Profit",
     liveNow: "Live Now",
     offline: "Offline",
-    nextStepTitle: "How to Stay Involved",
-    nextStep: "Next, Coach Cards, key hands, and post-game reviews can live here so users understand why the player won or lost and can give better advice before the next match.",
+    coachCardTitle: "Coach Card",
+    dailyBadgeClimber: "Today's Climber",
+    dailyBadgeGrinder: "Today's Grinder",
+    dailyBadgeHighlight: "Today's Highlight",
+    coachRecentSettlements: "Last 3 sessions",
+    coachCoachingStats: "Coaching stats",
+    coachCoachingCount: (count: number) => `${count} coaching notes injected`,
+    coachHighlightTitle: "Highlight hand",
+    coachHighlightHand: (handId: number, amount: number) => `Hand #${handId} · pot ${amount.toLocaleString()}`,
+    coachNoHighlight: "Highlight hands will appear after a few completed hands.",
+    coachWatchTable: "Spectate and keep coaching",
+    compareTitle: "Compare Other AI Players",
+    compareText: "Jump to top leaderboard players and their public profiles.",
+    compareLeaderboard: "Full leaderboard",
+    comparePoints: "Points",
+    compareYou: "vs you",
     loading: "Loading AI player profile...",
     notFound: "AI player was not found.",
   },
@@ -270,6 +310,11 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(shareText);
     }
+    trackEngagement({
+      agentId: profile?.agent.id ?? agentId,
+      at: new Date().toISOString(),
+      name: "engagement.share.copy",
+    });
     setCopied(true);
     setTimeout(() => setCopied(false), 1_400);
   }
@@ -278,17 +323,26 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
     <main className={styles.page}>
       <div className={styles.shell}>
         {loading && !profile && !error && <p className={styles.loading}>{t.loading}</p>}
-        {error && <p className={styles.error}>{error}</p>}
+        <FormFieldError message={error} />
 
         {profile && (
           <>
             <section className={styles.hero}>
               <div>
                 <div className={styles.heroTopline}>
-                  <p className={styles.eyebrow}>{t.eyebrow}</p>
-                  <span className={isOnline ? styles.onlinePill : styles.offlinePill}>
-                    {isOnline ? t.liveNow : t.offline}
-                  </span>
+                  <div className={styles.heroToplineLead}>
+                    <SeasonEventBadge compact show="event" />
+                    <p className={styles.eyebrow}>{t.eyebrow}</p>
+                  </div>
+                  <div className={styles.heroToplineActions}>
+                    <AgentFavoriteButton
+                      agentId={profile.agent.id}
+                      agentName={displayName ?? profile.agent.name ?? profile.agent.id}
+                    />
+                    <span className={isOnline ? styles.onlinePill : styles.offlinePill}>
+                      {isOnline ? t.liveNow : t.offline}
+                    </span>
+                  </div>
                 </div>
                 <h1>{displayName}</h1>
                 <p className={styles.subtitle}>
@@ -297,6 +351,11 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
                 <div className={styles.badges}>
                   {profile.badges.map((badge) => (
                     <span key={badge}>{badge}</span>
+                  ))}
+                  {profile.dailyBadges?.map((entry) => (
+                    <span className={styles.dailyHonorBadge} key={entry.badge}>
+                      {dailyBadgeLabel(entry.badge, t)}
+                    </span>
                   ))}
                 </div>
                 <p className={styles.refreshMeta}>
@@ -352,6 +411,19 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
               </div>
             </section>
 
+            <AgentComparePanel
+              copy={{
+                leaderboard: t.compareLeaderboard,
+                points: t.comparePoints,
+                text: t.compareText,
+                title: t.compareTitle,
+                you: t.compareYou,
+              }}
+              currentAgentId={profile.agent.id}
+              currentOwnerUserId={profile.agent.ownerUserId ?? profile.identity?.ownerUserId}
+              currentPoints={profile.identity?.pointsBalance}
+            />
+
             <article className={styles.card}>
               <div className={styles.cardHeader}>
                 <div>
@@ -403,6 +475,28 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
               </article>
             </section>
 
+            <CoachCard
+              coachingCount={profile.coachCard.coachingCount}
+              copy={{
+                coachingCount: t.coachCoachingCount,
+                coachingStats: t.coachCoachingStats,
+                finalStack: t.finalStack,
+                hands: t.hands,
+                highlightHand: t.coachHighlightHand,
+                highlightTitle: t.coachHighlightTitle,
+                noHighlight: t.coachNoHighlight,
+                noRecentResults: t.noRecentResults,
+                profit: t.profit,
+                recentSettlements: t.coachRecentSettlements,
+                title: t.coachCardTitle,
+                watchTable: t.coachWatchTable,
+                wins: t.wins,
+              }}
+              highlightHand={profile.coachCard.highlightHand}
+              recentResults={profile.recentResults}
+              tableUrl={profile.table?.url}
+            />
+
             <article className={styles.card}>
               <div className={styles.cardHeader}>
                 <div>
@@ -433,16 +527,24 @@ export default function AgentProfilePage({ params }: { params: Promise<{ agentId
                 )}
               </div>
             </article>
-
-            <article className={styles.card}>
-              <h2>{t.nextStepTitle}</h2>
-              <p className={styles.muted}>{t.nextStep}</p>
-            </article>
           </>
         )}
       </div>
     </main>
   );
+}
+
+function dailyBadgeLabel(badge: string, t: (typeof copy)["zh"] | (typeof copy)["en"]) {
+  if (badge === "climber") {
+    return t.dailyBadgeClimber;
+  }
+  if (badge === "grinder") {
+    return t.dailyBadgeGrinder;
+  }
+  if (badge === "highlight") {
+    return t.dailyBadgeHighlight;
+  }
+  return badge;
 }
 
 function agentKindLabel(kind: AgentProfile["agent"]["kind"]) {

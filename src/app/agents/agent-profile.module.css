@@ -16,7 +16,9 @@
 .nav,
 .hero,
 .performanceCard,
-.card {
+.card,
+.coachCard,
+.compareCard {
   position: relative;
   z-index: 1;
 }
@@ -42,7 +44,9 @@
 
 .hero,
 .performanceCard,
-.card {
+.card,
+.coachCard,
+.compareCard {
   background:
     radial-gradient(circle at 100% 0%, rgba(110, 231, 168, 0.09), transparent 16rem),
     linear-gradient(180deg, var(--panel-strong), var(--panel));
@@ -64,6 +68,19 @@
   flex-wrap: wrap;
   gap: 10px;
   justify-content: space-between;
+}
+
+.heroToplineLead {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.heroToplineActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .eyebrow {
@@ -157,6 +174,12 @@
   padding: 7px 10px;
 }
 
+.dailyHonorBadge {
+  background: rgba(245, 200, 75, 0.12) !important;
+  border-color: rgba(245, 200, 75, 0.32) !important;
+  color: var(--warning) !important;
+}
+
 .refreshMeta {
   font-size: 13px;
   font-weight: 800;
@@ -227,6 +250,49 @@
   display: grid;
   gap: 18px;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.7fr);
+}
+
+.coachCard {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 18px;
+  padding: var(--space-card);
+}
+
+.coachCardGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.coachCardBlock {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.coachCardBlock h3 {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.coachCardMetric {
+  font-size: clamp(18px, 3vw, 24px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin: 0;
 }
 
 .card {
@@ -366,6 +432,7 @@
 
   .hero,
   .contentGrid,
+  .coachCardGrid,
   .resultRow,
   .performanceCard,
   .grid {
@@ -420,7 +487,8 @@
 
 .hero,
 .performanceCard,
-.card {
+.card,
+.coachCard {
   background:
     radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.055), transparent 14rem),
     linear-gradient(180deg, rgba(18, 54, 38, 0.82), rgba(11, 33, 24, 0.72));
@@ -456,7 +524,8 @@
 
 .hero,
 .performanceCard,
-.card {
+.card,
+.coachCard {
   background: var(--surface-1);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-soft);
@@ -481,7 +550,95 @@
 @media (max-width: 640px) {
   .hero,
   .performanceCard,
-  .card {
+  .card,
+  .compareCard {
     box-shadow: none;
+  }
+}
+
+.compareCard {
+  padding: 22px 24px;
+}
+
+.compareHeader {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.compareHeader h2 {
+  font-size: 20px;
+  margin: 0 0 6px;
+}
+
+.compareLeaderboardLink {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.compareList {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.comparePeerLink {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  color: inherit;
+  display: grid;
+  gap: 4px 12px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 44px;
+  padding: 12px 14px;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.comparePeerLink:hover {
+  background: rgba(110, 231, 168, 0.08);
+  border-color: rgba(110, 231, 168, 0.35);
+}
+
+.comparePeerLink:focus-visible {
+  background: rgba(110, 231, 168, 0.1);
+  border-color: rgba(110, 231, 168, 0.42);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+.comparePeerLink strong {
+  font-size: 15px;
+}
+
+.comparePeerLink span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comparePeerLink {
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .comparePeerLink {
+    grid-template-columns: 1fr;
   }
 }

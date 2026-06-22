@@ -57,8 +57,19 @@
   color: var(--accent);
   flex: 0 0 auto;
   font-size: 12px;
-  min-height: 34px;
-  padding: 7px 11px;
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  padding: 10px 14px;
+}
+
+.brand:focus-visible,
+.action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+.languageToggle {
+  flex: 0 0 auto;
 }
 
 @media (max-width: 640px) {

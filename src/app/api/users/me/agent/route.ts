@@ -1,6 +1,7 @@
 import { resolveAgentProfileByOwner } from "@/lib/server/agentProfile";
 import { getAgentPrivateSettings, updateAgentPrivateSettings } from "@/lib/server/agentPrivateSettings";
 import { getHostedAgentStatus } from "@/lib/server/hostedAgents";
+import { listTodayBadges } from "@/lib/server/userDailyBadges";
 import { getCurrentUserTokenForSession, getUserFromSessionCookieLite, rankUser } from "@/lib/server/userRegistry";
 
 export async function GET(request: Request) {
@@ -10,17 +11,19 @@ export async function GET(request: Request) {
   }
 
   const origin = new URL(request.url).origin;
-  const [agentProfile, userToken, privateSettings, hostedAgent, rank] = await Promise.all([
+  const [agentProfile, userToken, privateSettings, hostedAgent, rank, dailyBadges] = await Promise.all([
     resolveAgentProfileByOwner(user.id, origin),
     getCurrentUserTokenForSession(user.id),
     getAgentPrivateSettings(user.id),
     getHostedAgentStatus(user.id),
     rankUser(user.id),
+    listTodayBadges(user.id),
   ]);
 
   return Response.json({
     user,
     rank,
+    dailyBadges,
     credentials: {
       ownerUserId: user.id,
       tokenAvailable: Boolean(userToken),

@@ -2,10 +2,27 @@
 
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
+import { trackEngagement } from "@/lib/client/engagementAnalytics";
+import { pushEngagementToast } from "@/lib/client/engagementToast";
+import { FormFieldError } from "@/components/FormFieldMessage";
+import { LazyEngagementToastStack } from "@/components/LazyEngagementToastStack";
 import { SoundToggle } from "@/components/SoundToggle";
+import { TableMomentOverlay } from "@/components/TableMomentOverlay";
+import {
+  TableEmptySeat,
+  TablePlayerSeat,
+  formatSeatDelta,
+  seatDeltaClassName,
+  seatPositionLabel,
+  tableSeatStyle,
+  visualSeatIndex,
+} from "@/components/TableSeat";
 import { withBasePath } from "@/lib/client/basePath";
+import { recordQuestPracticeVisit } from "@/lib/client/questOptionalProgress";
+import { connectReconnectingEventSource } from "@/lib/client/reconnectingEventSource";
 import { useLanguage } from "@/lib/client/i18n";
+import { mergeHumanTableSnapshotForSse } from "@/lib/client/sseSnapshotMerge";
 import { useTableSounds } from "@/lib/client/tableSoundEvents";
 import type { Card, GameSnapshot, LegalAction, PokerAction } from "@/lib/poker/types";
 import styles from "../table/table.module.css";
@@ -161,7 +178,10 @@ const copy = {
     waitingInviteTitle: "等待玩家加入",
     waitingInviteText: "已有真人桌创建成功。分享当前页面并告知牌桌密码，至少 2 人入座后自动开局。",
     copyInviteLink: "复制邀请链接",
-    inviteCopied: "邀请链接已复制。",
+    inviteLinkCopied: "已复制",
+    inviteCopyToast: "邀请链接已复制，可分享给好友入座",
+    inviteShareText: (tableName: string, url: string) =>
+      `来 AI Poker Lab 真人练习桌「${tableName}」：打开链接后输入牌桌密码即可入座。\n${url}`,
     waitingStart: "等待开局",
     wonChips: "赢得筹码",
     winReason: "胜利原因",
@@ -250,7 +270,10 @@ const copy = {
     waitingInviteTitle: "Waiting for Players",
     waitingInviteText: "The human table is ready. Share this page and the table password; play starts automatically with at least two seated players.",
     copyInviteLink: "Copy invite link",
-    inviteCopied: "Invite link copied.",
+    inviteLinkCopied: "Copied",
+    inviteCopyToast: "Invite link copied — share with friends to join",
+    inviteShareText: (tableName: string, url: string) =>
+      `Join my human practice table "${tableName}" on AI Poker Lab — open the link and enter the table password to sit down:\n${url}`,
     waitingStart: "Waiting to start",
     wonChips: "Won chips",
     winReason: "Winning hand",
@@ -279,6 +302,7 @@ export default function HumanTablePage() {
   const [finalPlayerStats, setFinalPlayerStats] = useState<HumanTableSnapshot["playerStats"]>();
   const [now, setNow] = useState(() => Date.now());
   const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
+  const [inviteCopied, setInviteCopied] = useState(false);
   const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
   const winnerRevealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -302,6 +326,15 @@ export default function HumanTablePage() {
   const seatedStatsCount = playerStats.filter((stat) => stat.inSeat).length;
   const totalProfit = playerStats.reduce((sum, stat) => sum + stat.profit, 0);
   const isWaitingForPlayers = snapshot?.mySeatStatus === "seated" && Boolean(snapshot.tableStatus.hasTable) && !snapshot.tableStatus.running && (state?.players.length ?? 0) < 2;
+  const canShareInvite = Boolean(snapshot?.tableStatus.hasTable);
+
+  const inviteShareText = useMemo(() => {
+    if (typeof window === "undefined" || !canShareInvite) {
+      return "";
+    }
+    const tableName = snapshot?.tableStatus.tableName ?? copy[language].humanTable;
+    return copy[language].inviteShareText(tableName, window.location.href);
+  }, [canShareInvite, language, snapshot?.tableStatus.tableName]);
 
   useTableSounds(state, { enableYourTurn: true, myPlayerId: snapshot?.myPlayerId });
 
@@ -330,21 +363,26 @@ export default function HumanTablePage() {
   }
 
   useEffect(() => {
-    const events = new EventSource(withBasePath("/api/human-table/events"));
-    events.addEventListener("snapshot", (event) => {
-      const nextSnapshot = JSON.parse((event as MessageEvent<string>).data) as HumanTableSnapshot;
-      setSnapshot(nextSnapshot);
-      revealWinnersForSnapshot(nextSnapshot.game);
+    recordQuestPracticeVisit();
+  }, []);
+
+  useEffect(() => {
+    return connectReconnectingEventSource({
+      url: withBasePath("/api/human-table/events"),
+      onSnapshot: (data) => {
+        const incoming = JSON.parse(data) as HumanTableSnapshot;
+        setSnapshot((previous) => mergeHumanTableSnapshotForSse(previous, incoming));
+        revealWinnersForSnapshot(incoming.game);
+      },
+      onRecover: async () => {
+        const response = await fetch(withBasePath("/api/human-table/state"), { cache: "no-store" });
+        if (response.ok) {
+          const nextSnapshot = (await response.json()) as HumanTableSnapshot;
+          setSnapshot(nextSnapshot);
+          revealWinnersForSnapshot(nextSnapshot.game);
+        }
+      },
     });
-    events.onerror = async () => {
-      const response = await fetch(withBasePath("/api/human-table/state"), { cache: "no-store" });
-      if (response.ok) {
-        const nextSnapshot = (await response.json()) as HumanTableSnapshot;
-        setSnapshot(nextSnapshot);
-        revealWinnersForSnapshot(nextSnapshot.game);
-      }
-    };
-    return () => events.close();
   }, []);
 
   useEffect(() => {
@@ -473,10 +511,26 @@ export default function HumanTablePage() {
   }
 
   async function copyInviteLink() {
-    const ok = await copyText(window.location.href);
-    if (ok) {
-      setStatus(t.inviteCopied);
+    if (!inviteShareText) {
+      return;
     }
+    const ok = await copyText(inviteShareText);
+    if (!ok) {
+      return;
+    }
+    setInviteCopied(true);
+    trackEngagement({
+      at: new Date().toISOString(),
+      name: "engagement.human_table.invite_copy",
+      tableId: snapshot?.tableStatus.tableId,
+    });
+    pushEngagementToast({
+      expiresMs: 4500,
+      id: `human-invite-copy-${snapshot?.tableStatus.tableId ?? "table"}`,
+      kind: "settled",
+      message: copy[language].inviteCopyToast,
+    });
+    window.setTimeout(() => setInviteCopied(false), 2_000);
   }
 
   const visibleStatus = status === t.buyInQueued && !myPlayerStat?.pendingBuyIn ? undefined : status;
@@ -540,7 +594,8 @@ export default function HumanTablePage() {
   ) : null;
 
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${snapshot?.mySeatStatus === "seated" ? styles.humanTablePageSeated : ""}`}>
+      <LazyEngagementToastStack />
       <section className={styles.header}>
         <div className={styles.mobileHeaderMain}>
           <p className={styles.eyebrow}>Live Poker Room</p>
@@ -556,6 +611,11 @@ export default function HumanTablePage() {
           </div>
         </div>
         <div className={styles.headerActions}>
+          {canShareInvite ? (
+            <button className={styles.shareCopyAction} type="button" onClick={() => void copyInviteLink()}>
+              {inviteCopied ? t.inviteLinkCopied : t.copyInviteLink}
+            </button>
+          ) : null}
           <SoundToggle />
         </div>
       </section>
@@ -600,7 +660,7 @@ export default function HumanTablePage() {
         />
       ) : null}
 
-      {!state && visibleStatus ? <p className={styles.error}>{visibleStatus}</p> : null}
+      {!state && visibleStatus ? <FormFieldError message={visibleStatus} /> : null}
 
       {state ? (
         <section className={styles.layout}>
@@ -622,46 +682,33 @@ export default function HumanTablePage() {
 
               {Array.from({ length: 6 }, (_, index) => {
                 const player = players[index];
-                return player ? (
-                  <article
-                    className={`${styles.seat} ${player.id === state.currentPlayerId ? styles.currentSeat : ""} ${winningPlayerIds.has(player.id) ? styles.winningSeat : ""} ${styles[`status_${player.status.replace("-", "_")}`] ?? ""}`}
+                const seatStyle = tableSeatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6);
+                if (!player) {
+                  return (
+                    <TableEmptySeat
+                      key={`empty-${index}`}
+                      seatStyle={seatStyle}
+                      subtitle={t.waiting}
+                      title={t.emptySeat}
+                    />
+                  );
+                }
+
+                const profitDelta =
+                  player.stack + player.totalCommitted - (buyInByPlayerId.get(player.id) ?? initialStack);
+
+                return (
+                  <TablePlayerSeat
+                    copy={{ profit: t.profit, stack: t.stack, winBadge: "WIN" }}
+                    isCurrent={player.id === state.currentPlayerId}
+                    isWinning={winningPlayerIds.has(player.id)}
                     key={player.id}
-                    style={seatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6)}
-                  >
-                    <div className={styles.seatHeader}>
-                      <strong>{player.name}</strong>
-                      <div className={styles.seatBadges}>
-                        <span>{positionLabel(index, state.dealerIndex, players.length)}</span>
-                        <span>{player.status}</span>
-                      </div>
-                    </div>
-                    <div className={styles.streetAction}>{streetActions.get(player.id) ?? (player.id === state.currentPlayerId ? t.thinking : t.waiting)}</div>
-                    {winningPlayerIds.has(player.id) ? <div className={styles.winBadge}>WIN</div> : null}
-                    <div className={styles.seatMeta}>
-                      <span><small>{t.stack}</small><strong>{player.stack}</strong></span>
-                    </div>
-                    <div className={`${styles.chipDelta} ${deltaClass(player.stack + player.totalCommitted - (buyInByPlayerId.get(player.id) ?? initialStack))}`}>
-                      {t.profit} {formatDelta(player.stack + player.totalCommitted - (buyInByPlayerId.get(player.id) ?? initialStack))}
-                    </div>
-                    <div className={styles.holeCards}>
-                      {player.holeCards?.map((card, cardIndex) => (
-                        <PlayingCard card={card} key={`${player.id}-${card.rank}${card.suit}-${cardIndex}`} small />
-                      ))}
-                      {(player.holeCards?.length ?? 0) === 0 && player.stack > 0 ? (
-                        <>
-                          <PlayingCardBack />
-                          <PlayingCardBack />
-                        </>
-                      ) : null}
-                    </div>
-                  </article>
-                ) : (
-                  <article className={`${styles.seat} ${styles.emptySeatCard}`} key={`empty-${index}`} style={seatStyle(visualSeatIndex(index, myPlayerSeatIndex, 6), 6)}>
-                    <div className={styles.seatHeader}>
-                      <strong>{t.emptySeat}</strong>
-                      <span>{t.waiting}</span>
-                    </div>
-                  </article>
+                    player={player}
+                    position={seatPositionLabel(index, state.dealerIndex, players.length)}
+                    profitDelta={profitDelta}
+                    seatStyle={seatStyle}
+                    streetAction={streetActions.get(player.id) ?? (player.id === state.currentPlayerId ? t.thinking : t.waiting)}
+                  />
                 );
               })}
             </div>
@@ -672,8 +719,14 @@ export default function HumanTablePage() {
               <span>{activePlayer ? `${activePlayer.name} ${t.thinking}` : t.waitingStart}</span>
             </div>
             <div className={styles.tableControlStack}>
-              {actionDock}
-              {visibleStatus ? <p className={styles.error}>{visibleStatus}</p> : null}
+              {actionDock ? (
+                <div
+                  className={`${styles.humanTableStickyActionBar} ${isMyTurn && pendingDecision ? styles.humanTableStickyActionBarActive : ""}`}
+                >
+                  {actionDock}
+                </div>
+              ) : null}
+              <FormFieldError message={visibleStatus} />
               {isWaitingNextHand && !needsRebuy ? (
                 <section className={`${styles.waitingInvite} ${styles.waitingNextHandPanel}`}>
                   <div>
@@ -691,7 +744,9 @@ export default function HumanTablePage() {
                     <h2>{t.waitingInviteTitle}</h2>
                     <p className={styles.muted}>{t.waitingInviteText}</p>
                   </div>
-                  <button type="button" onClick={() => void copyInviteLink()}>{t.copyInviteLink}</button>
+                  <button className={styles.shareCopyAction} type="button" onClick={() => void copyInviteLink()}>
+                    {inviteCopied ? t.inviteLinkCopied : t.copyInviteLink}
+                  </button>
                 </section>
               ) : null}
               {pendingBuyInNotice}
@@ -740,7 +795,7 @@ export default function HumanTablePage() {
                       {summary.players.map((player) => (
                         <span key={`${summary.handId}-${player.playerId}`}>
                           {player.name}
-                          <em className={deltaClass(player.netChips)}>{formatDelta(player.netChips)}</em>
+                          <em className={seatDeltaClassName(player.netChips)}>{formatSeatDelta(player.netChips)}</em>
                         </span>
                       ))}
                     </div>
@@ -767,7 +822,7 @@ export default function HumanTablePage() {
             <div className={styles.statsList}>
               <div className={styles.scoreSummary}>
                 <span><small>{t.inSeat}</small><strong>{seatedStatsCount}</strong></span>
-                <span><small>{t.totalProfit}</small><strong className={deltaClass(totalProfit)}>{formatDelta(totalProfit)}</strong></span>
+                <span><small>{t.totalProfit}</small><strong className={seatDeltaClassName(totalProfit)}>{formatSeatDelta(totalProfit)}</strong></span>
                 <span><small>{t.status}</small><strong>{totalProfit === 0 ? t.balanced : t.unbalanced}</strong></span>
               </div>
               {playerStats.map((stat) => (
@@ -779,7 +834,7 @@ export default function HumanTablePage() {
                   <span className={styles.statsStack}><small>{t.currentStack}</small><b>{stat.effectiveStack}</b></span>
                   <span className={styles.statsCommitted}><small>{t.committed}</small><b>{stat.committedChips}</b></span>
                   <span className={styles.statsEffective}><small>{t.effectiveStack}</small><b>{stat.effectiveStack}</b></span>
-                  <em className={deltaClass(stat.profit)}>{formatDelta(stat.profit)}</em>
+                  <em className={seatDeltaClassName(stat.profit)}>{formatSeatDelta(stat.profit)}</em>
                 </article>
               ))}
               {playerStats.length === 0 ? <p className={styles.muted}>{t.noActions}</p> : null}
@@ -799,7 +854,7 @@ export default function HumanTablePage() {
               </div>
               {!needsRebuy ? <button type="button" onClick={() => setBuyInDialogOpen(false)}>×</button> : null}
             </div>
-            {visibleStatus ? <p className={styles.error}>{visibleStatus}</p> : null}
+            <FormFieldError message={visibleStatus} />
             <form className={styles.buyInDialogForm} onSubmit={(event) => void requestBuyIn(event, { closeOnSuccess: !needsRebuy })}>
               <label>
                 {t.buyIn}
@@ -819,24 +874,20 @@ export default function HumanTablePage() {
         </section>
       ) : null}
 
-      {winnerReveal?.overlayVisible ? (
-        <section className={styles.winnerOverlay} aria-live="polite">
-          <div className={styles.winnerCard}>
-            <div className={styles.trophy} aria-hidden="true">🏆</div>
-            <p className={styles.eyebrow}>{t.handWinners}</p>
-            <h2>{t.hand} #{winnerReveal?.handId ?? state?.handId ?? 0}</h2>
-            <div className={styles.winnerList}>
-              {handWinners.map((winner) => (
-                <article key={winner.playerId}>
-                  <strong>{winner.name}</strong>
-                  <span>{t.wonChips} +{winner.amount.toLocaleString()}</span>
-                  <small>{t.winReason}: {formatWinReason(winner.handLabel, language)}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
+      <TableMomentOverlay
+        eyebrow={t.handWinners}
+        handId={winnerReveal?.handId ?? state?.handId ?? 0}
+        handLabel={t.hand}
+        open={Boolean(winnerReveal?.overlayVisible && handWinners.length > 0)}
+        variant="handWin"
+        winners={handWinners.map((winner) => ({
+          amount: winner.amount,
+          name: winner.name,
+          playerId: winner.playerId,
+          winReason: winner.handLabel ? `${t.winReason}: ${formatWinReason(winner.handLabel, language)}` : undefined,
+          wonChipsLabel: t.wonChips,
+        }))}
+      />
     </main>
   );
 }
@@ -1056,40 +1107,6 @@ function ActionButtons({
   );
 }
 
-function seatStyle(index: number, totalSeats: number) {
-  const fixedSeats = [
-    { left: 50, top: 14 },
-    { left: 82, top: 30 },
-    { left: 82, top: 70 },
-    { left: 50, top: 86 },
-    { left: 18, top: 70 },
-    { left: 18, top: 30 },
-  ];
-
-  if (totalSeats === fixedSeats.length) {
-    return {
-      left: `${fixedSeats[index]?.left ?? 50}%`,
-      top: `${fixedSeats[index]?.top ?? 50}%`,
-    };
-  }
-
-  const angle = -90 + (360 / totalSeats) * index;
-  const radius = 43;
-  return {
-    left: `${50 + radius * Math.cos((angle * Math.PI) / 180)}%`,
-    top: `${50 + radius * Math.sin((angle * Math.PI) / 180)}%`,
-  };
-}
-
-function visualSeatIndex(logicalIndex: number, ownSeatIndex: number, totalSeats: number) {
-  if (ownSeatIndex < 0) {
-    return logicalIndex;
-  }
-
-  const bottomSeatIndex = Math.floor(totalSeats / 2);
-  return (logicalIndex - ownSeatIndex + bottomSeatIndex + totalSeats) % totalSeats;
-}
-
 function currentStreetActions(state?: GameSnapshot) {
   const actions = new Map<string, string>();
   if (!state) {
@@ -1179,49 +1196,19 @@ function formatStreetAction(item: GameSnapshot["actionHistory"][number]) {
   return item.action;
 }
 
-function positionLabel(index: number, dealerIndex: number, playerCount: number) {
-  if (playerCount <= 0) {
-    return "Seat";
-  }
-
-  const distance = (index - dealerIndex + playerCount) % playerCount;
-  if (playerCount === 2) {
-    return distance === 0 ? "BTN/SB" : "BB";
-  }
-
-  const labels = ["BTN", "SB", "BB", "UTG", "HJ", "CO"];
-  return labels[Math.min(distance, labels.length - 1)] ?? `P${distance + 1}`;
-}
-
-function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {
+const PlayingCard = memo(function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {
   const red = card.suit === "h" || card.suit === "d";
   const suit = { s: "♠", h: "♥", d: "♦", c: "♣" }[card.suit];
   return <span className={`${styles.playingCard} ${small ? styles.smallCard : ""} ${red ? styles.redCard : ""}`}>{`${card.rank}${suit}`}</span>;
-}
+});
 
 function PlayingCardBack() {
   return <span className={`${styles.playingCard} ${styles.smallCard} ${styles.cardBack}`} aria-label="card pending" />;
 }
 
-function formatDelta(delta: number) {
-  return delta > 0 ? `+${delta}` : String(delta);
-}
-
 function isValidBuyIn(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= initialStack && parsed % initialStack === 0;
-}
-
-function deltaClass(delta: number) {
-  if (delta > 0) {
-    return styles.positive;
-  }
-
-  if (delta < 0) {
-    return styles.negative;
-  }
-
-  return styles.neutral;
 }
 
 function formatTimeLeft(ms: number) {

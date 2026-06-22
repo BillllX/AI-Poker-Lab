@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { trackEngagement } from "@/lib/client/engagementAnalytics";
 import { withBasePath } from "@/lib/client/basePath";
+import { prefetchAppRoute, prefetchBottomNavRoutes, prefetchLobbyRoute } from "@/lib/client/prefetchTableRoutes";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./BottomNav.module.css";
 
@@ -18,6 +20,7 @@ const copy = {
     home: "主页",
     leaderboard: "排行榜",
     arena: "竞技场",
+    practice: "练习",
     myPlayer: "我的牌手",
     login: "登录",
   },
@@ -26,6 +29,7 @@ const copy = {
     home: "Home",
     leaderboard: "Leaderboard",
     arena: "Arena",
+    practice: "Practice",
     myPlayer: "My Player",
     login: "Log in",
   },
@@ -34,10 +38,11 @@ const copy = {
 const authChangedEvent = "texas-poker-auth-changed";
 
 export function BottomNav() {
+  const router = useRouter();
   const { language } = useLanguage();
   const pathname = usePathname();
   const t = copy[language];
-  const [user, setUser] = useState<SessionUser | null>();
+  const [user, setUser] = useState<SessionUser | null>(null);
   const profileHref = user ? "/me" : "/login";
   const profileLabel = user ? t.myPlayer : t.login;
   const navItems = [
@@ -59,6 +64,12 @@ export function BottomNav() {
       label: t.arena,
       match: (currentPathname: string) => currentPathname === "/tables" || currentPathname.startsWith("/tables/") || currentPathname === "/table",
     },
+    {
+      href: "/human-table",
+      icon: PracticeIcon,
+      label: t.practice,
+      match: (currentPathname: string) => currentPathname === "/human-table",
+    },
   ];
 
   useEffect(() => {
@@ -69,11 +80,12 @@ export function BottomNav() {
         const response = await fetch(withBasePath("/api/users/me"), { cache: "no-store" });
         const payload = await response.json();
         if (!cancelled) {
-          setUser(response.ok ? payload.user ?? null : null);
+          const nextUser = response.ok ? payload.user ?? null : null;
+          setUser((current) => (current?.id === nextUser?.id && current?.name === nextUser?.name ? current : nextUser));
         }
       } catch {
         if (!cancelled) {
-          setUser(null);
+          setUser((current) => (current === null ? current : null));
         }
       }
     }
@@ -86,7 +98,19 @@ export function BottomNav() {
       window.removeEventListener("focus", loadSession);
       window.removeEventListener(authChangedEvent, loadSession);
     };
-  }, []);
+  }, [router]);
+
+  useEffect(() => {
+    prefetchBottomNavRoutes(router, profileHref);
+  }, [profileHref, router]);
+
+  function prefetchNavRoute(href: string) {
+    if (href === "/tables") {
+      prefetchLobbyRoute(router);
+      return;
+    }
+    prefetchAppRoute(router, href);
+  }
 
   return (
     <nav className={styles.bottomNav} aria-label={t.ariaLabel}>
@@ -94,12 +118,29 @@ export function BottomNav() {
         href: profileHref,
         icon: PlayerIcon,
         label: profileLabel,
-        match: (currentPathname: string) => currentPathname === "/me" || currentPathname === "/journey",
+        match: (currentPathname: string) =>
+          currentPathname === "/me" || currentPathname === "/journey" || currentPathname === "/login",
       }].map((item) => {
         const Icon = item.icon;
         const active = item.match(pathname);
         return (
-          <Link className={active ? styles.activeItem : styles.navItem} href={item.href} key={item.label}>
+          <Link
+            aria-current={active ? "page" : undefined}
+            className={styles.navItem}
+            data-active={active ? "true" : undefined}
+            href={item.href}
+            key={item.href}
+            onMouseEnter={() => prefetchNavRoute(item.href)}
+            onClick={() => {
+              if (item.href === "/human-table") {
+                trackEngagement({
+                  at: new Date().toISOString(),
+                  from: pathname,
+                  name: "engagement.nav.practice_click",
+                });
+              }
+            }}
+          >
             <Icon />
             <span>{item.label}</span>
           </Link>
@@ -129,6 +170,14 @@ function ArenaIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="M6.8 4.2h10.4a2 2 0 0 1 2 2v11.6a2 2 0 0 1-2 2H6.8a2 2 0 0 1-2-2V6.2a2 2 0 0 1 2-2m1.1 3.2v4.1h3.2V7.4zm5 0v4.1h3.2V7.4zm-5 6.1v3.1h8.2v-3.1z" />
+    </svg>
+  );
+}
+
+function PracticeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M7.2 4.8h9.6a1.8 1.8 0 0 1 1.8 1.8v10.8a1.8 1.8 0 0 1-1.8 1.8H7.2a1.8 1.8 0 0 1-1.8-1.8V6.6a1.8 1.8 0 0 1 1.8-1.8m2.2 2.4a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8m5.2 0a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8M6.8 18.2c1.2-2.8 2.8-4.2 5.2-4.2s4 1.4 5.2 4.2z" />
     </svg>
   );
 }

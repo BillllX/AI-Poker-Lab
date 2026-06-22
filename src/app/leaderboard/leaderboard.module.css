@@ -10,10 +10,14 @@
   max-width: 960px;
 }
 
+.emptySlot {
+  margin-top: 4px;
+}
+
 .hero {
   background:
     linear-gradient(90deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.84) 48%, rgba(13, 33, 24, 0.34) 100%),
-    url("/images/landing/leaderboard-trophy-podium.png") right center / cover no-repeat,
+    var(--leaderboard-hero-bg, url("/images/landing/leaderboard-trophy-podium.webp")) right center / cover no-repeat,
     radial-gradient(circle at 12% 0%, rgba(250, 204, 21, 0.2), transparent 18rem),
     linear-gradient(135deg, rgba(13, 33, 24, 0.94), rgba(10, 27, 20, 0.72));
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -39,7 +43,7 @@
 }
 
 .hero p:last-child {
-  color: rgba(238, 248, 241, 0.72);
+  color: var(--text-secondary);
   font-size: clamp(16px, 2vw, 20px);
   line-height: 1.7;
   margin: 0;
@@ -52,12 +56,44 @@
   margin-top: 18px;
 }
 
+.boardTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px auto 0;
+  max-width: 960px;
+}
+
+.boardTab {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(118, 228, 170, 0.18);
+  border-radius: 999px;
+  color: rgba(226, 232, 240, 0.78);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: var(--touch-target-min, 44px);
+  padding: 10px 16px;
+}
+
+.boardTabActive {
+  background: rgba(118, 228, 170, 0.14);
+  border-color: rgba(118, 228, 170, 0.42);
+  color: #6ee7a8;
+}
+
+.boardTab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
 .row,
 .podiumRow,
 .empty {
   align-items: center;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--list-row-surface);
+  border: 1px solid var(--list-row-border);
   border-radius: 22px;
   display: grid;
   gap: 14px;
@@ -82,8 +118,12 @@
 .podiumRow {
   background:
     radial-gradient(circle at 0% 0%, rgba(250, 204, 21, 0.16), transparent 12rem),
-    rgba(255, 255, 255, 0.08);
+    var(--list-row-surface-alt);
   border-color: rgba(250, 204, 21, 0.24);
+}
+
+.board > .row:nth-child(even):not(.podiumRow):not(.activeMovingRow) {
+  background: var(--list-row-surface-alt);
 }
 
 .rank {
@@ -121,7 +161,7 @@
 }
 
 .player small {
-  color: rgba(238, 248, 241, 0.58);
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 
@@ -247,7 +287,7 @@
 }
 
 .celebrationText {
-  color: rgba(238, 248, 241, 0.72);
+  color: var(--text-secondary);
   font-size: 15px;
   line-height: 1.7;
 }
@@ -275,7 +315,13 @@
 }
 
 .empty {
-  color: rgba(238, 248, 241, 0.68);
+  color: var(--text-secondary);
+  display: block;
+  margin: 0;
+}
+
+.loadError {
+  color: var(--danger);
   display: block;
   margin: 0;
 }
@@ -288,60 +334,84 @@
   .hero {
     background:
       linear-gradient(180deg, rgba(13, 33, 24, 0.94) 0%, rgba(13, 33, 24, 0.72) 100%),
-      url("/images/landing/leaderboard-trophy-podium.png") center top / cover no-repeat;
+      var(--leaderboard-hero-bg, url("/images/landing/leaderboard-trophy-podium.webp")) center top / cover no-repeat;
     border-radius: 28px;
     padding: 28px 20px;
   }
 
-  .row,
-  .podiumRow {
-    gap: 8px;
+  .boardMobileCards {
+    gap: 12px;
+  }
+
+  .boardMobileCards .row,
+  .boardMobileCards .podiumRow {
+    align-items: stretch;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    display: grid;
+    gap: 8px 10px;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    min-height: 0;
-    padding: 10px 12px;
+    grid-template-rows: auto auto;
+    min-height: var(--touch-target-min);
+    padding: 14px 16px;
   }
 
-  .rank {
-    font-size: 12px;
-    min-width: 40px;
-    padding: 6px 8px;
+  .boardMobileCards .podiumRow {
+    border-color: rgba(245, 200, 75, 0.32);
+    padding: 16px;
   }
 
-  .player {
-    gap: 0;
+  .boardMobileCards .rank {
+    align-self: center;
+    font-size: 13px;
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 46px;
+    padding: 8px 10px;
   }
 
-  .player a {
-    font-size: 15px;
-    line-height: 1.1;
-  }
-
-  .player small {
-    display: none;
-  }
-
-  .score {
-    align-items: center;
+  .boardMobileCards .score {
+    align-items: flex-end;
     display: flex;
-    flex-direction: row-reverse;
-    gap: 6px;
-    justify-content: flex-start;
-    justify-items: end;
+    flex-direction: column;
+    gap: 4px;
+    grid-column: 3;
+    grid-row: 1;
+    justify-content: center;
+    justify-self: end;
     min-width: 0;
   }
 
-  .row strong,
-  .podiumRow strong {
-    font-size: 14px;
-    line-height: 1;
+  .boardMobileCards .player {
+    gap: 4px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .boardMobileCards .player a {
+    font-size: 17px;
+    line-height: 1.2;
+  }
+
+  .boardMobileCards .player small {
+    color: var(--muted);
+    display: block;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .boardMobileCards .row strong,
+  .boardMobileCards .podiumRow strong {
+    font-size: 16px;
+    line-height: 1.1;
     text-align: right;
     white-space: nowrap;
   }
 
-  .rankMove {
+  .boardMobileCards .rankMove {
     font-size: 10px;
     letter-spacing: 0;
-    padding: 3px 6px;
+    padding: 3px 7px;
     text-transform: none;
   }
 
@@ -419,7 +489,7 @@
 .hero {
   background:
     linear-gradient(90deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.84) 48%, rgba(13, 33, 24, 0.34) 100%),
-    url("/images/landing/leaderboard-trophy-podium.png") right center / cover no-repeat,
+    var(--leaderboard-hero-bg, url("/images/landing/leaderboard-trophy-podium.webp")) right center / cover no-repeat,
     var(--surface-1);
 }
 
@@ -427,7 +497,7 @@
   .hero {
     background:
       linear-gradient(180deg, rgba(13, 33, 24, 0.96) 0%, rgba(13, 33, 24, 0.78) 100%),
-      url("/images/landing/leaderboard-trophy-podium.png") center top / cover no-repeat,
+      var(--leaderboard-hero-bg, url("/images/landing/leaderboard-trophy-podium.webp")) center top / cover no-repeat,
       var(--surface-1);
   }
 }
@@ -448,8 +518,6 @@
   }
 
   .hero,
-  .row,
-  .podiumRow,
   .empty {
     box-shadow: none;
   }
@@ -475,5 +543,120 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+.pageWithStickyRank {
+  padding-bottom: calc(150px + env(safe-area-inset-bottom));
+}
+
+.myRankSticky {
+  backdrop-filter: blur(14px);
+  background:
+    linear-gradient(180deg, rgba(18, 54, 38, 0.94), rgba(5, 18, 13, 0.98)),
+    rgba(5, 18, 13, 0.96);
+  border: 1px solid rgba(118, 228, 170, 0.28);
+  border-radius: 22px;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  display: grid;
+  gap: 8px;
+  left: 50%;
+  max-width: 520px;
+  padding: 12px 14px;
+  position: fixed;
+  transform: translateX(-50%);
+  width: min(calc(100% - 28px), 520px);
+  z-index: 49;
+}
+
+.myRankInner {
+  align-items: center;
+  display: grid;
+  gap: 10px 12px;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+
+.myRankEyebrow {
+  color: rgba(110, 231, 168, 0.82);
+  font-size: 10px;
+  font-weight: 900;
+  grid-column: 1 / -1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.myRankValue {
+  align-items: center;
+  background: rgba(245, 200, 75, 0.14);
+  border: 1px solid rgba(245, 200, 75, 0.24);
+  border-radius: 999px;
+  color: var(--warning, #f5c84b);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  justify-content: center;
+  min-width: 52px;
+  padding: 8px 10px;
+}
+
+.myRankPlayer {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.myRankPlayer strong {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myRankPlayer small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myRankScore {
+  color: var(--warning, #f5c84b);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.myRankJump {
+  background: rgba(118, 228, 170, 0.12);
+  border: 1px solid rgba(118, 228, 170, 0.28);
+  border-radius: 999px;
+  color: #6ee7a8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: var(--touch-target-min, 44px);
+  padding: 8px 14px;
+  width: 100%;
+}
+
+.myRankJump:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .myRankSticky {
+    border-radius: 22px 22px 0 0;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    max-width: none;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .myRankJump {
+    transition: none;
   }
 }

@@ -1,0 +1,411 @@
+.root {
+  display: none;
+  position: relative;
+  z-index: 11;
+}
+
+.collapsedBar {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.92);
+  border: none;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.35);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  width: 100%;
+}
+
+.collapsedBar:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: -2px;
+}
+
+.starIcon {
+  color: #fbbf24;
+  font-size: 0.95rem;
+}
+
+.collapsedLabel {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.collapsedMeta {
+  color: #cbd5e1;
+  flex: 1;
+  font-size: 0.82rem;
+  min-width: 0;
+  text-align: left;
+}
+
+.collapsedStars {
+  color: #fde68a;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.chevron {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.announcementDot {
+  background: #22d3ee;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(8, 47, 73, 0.65);
+  height: 8px;
+  width: 8px;
+}
+
+.sheetTabs {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.sheetTab,
+.sheetTabActive {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  gap: 6px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
+.sheetTabActive {
+  background: rgba(168, 85, 247, 0.18);
+  border-color: rgba(192, 132, 252, 0.45);
+  color: #f3e8ff;
+}
+
+.tabDot {
+  background: #22d3ee;
+  border-radius: 999px;
+  height: 7px;
+  width: 7px;
+}
+
+.announcementCard {
+  background: linear-gradient(90deg, rgba(8, 145, 178, 0.18), rgba(168, 85, 247, 0.14));
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.announcementMessage {
+  color: #e0f2fe;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+
+.announcementActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.announcementDismiss {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+  color: #cbd5e1;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  min-height: 36px;
+  padding: 6px 12px;
+}
+
+.announcementsEmpty {
+  color: #94a3b8;
+  font-size: 0.84rem;
+  margin: 0;
+  padding: 8px 2px 12px;
+}
+
+.backdrop {
+  background: rgba(2, 6, 23, 0.55);
+  border: none;
+  cursor: pointer;
+  inset: 0;
+  position: fixed;
+  z-index: 12;
+}
+
+.sheet {
+  background: #0f172a;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
+  left: 0;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 14px 14px 18px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 13;
+}
+
+.sheetHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sheetEyebrow {
+  color: #d8b4fe;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.sheetTitle {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.activeBadge {
+  background: rgba(34, 197, 94, 0.16);
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  border-radius: 999px;
+  color: #86efac;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.activeBadgeCelebrate {
+  animation: questActivePop 720ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes questActivePop {
+  0% {
+    transform: scale(0.92);
+  }
+
+  45% {
+    box-shadow: 0 0 0 6px rgba(74, 222, 128, 0.18);
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.questList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.questItem {
+  background: rgba(30, 41, 59, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.questItemComplete {
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.questHead {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tagCore,
+.tagOptional {
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+
+.tagCore {
+  background: rgba(168, 85, 247, 0.2);
+  color: #e9d5ff;
+}
+
+.tagOptional {
+  background: rgba(34, 211, 238, 0.14);
+  color: #a5f3fc;
+}
+
+.questHead strong {
+  flex: 1;
+  font-size: 0.92rem;
+}
+
+.questDoneMark {
+  color: #86efac;
+  font-weight: 800;
+}
+
+.questDescription {
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 6px 0 8px;
+}
+
+.progressTrack {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.progressFill {
+  background: linear-gradient(90deg, #a855f7, #22d1ee);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.questMeta {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  margin: 8px 0 0;
+}
+
+.questCta {
+  background: rgba(168, 85, 247, 0.16);
+  border: 1px solid rgba(192, 132, 252, 0.42);
+  border-radius: 999px;
+  color: #e9d5ff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-top: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  text-decoration: none;
+}
+
+.questCta:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+.rewardFooter {
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.rewardHint {
+  color: #fde68a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.rewardEarned {
+  color: #6ee7b7;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.rewardMuted {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.allCompleteBanner {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  border-radius: 10px;
+  color: #bbf7d0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+}
+
+.bonusTodayBanner {
+  color: #6ee7b7;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 10px 0 0;
+  text-align: center;
+}
+
+.guestBanner {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+}
+
+.guestBanner p {
+  color: #bfdbfe;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activeBadgeCelebrate {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .root {
+    display: block;
+  }
+
+  .collapsedBar {
+    max-height: 48px;
+    min-height: 40px;
+    padding: 6px 12px;
+  }
+
+  .collapsedLabel,
+  .collapsedMeta,
+  .collapsedStars {
+    font-size: 0.78rem;
+  }
+}

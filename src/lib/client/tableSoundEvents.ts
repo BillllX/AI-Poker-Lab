@@ -5,7 +5,9 @@ import { audioManager, type TableSoundName } from "@/lib/client/audioManager";
 import type { GameSnapshot } from "@/lib/poker/types";
 
 type TableSoundOptions = {
+  enableMyAgentDeciding?: boolean;
   enableYourTurn?: boolean;
+  myAgentOwnerUserId?: string;
   myPlayerId?: string;
 };
 
@@ -18,10 +20,6 @@ type Baseline = {
 
 export function useTableSounds(state: GameSnapshot | undefined, options: TableSoundOptions = {}) {
   const baselineRef = useRef<Baseline | undefined>(undefined);
-
-  useEffect(() => {
-    audioManager.preload();
-  }, []);
 
   useEffect(() => {
     if (!state) {
@@ -68,8 +66,20 @@ export function useTableSounds(state: GameSnapshot | undefined, options: TableSo
       audioManager.play("yourTurn", { minIntervalMs: 1_500, volume: 0.8 });
     }
 
+    if (
+      options.enableMyAgentDeciding &&
+      options.myAgentOwnerUserId &&
+      state.currentPlayerId &&
+      previous.currentPlayerId !== state.currentPlayerId
+    ) {
+      const decidingPlayer = state.players.find((player) => player.id === state.currentPlayerId);
+      if (decidingPlayer?.ownerUserId === options.myAgentOwnerUserId && decidingPlayer.kind !== "virtual") {
+        audioManager.play("myAgentDeciding", { minIntervalMs: 1_500, volume: 0.72 });
+      }
+    }
+
     baselineRef.current = nextBaseline;
-  }, [options.enableYourTurn, options.myPlayerId, state]);
+  }, [options.enableMyAgentDeciding, options.enableYourTurn, options.myAgentOwnerUserId, options.myPlayerId, state]);
 }
 
 function soundForAction(item: GameSnapshot["actionHistory"][number]): TableSoundName | undefined {

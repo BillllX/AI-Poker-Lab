@@ -1,4 +1,5 @@
 import { getTableManager } from "@/lib/server/simulator";
+import { withSpectatorSnapshot } from "@/lib/server/tableSpectators";
 
 export async function GET(request: Request, context: { params: Promise<{ tableId: string }> }) {
   const { tableId } = await context.params;
@@ -9,5 +10,6 @@ export async function GET(request: Request, context: { params: Promise<{ tableId
     return Response.json({ error: "Table was not found." }, { status: 404 });
   }
 
-  return Response.json(table.runner.cachedSnapshot().snapshot);
+  const cached = table.runner.cachedSnapshot();
+  return Response.json(withSpectatorSnapshot(tableId, cached.snapshot, cached.version).snapshot);
 }

@@ -1,16 +1,10 @@
 import Image from "next/image";
-import type { Metadata } from "next";
 import styles from "./casino-org.module.css";
-
-export const metadata: Metadata = {
-  title: "AI Poker Lab for Casino.org",
-  description:
-    "A mobile-first AI poker engagement layer for Casino.org: virtual points, AI players, live tables, retention, and content growth.",
-};
+import { imageSizes } from "@/lib/client/imageSizes";
 
 const screenshots = [
   {
-    src: "/images/casino-pitch/home-leaderboard.png",
+    src: "/images/casino-pitch/home-leaderboard.webp",
     alt: "Mobile homepage with AI Poker Lab leaderboard",
     title: "Instant consumer hook",
     text: "A clear mobile CTA, visible leaderboard, and no real-money framing.",
@@ -18,7 +12,7 @@ const screenshots = [
     height: 954,
   },
   {
-    src: "/images/casino-pitch/lobby-active.png",
+    src: "/images/casino-pitch/lobby-active.webp",
     alt: "Mobile match lobby with active AI poker table",
     title: "Live match lobby",
     text: "Users can see active tables, seats, and their own AI player status.",
@@ -26,7 +20,7 @@ const screenshots = [
     height: 955,
   },
   {
-    src: "/images/casino-pitch/live-table.png",
+    src: "/images/casino-pitch/live-table.webp",
     alt: "Mobile AI poker live table",
     title: "Watchable poker action",
     text: "The table turns virtual-point gameplay into a spectator experience.",
@@ -34,7 +28,7 @@ const screenshots = [
     height: 949,
   },
   {
-    src: "/images/casino-pitch/my-player.png",
+    src: "/images/casino-pitch/my-player.webp",
     alt: "Mobile AI player training room",
     title: "AI player identity",
     text: "Each user owns a player profile, progress, style, rank, and match history.",
@@ -42,7 +36,7 @@ const screenshots = [
     height: 960,
   },
   {
-    src: "/images/casino-pitch/table-coaching.png",
+    src: "/images/casino-pitch/table-coaching.webp",
     alt: "Mobile coaching panel for AI poker player",
     title: "Coaching loop",
     text: "Users return to tune strategy, watch outcomes, and improve their AI.",
@@ -50,7 +44,7 @@ const screenshots = [
     height: 961,
   },
   {
-    src: "/images/casino-pitch/home-growth.png",
+    src: "/images/casino-pitch/home-growth.webp",
     alt: "Mobile player growth section",
     title: "Content and research mode",
     text: "Advanced agent access creates AI-native stories for poker audiences.",
@@ -225,12 +219,13 @@ function PhoneCard({
     <article className={`${styles.phoneCard} ${className ?? ""}`}>
       <div className={styles.phoneFrame}>
         <Image
-          src={image.src}
           alt={image.alt}
-          width={image.width}
           height={image.height}
           priority={priority}
-          sizes="(max-width: 640px) 292px, 315px"
+          sizes={imageSizes.casinoPhone}
+          src={image.src}
+          unoptimized
+          width={image.width}
         />
       </div>
       <div className={styles.phoneCaption}>

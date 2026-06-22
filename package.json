@@ -5,14 +5,20 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "analyze:bundle": "node scripts/generate-bundle-report.mjs",
     "start": "tsx server.ts",
-    "lint": "eslint .",
+    "lint": "eslint . && npm run check:basepath && npm run check:external-store-snapshots",
+    "check:basepath": "node scripts/check-basepath-compliance.mjs",
+    "check:external-store-snapshots": "node scripts/check-external-store-snapshots.mjs && npm run test:external-store-snapshots",
+    "test:external-store-snapshots": "tsx scripts/external-store-snapshot-smoke.ts",
+    "compress:images": "node scripts/compress-public-images.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:dev": "prisma migrate dev",
     "test:hand-analysis": "tsx scripts/hand-analysis-smoke.ts",
     "test:hosted-decision": "tsx scripts/hosted-decision-smoke.ts",
     "test:leaderboard-rank": "tsx scripts/leaderboard-rank-smoke.ts",
+    "test:quest-bonus": "tsx scripts/quest-bonus-smoke.ts",
     "test:lifecycle": "tsx scripts/lifecycle-smoke.ts",
     "test:onboarding": "tsx scripts/onboarding-smoke.ts",
     "test:user-auth": "tsx scripts/user-auth-smoke.ts",
@@ -28,6 +34,7 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.9",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
@@ -35,6 +42,7 @@
     "eslint": "latest",
     "eslint-config-next": "latest",
     "prisma": "^7.8.0",
+    "sharp": "^0.35.2",
     "tsx": "^4.21.0",
     "typescript": "latest"
   }

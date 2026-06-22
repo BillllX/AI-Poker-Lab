@@ -1,5 +1,6 @@
 import { getHumanTableManager } from "@/lib/server/humanTableManager";
 import { getUserFromSessionCookieLite } from "@/lib/server/userRegistry";
+import { slimHumanTableSnapshotForSse } from "@/lib/server/sseSnapshot";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
         if (cached.version !== lastVersion) {
           lastVersion = cached.version;
           lastHeartbeatAt = Date.now();
-          send("snapshot", cached.snapshot);
+          send("snapshot", slimHumanTableSnapshotForSse(cached.snapshot));
           return;
         }
         if (Date.now() - lastHeartbeatAt >= idleHeartbeatMs) {

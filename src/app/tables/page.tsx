@@ -2,8 +2,23 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { withBasePath } from "@/lib/client/basePath";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { FormFieldError } from "@/components/FormFieldMessage";
+import { SkeletonCardGrid } from "@/components/SkeletonBlock";
+import { EmptyState } from "@/components/EmptyState";
+import { SeasonEventBadge } from "@/components/SeasonEventBadge";
+import { withBasePath, publicAssetBackground } from "@/lib/client/basePath";
+import { liveRegionProps } from "@/lib/client/liveRegion";
+import { trackEngagement } from "@/lib/client/engagementAnalytics";
+import {
+  prefetchTableSpectatorRoute,
+  prefetchTableSpectatorRoutes,
+  prefetchLeaderboardRoute,
+  tableSpectatorPath,
+} from "@/lib/client/prefetchTableRoutes";
+import { publicApiFetchInit } from "@/lib/client/publicApiFetch";
+import { readRecentSpectate, subscribeRecentSpectate } from "@/lib/client/recentSpectate";
+import { recordQuestQuickPlayComplete } from "@/lib/client/questOptionalProgress";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./tables.module.css";
 
@@ -53,8 +68,11 @@ const copy = {
     full: "满员",
     seatsLeft: "剩余 {count} 个座位",
     enterSpectate: "实时观战",
-    emptyTableTitle: "等待第一场比赛创建",
-    emptyTableText: "当 AI 牌手完成准入并保持在线后，系统会自动安排入座，形成可观战的比赛桌。",
+    emptyTableTitle: "还没有正在进行的比赛桌",
+    emptyTableText: "你可以等待在线 AI 自动入座，也可以先创建自己的托管 AI 牌手，让大厅更快开赛。",
+    emptyTableAction: "创建 AI 牌手",
+    lobbyLoading: "正在加载比赛大厅…",
+    lobbyLoadFailed: "比赛大厅加载失败，请刷新页面。",
     queue: "等待入场",
     roster: "AI 牌手名册",
     noQueuedAgents: "当前没有等待入场的 AI 牌手。",
@@ -66,10 +84,12 @@ const copy = {
     myPlayer: "我的牌手",
     myPlayerPlaying: "你的 AI 牌手正在比赛，继续进入牌桌观战和查看状态。",
     myPlayerIdle: "还没有正在比赛的牌手，去 My Player 创建托管牌手并加入比赛。",
-    myPlayerGuest: "可以先观战，也可以回首页快速创建自己的 AI 牌手。",
+    myPlayerGuest: "还没有自己的 AI 牌手？从首页 Quick Play 创建一个托管牌手，系统会自动安排入座。",
     continueWatching: "继续观看我的牌手",
+    continueRecentSpectate: "继续上次观战",
+    continueRecentSpectateMeta: (name: string) => `「${name}」`,
     launchMyPlayer: "快速开赛",
-    launchFromHome: "回首页快速开赛",
+    launchFromHome: "创建 AI 并开赛",
     quickPlayStarting: "正在进入牌桌...",
     quickPlayFailed: "快速开赛失败。",
     mineBadge: "我的牌手在这桌",
@@ -95,8 +115,11 @@ const copy = {
     full: "Full",
     seatsLeft: "{count} seats left",
     enterSpectate: "Spectate Live",
-    emptyTableTitle: "Waiting for the first match",
-    emptyTableText: "Once AI players qualify and stay online, the system seats them automatically into match tables people can watch.",
+    emptyTableTitle: "No active match tables yet",
+    emptyTableText: "Wait for online AI players to auto-seat, or create your own hosted AI player to help the lobby start faster.",
+    emptyTableAction: "Create an AI player",
+    lobbyLoading: "Loading match lobby…",
+    lobbyLoadFailed: "Couldn't load the match lobby. Refresh the page.",
     queue: "Entry Queue",
     roster: "AI Player Roster",
     noQueuedAgents: "No AI players are waiting to enter.",
@@ -108,10 +131,12 @@ const copy = {
     myPlayer: "My Player",
     myPlayerPlaying: "Your AI player is seated. Continue watching and checking its status from the table.",
     myPlayerIdle: "No active player yet. Open My Player to create a hosted player and join a match.",
-    myPlayerGuest: "Spectate freely, or return home to quickly create your own AI player.",
+    myPlayerGuest: "No AI player yet? Create a hosted player from Quick Play and the system will seat it automatically.",
     continueWatching: "Continue Watching My Player",
+    continueRecentSpectate: "Continue last watch",
+    continueRecentSpectateMeta: (name: string) => `"${name}"`,
     launchMyPlayer: "Play Now",
-    launchFromHome: "Start From Home",
+    launchFromHome: "Create AI and Play",
     quickPlayStarting: "Entering table...",
     quickPlayFailed: "Quick play failed.",
     mineBadge: "My player is here",
@@ -125,23 +150,36 @@ export default function TablesPage() {
   const { language } = useLanguage();
   const router = useRouter();
   const t = copy[language];
+  const recentSpectate = useSyncExternalStore(subscribeRecentSpectate, readRecentSpectate, () => undefined);
   const [tables, setTables] = useState<TableSummary[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [queuedAgents, setQueuedAgents] = useState<AgentSummary[]>([]);
   const [me, setMe] = useState<ClubUser | null>();
+  const [loadState, setLoadState] = useState<"error" | "loading" | "ready">("loading");
   const [quickPlayBusy, setQuickPlayBusy] = useState(false);
   const [quickPlayError, setQuickPlayError] = useState<string>();
   const runningTables = tables.filter((table) => table.running).length;
   const seatedAgents = agents.filter((agent) => agent.tableId).length;
   const myAgent = me ? agents.find((agent) => agent.ownerUserId === me.id) : undefined;
   const myTable = myAgent?.tableId ? tables.find((table) => table.id === myAgent.tableId) : undefined;
+  const resumeSpectate =
+    recentSpectate && (!myTable || recentSpectate.tableId !== myTable.id) ? recentSpectate : undefined;
 
   async function refresh() {
-    const response = await fetch(withBasePath("/api/tables"), { cache: "no-store" });
-    const payload = await response.json();
-    setTables(Array.isArray(payload.tables) ? payload.tables : []);
-    setAgents(Array.isArray(payload.agents) ? payload.agents : []);
-    setQueuedAgents(Array.isArray(payload.queuedAgents) ? payload.queuedAgents : []);
+    try {
+      const response = await fetch(withBasePath("/api/tables?limit=32&agentLimit=60"), publicApiFetchInit);
+      if (!response.ok) {
+        setLoadState((current) => (current === "ready" ? "ready" : "error"));
+        return;
+      }
+      const payload = await response.json();
+      setTables(Array.isArray(payload.tables) ? payload.tables : []);
+      setAgents(Array.isArray(payload.agents) ? payload.agents : []);
+      setQueuedAgents(Array.isArray(payload.queuedAgents) ? payload.queuedAgents : []);
+      setLoadState("ready");
+    } catch {
+      setLoadState((current) => (current === "ready" ? "ready" : "error"));
+    }
   }
 
   async function refreshMe() {
@@ -174,6 +212,12 @@ export default function TablesPage() {
       } else {
         await refreshMe();
       }
+      trackEngagement({
+        at: new Date().toISOString(),
+        name: "engagement.quick_play.success",
+        tableId: payload.tableId ?? undefined,
+      });
+      recordQuestQuickPlayComplete();
       router.push(payload.tableUrl ?? (payload.tableId ? `/tables/${encodeURIComponent(payload.tableId)}` : "/tables"));
     } finally {
       setQuickPlayBusy(false);
@@ -182,6 +226,7 @@ export default function TablesPage() {
 
   useEffect(() => {
     const initial = setTimeout(() => {
+      setLoadState("loading");
       void refresh();
       void refreshMe();
     }, 0);
@@ -192,10 +237,36 @@ export default function TablesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    prefetchLeaderboardRoute(router);
+  }, [router]);
+
+  useEffect(() => {
+    if (loadState !== "ready" || tables.length === 0) {
+      return;
+    }
+    prefetchTableSpectatorRoutes(router, tables);
+  }, [loadState, router, tables]);
+
+  useEffect(() => {
+    if (!resumeSpectate?.tableId) {
+      return;
+    }
+    prefetchTableSpectatorRoute(router, resumeSpectate.tableId);
+  }, [resumeSpectate?.tableId, router]);
+
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
+      <section
+        className={styles.hero}
+        style={
+          {
+            "--tables-hero-bg": publicAssetBackground("/images/landing/arena-lobby-panorama.png"),
+          } as React.CSSProperties
+        }
+      >
         <div className={styles.heroCopy}>
+          <SeasonEventBadge className={styles.heroBadges} />
           <p className={styles.eyebrow}>{t.eyebrow}</p>
           <h1>{t.title}</h1>
           <p>{t.subtitle}</p>
@@ -224,17 +295,63 @@ export default function TablesPage() {
         <div>
           <p className={styles.eyebrow}>{t.myPlayer}</p>
           <h2>{myTable ? t.myPlayerPlaying : me ? t.myPlayerIdle : t.myPlayerGuest}</h2>
-          {quickPlayError && <p className={styles.bannerError}>{quickPlayError}</p>}
+          <FormFieldError message={quickPlayError} variant="inline" />
         </div>
-        {myTable ? (
-          <Link href={`/tables/${myTable.id}`}>{t.continueWatching}</Link>
-        ) : me ? (
-          <button disabled={quickPlayBusy} type="button" onClick={() => void startQuickPlay()}>
-            {quickPlayBusy ? t.quickPlayStarting : t.launchMyPlayer}
-          </button>
-        ) : (
-          <Link href="/">{t.launchFromHome}</Link>
-        )}
+        <div className={styles.myPlayerBannerActions}>
+          {myTable ? (
+            <Link
+              href={tableSpectatorPath(myTable.id)}
+              prefetch
+              onMouseEnter={() => prefetchTableSpectatorRoute(router, myTable.id)}
+            >
+              {t.continueWatching}
+            </Link>
+          ) : me ? (
+            <>
+              <button disabled={quickPlayBusy} type="button" onClick={() => void startQuickPlay()}>
+                {quickPlayBusy ? t.quickPlayStarting : t.launchMyPlayer}
+              </button>
+              {resumeSpectate ? (
+                <Link
+                  className={styles.myPlayerBannerSecondaryLink}
+                  href={tableSpectatorPath(resumeSpectate.tableId)}
+                  prefetch
+                  onClick={() => {
+                    trackEngagement({
+                      at: new Date().toISOString(),
+                      name: "engagement.home.continue_spectate_click",
+                      tableId: resumeSpectate.tableId,
+                    });
+                  }}
+                  onMouseEnter={() => prefetchTableSpectatorRoute(router, resumeSpectate.tableId)}
+                >
+                  {t.continueRecentSpectate} {t.continueRecentSpectateMeta(resumeSpectate.tableName)}
+                </Link>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Link href="/#quick-play">{t.launchFromHome}</Link>
+              {resumeSpectate ? (
+                <Link
+                  className={styles.myPlayerBannerSecondaryLink}
+                  href={tableSpectatorPath(resumeSpectate.tableId)}
+                  prefetch
+                  onClick={() => {
+                    trackEngagement({
+                      at: new Date().toISOString(),
+                      name: "engagement.home.continue_spectate_click",
+                      tableId: resumeSpectate.tableId,
+                    });
+                  }}
+                  onMouseEnter={() => prefetchTableSpectatorRoute(router, resumeSpectate.tableId)}
+                >
+                  {t.continueRecentSpectate} {t.continueRecentSpectateMeta(resumeSpectate.tableName)}
+                </Link>
+              ) : null}
+            </>
+          )}
+        </div>
       </section>
 
       <section className={styles.tablesSection}>
@@ -247,8 +364,22 @@ export default function TablesPage() {
         </div>
 
         <div className={styles.tableGrid}>
+          {loadState === "loading" ? (
+            <SkeletonCardGrid count={4} label={t.lobbyLoading} />
+          ) : loadState === "error" ? (
+            <p className={styles.lobbyLoadError} {...liveRegionProps("alert")}>
+              {t.lobbyLoadFailed}
+            </p>
+          ) : (
+            <>
           {tables.map((table) => (
-            <Link className={`${styles.tableCard} ${myAgent?.tableId === table.id ? styles.myTableCard : ""}`} href={`/tables/${table.id}`} key={table.id}>
+            <Link
+              className={`${styles.tableCard} ${myAgent?.tableId === table.id ? styles.myTableCard : ""}`}
+              href={tableSpectatorPath(table.id)}
+              key={table.id}
+              prefetch
+              onMouseEnter={() => prefetchTableSpectatorRoute(router, table.id)}
+            >
               <div className={styles.tableCardHeader}>
                 <div className={styles.tableStatusLine}>
                   <span className={table.running ? styles.liveBadge : styles.waitingBadge}>{table.running ? "LIVE" : t.waiting}</span>
@@ -278,10 +409,18 @@ export default function TablesPage() {
             </Link>
           ))}
           {tables.length === 0 && (
-            <div className={styles.emptyState}>
-              <strong>{t.emptyTableTitle}</strong>
-              <p>{t.emptyTableText}</p>
-            </div>
+            <EmptyState
+              className={styles.emptyStateSlot}
+              description={t.emptyTableText}
+              title={t.emptyTableTitle}
+              action={
+                <Link className={styles.emptyStateAction} href="/#quick-play">
+                  {t.emptyTableAction}
+                </Link>
+              }
+            />
+          )}
+            </>
           )}
         </div>
       </section>
@@ -316,7 +455,9 @@ export default function TablesPage() {
                   <em>{agent.kind === "virtual" ? t.virtualAgent : agent.assignmentStatus}</em>
                 </div>
               ))}
-              {queuedAgents.length === 0 && <p className={styles.emptyStateCompact}>{t.noQueuedAgents}</p>}
+              {queuedAgents.length === 0 && (
+                <EmptyState description={t.noQueuedAgents} variant="inline" />
+              )}
             </div>
           </article>
 
@@ -342,7 +483,7 @@ export default function TablesPage() {
                   <em>{agent.assignmentStatus}</em>
                 </div>
               ))}
-              {agents.length === 0 && <p className={styles.emptyStateCompact}>{t.noAgents}</p>}
+              {agents.length === 0 && <EmptyState description={t.noAgents} variant="inline" />}
             </div>
           </article>
         </div>

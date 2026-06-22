@@ -1,0 +1,29 @@
+.favoriteButton {
+  align-items: center;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.38);
+  border-radius: 999px;
+  color: #fde68a;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.85rem;
+  font-weight: 800;
+  gap: 6px;
+  min-height: var(--touch-target-min, 44px);
+  padding: 8px 14px;
+}
+
+.favoriteButtonActive {
+  background: rgba(250, 204, 21, 0.24);
+  border-color: rgba(250, 204, 21, 0.62);
+  color: #fef08a;
+}
+
+.favoriteButton:hover {
+  background: rgba(250, 204, 21, 0.2);
+}
+
+.favoriteButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}

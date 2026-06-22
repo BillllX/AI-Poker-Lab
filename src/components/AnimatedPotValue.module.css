@@ -1,0 +1,41 @@
+.potValue {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  min-width: 1.5ch;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.potPulse {
+  color: var(--accent);
+  transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .potValue {
+    transition: none;
+  }
+
+  .potPulse {
+    transform: none;
+  }
+}
+
+@keyframes potPulseGlow {
+  0% {
+    filter: brightness(1);
+  }
+
+  50% {
+    filter: brightness(1.25);
+  }
+
+  100% {
+    filter: brightness(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .potPulse {
+    animation: potPulseGlow 0.42s ease;
+  }
+}
