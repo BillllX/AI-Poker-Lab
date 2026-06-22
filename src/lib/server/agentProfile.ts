@@ -1,7 +1,11 @@
 import { listAgents, normalizeAgentId } from "./agentRegistry";
+import { isCoachingNote } from "@/lib/coachingNoteDisplay";
+import type { AgentHandSummary } from "../poker/types";
 import { prisma } from "./prisma";
 import { buildDefaultProfileHtml, wrapProfileHtml } from "./profileHtml";
+import { getRuntimeInstructions } from "./runtimeInstructions";
 import { getTableManager } from "./simulator";
+import { listTodayBadges } from "./userDailyBadges";
 import { hostedAgentProtocolVersion } from "./qualification";
 import type { RegisteredAgent } from "./agentRegistry";
 
@@ -115,10 +119,14 @@ async function buildAgentProfilePayload(profile: ResolvedProfile, origin: string
     : undefined;
   const displayName = user?.name ?? agent.name;
   const badges = badgesFor({ agent, live: profile.live, player, qualification, stats, user });
+  const coachingCount = getRuntimeInstructions(agent.id).notes.filter(isCoachingNote).length;
+  const highlightHand = pickHighlightHand(snapshot?.handSummaries ?? [], agent.id);
+  const dailyBadges = user ? await listTodayBadges(user.id) : [];
 
   return {
     agent,
     badges,
+    dailyBadges,
     identity: {
       profileId: profile.profileId,
       agentId: agent.id,
@@ -184,7 +192,23 @@ async function buildAgentProfilePayload(profile: ResolvedProfile, origin: string
           url: `/tables/${encodeURIComponent(tableSummary.id)}`,
         }
       : null,
+    coachCard: {
+      coachingCount,
+      highlightHand: highlightHand ?? null,
+    },
   };
+}
+
+function pickHighlightHand(summaries: AgentHandSummary[], agentId: string) {
+  const agentHands = summaries.filter(
+    (summary) =>
+      summary.players.some((player) => player.playerId === agentId) ||
+      summary.winners.some((winner) => winner.playerId === agentId),
+  );
+  const highlighted = agentHands.filter((summary) => summary.highlight);
+  const pool = highlighted.length > 0 ? highlighted : agentHands;
+
+  return [...pool].sort((left, right) => right.totalAwarded - left.totalAwarded)[0];
 }
 
 async function resolveProfileById(profileId: string, normalizedAgentId: string | undefined): Promise<ResolvedProfile | undefined> {

@@ -16,6 +16,12 @@ export function previousClubDay(dayKey = currentClubDay()) {
   return addDaysToClubDay(dayKey, -1);
 }
 
+/** Inclusive rolling window ending on `fromDay` (default today), oldest last. */
+export function clubDayKeysForLastDays(days: number, fromDay = currentClubDay()) {
+  const safeDays = Math.max(1, Math.floor(days));
+  return Array.from({ length: safeDays }, (_, index) => addDaysToClubDay(fromDay, -index));
+}
+
 function addDaysToClubDay(dayKey: string, days: number) {
   const [year, month, day] = dayKey.split("-").map(Number);
   if (!year || !month || !day) {

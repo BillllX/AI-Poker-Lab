@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { decideForVirtualAgent, assignVirtualAgentsToTable, ensureVirtualAgentPool, isVirtualAgent } from "./virtualAgents";
 import { initialStack, PokerGameEngine } from "../poker/gameEngine";
-import type { AgentDecisionRequest, GameSnapshot } from "../poker/types";
+import { buildAgentHandSummary } from "../poker/handSummary";
+import type { AgentDecisionRequest, AgentHandSummary, GameSnapshot } from "../poker/types";
 import {
   assignAgentToTable,
   isHostedAgent,
@@ -24,6 +25,8 @@ import {
   type GameBuyIn,
   type GameSettlement,
 } from "./userRegistry";
+import { clearTableReactions, getTableReactions } from "./tableReactions";
+import { maybeAwardHighlightBadges } from "./userDailyBadges";
 import { logger } from "./logger";
 import { prisma } from "./prisma";
 import { decideForHostedAgent } from "./hostedAgentDecision";
@@ -76,6 +79,7 @@ export class GameSimulator {
   private startPromise?: Promise<void>;
   private settlePromise?: Promise<void>;
   private snapshotCache?: { expiresAt: number; snapshot: GameSnapshot; version: string };
+  private handSummaries: AgentHandSummary[] = [];
 
   constructor(
     origin: string,
@@ -221,6 +225,8 @@ export class GameSimulator {
     this.origin = origin;
     this.engine = this.createEngine();
     this.engine.reset();
+    this.handSummaries = [];
+    clearTableReactions(this.tableId);
     this.invalidateSnapshotCache();
   }
 
@@ -232,13 +238,23 @@ export class GameSimulator {
     this.origin = origin;
     this.engine = this.createEngine();
     this.engine.reset();
+    this.handSummaries = [];
+    clearTableReactions(this.tableId);
     this.invalidateSnapshotCache();
     logger.warn("table.end_session_completed", { tableId: this.tableId });
   }
 
   snapshot(): GameSnapshot {
     this.configure(this.origin);
-    return this.engine.snapshot();
+    return {
+      ...this.engine.snapshot(),
+      handSummaries: [...this.handSummaries].reverse().slice(0, 5),
+      recentReactions: getTableReactions(this.tableId),
+    };
+  }
+
+  invalidateSnapshotCache() {
+    this.snapshotCache = undefined;
   }
 
   cachedSnapshot(maxAgeMs = 750) {
@@ -257,8 +273,24 @@ export class GameSimulator {
     return cached;
   }
 
-  private invalidateSnapshotCache() {
-    this.snapshotCache = undefined;
+  private recordCompletedHand() {
+    const snapshot = this.engine.snapshot();
+    if (snapshot.handId <= 0 || snapshot.actionHistory.length === 0) {
+      return;
+    }
+    if (this.handSummaries.some((summary) => summary.handId === snapshot.handId)) {
+      return;
+    }
+
+    this.handSummaries.push(buildAgentHandSummary(this.tableId, snapshot));
+    const latestSummary = this.handSummaries.at(-1);
+    if (latestSummary) {
+      void maybeAwardHighlightBadges(latestSummary);
+    }
+    const maxSummaries = 20;
+    if (this.handSummaries.length > maxSummaries) {
+      this.handSummaries.splice(0, this.handSummaries.length - maxSummaries);
+    }
   }
 
   private async tick() {
@@ -278,7 +310,8 @@ export class GameSimulator {
       }
 
       await this.addNewPollingAgents();
-      const played = await this.engine.playOneHand((request) => this.decide(request));
+      const played =       await this.engine.playOneHand((request) => this.decide(request));
+      this.recordCompletedHand();
       this.invalidateSnapshotCache();
       if (!played) {
         logger.info("table.no_hand_played", { tableId: this.tableId });
@@ -837,5 +870,6 @@ function gameSnapshotVersion(snapshot: GameSnapshot) {
     playerState,
     lastAction?.id ?? "",
     lastLog?.id ?? "",
+    snapshot.recentReactions?.map((reaction) => reaction.id).join(",") ?? "",
   ].join(";");
 }

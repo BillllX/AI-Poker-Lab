@@ -5,6 +5,8 @@ export type RuntimeInstructionNote = {
   agentId: string;
   message: string;
   source: "operator" | "system";
+  sourceType?: "coaching" | "operator";
+  displayMessage?: string;
   createdAt: string;
   tableId?: string;
   appliesFromHandId?: number;
@@ -59,7 +61,7 @@ export function addRuntimeInstruction(
   rawAgentId: string,
   message: string,
   source: RuntimeInstructionNote["source"] = "operator",
-  options: { tableId?: string; appliesFromHandId?: number } = {},
+  options: { tableId?: string; appliesFromHandId?: number; sourceType?: RuntimeInstructionNote["sourceType"]; displayMessage?: string } = {},
 ) {
   const agentId = normalizeAgentId(rawAgentId);
   const normalizedMessage = normalizeMessage(message);
@@ -68,6 +70,8 @@ export function addRuntimeInstruction(
     agentId,
     message: normalizedMessage,
     source,
+    sourceType: options.sourceType,
+    displayMessage: options.displayMessage?.trim() || undefined,
     createdAt: new Date().toISOString(),
     tableId: options.tableId,
     appliesFromHandId: options.appliesFromHandId,

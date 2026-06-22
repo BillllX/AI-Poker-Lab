@@ -72,9 +72,17 @@ export function isResidentAgent(agent: RegisteredAgent | undefined): agent is Re
   return agent?.kind === "resident" && Boolean(agent.ownerUserId);
 }
 
+const globalForResident = globalThis as typeof globalThis & {
+  __texasPokerResidentPoolReady?: boolean;
+};
+
 export async function ensureResidentAgentPool() {
   if (!isResidentAgentsEnabled()) {
     return [];
+  }
+
+  if (globalForResident.__texasPokerResidentPoolReady) {
+    return listAgents().filter((agent) => agent.kind === "resident");
   }
 
   const agents: RegisteredAgent[] = [];
@@ -88,6 +96,8 @@ export async function ensureResidentAgentPool() {
       ownerUserId,
     }));
   }
+
+  globalForResident.__texasPokerResidentPoolReady = true;
   return agents;
 }
 
@@ -142,7 +152,10 @@ async function ensureResidentUser(template: ResidentAgentTemplate, ownerUserId: 
     where: { ownerUserId },
   });
 
-  const user = await prisma.user.findUnique({ where: { id: ownerUserId } });
+  const user = await prisma.user.findUnique({
+    select: { pointsBalance: true },
+    where: { id: ownerUserId },
+  });
   if (user && user.pointsBalance < initialStack) {
     await prisma.user.update({
       data: { pointsBalance: residentBankroll },

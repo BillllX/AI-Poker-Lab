@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { rankChangeFor, type RankTrend } from "@/lib/leaderboard/rankChange";
-import { currentClubDay, previousClubDay } from "./clubDay";
+import { currentClubDay, previousClubDay, clubDayKeysForLastDays } from "./clubDay";
 import { prisma } from "./prisma";
 import { logger } from "./logger";
 
@@ -12,12 +12,15 @@ export type ClubUser = {
   frozenPoints: number;
   dailyProfitToday: number;
   dailySettlementsToday: number;
+  weeklyProfit?: number;
   currentRank?: number;
   previousRank?: number;
   rankDelta?: number;
   rankTrend?: RankTrend;
   createdAt: string;
 };
+
+export type LeaderboardSort = "daily" | "points" | "weekly";
 
 export type CreateUserInput = {
   email?: unknown;
@@ -49,10 +52,48 @@ export async function listUsers() {
   });
 }
 
-export async function listLeaderboardUsers(limit = 20) {
+export async function listLeaderboardUsers(limit = 20, sort: LeaderboardSort = "points") {
   const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
-  const rankedUsers = await prisma.user.findMany({
-    orderBy: [{ pointsBalance: "desc" }, { createdAt: "asc" }],
+
+  if (sort === "points") {
+    const rankedUsers = await prisma.user.findMany({
+      orderBy: [{ pointsBalance: "desc" }, { createdAt: "asc" }],
+      select: {
+        createdAt: true,
+        frozenPoints: true,
+        id: true,
+        name: true,
+        pointsBalance: true,
+      },
+    });
+    const today = currentClubDay();
+    const yesterday = previousClubDay(today);
+    await ensureLeaderboardSnapshot(yesterday, rankedUsers);
+    await refreshLeaderboardSnapshot(today, rankedUsers);
+
+    const users = rankedUsers.slice(0, safeLimit);
+    const userIds = users.map((user) => user.id);
+    const [dailyProfits, weeklyProfits, previousSnapshots] = await Promise.all([
+      dailyProfitStatsForToday(userIds),
+      weeklyProfitStats(userIds),
+      prisma.leaderboardDailySnapshot.findMany({
+        select: { rank: true, userId: true },
+        where: { dayKey: yesterday, userId: { in: userIds } },
+      }),
+    ]);
+    const previousRanks = new Map(previousSnapshots.map((snapshot) => [snapshot.userId, snapshot.rank]));
+    return users.map((user, index) => {
+      const profit = dailyProfits.get(user.id);
+      return {
+        ...publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0),
+        weeklyProfit: weeklyProfits.get(user.id) ?? 0,
+        ...rankChangeFor(index + 1, previousRanks.get(user.id)),
+      };
+    });
+  }
+
+  const allUsers = await prisma.user.findMany({
+    orderBy: { createdAt: "asc" },
     select: {
       createdAt: true,
       frozenPoints: true,
@@ -61,28 +102,108 @@ export async function listLeaderboardUsers(limit = 20) {
       pointsBalance: true,
     },
   });
-  const today = currentClubDay();
-  const yesterday = previousClubDay(today);
-  await ensureLeaderboardSnapshot(yesterday, rankedUsers);
-  await refreshLeaderboardSnapshot(today, rankedUsers);
-
-  const users = rankedUsers.slice(0, safeLimit);
-  const userIds = users.map((user) => user.id);
-  const [dailyProfits, previousSnapshots] = await Promise.all([
+  const userIds = allUsers.map((user) => user.id);
+  const [dailyProfits, weeklyProfits] = await Promise.all([
     dailyProfitStatsForToday(userIds),
-    prisma.leaderboardDailySnapshot.findMany({
-      select: { rank: true, userId: true },
-      where: { dayKey: yesterday, userId: { in: userIds } },
-    }),
+    weeklyProfitStats(userIds),
   ]);
-  const previousRanks = new Map(previousSnapshots.map((snapshot) => [snapshot.userId, snapshot.rank]));
-  return users.map((user, index) => {
+
+  const enriched = allUsers.map((user) => {
     const profit = dailyProfits.get(user.id);
     return {
       ...publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0),
-      ...rankChangeFor(index + 1, previousRanks.get(user.id)),
+      weeklyProfit: weeklyProfits.get(user.id) ?? 0,
     };
   });
+
+  const sorted = enriched.sort((left, right) => compareLeaderboardBySort(left, right, sort));
+
+  return sorted.slice(0, safeLimit);
+}
+
+export type LeaderboardMeRank = {
+  rank: number;
+  user: Pick<ClubUser, "dailyProfitToday" | "frozenPoints" | "id" | "name" | "pointsBalance" | "weeklyProfit">;
+};
+
+export async function getLeaderboardRankForUser(
+  userId: string,
+  sort: LeaderboardSort = "points",
+): Promise<LeaderboardMeRank | undefined> {
+  if (sort === "points") {
+    const rank = await rankUser(userId);
+    if (!rank) {
+      return undefined;
+    }
+
+    const user = await getUser(userId);
+    const weeklyProfit = (await weeklyProfitStats([userId])).get(userId) ?? 0;
+    return {
+      rank,
+      user: {
+        id: user.id,
+        name: user.name,
+        pointsBalance: user.pointsBalance,
+        frozenPoints: user.frozenPoints,
+        dailyProfitToday: user.dailyProfitToday,
+        weeklyProfit,
+      },
+    };
+  }
+
+  const allUsers = await prisma.user.findMany({
+    orderBy: { createdAt: "asc" },
+    select: {
+      createdAt: true,
+      frozenPoints: true,
+      id: true,
+      name: true,
+      pointsBalance: true,
+    },
+  });
+  const userIds = allUsers.map((user) => user.id);
+  const [dailyProfits, weeklyProfits] = await Promise.all([
+    dailyProfitStatsForToday(userIds),
+    weeklyProfitStats(userIds),
+  ]);
+
+  const enriched = allUsers.map((user) => {
+    const profit = dailyProfits.get(user.id);
+    return {
+      ...publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0),
+      weeklyProfit: weeklyProfits.get(user.id) ?? 0,
+    };
+  });
+
+  const sorted = enriched.sort((left, right) => compareLeaderboardBySort(left, right, sort));
+  const index = sorted.findIndex((user) => user.id === userId);
+  if (index === -1) {
+    return undefined;
+  }
+
+  const user = sorted[index]!;
+  return {
+    rank: index + 1,
+    user: {
+      id: user.id,
+      name: user.name,
+      pointsBalance: user.pointsBalance,
+      frozenPoints: user.frozenPoints,
+      dailyProfitToday: user.dailyProfitToday,
+      weeklyProfit: user.weeklyProfit,
+    },
+  };
+}
+
+function compareLeaderboardBySort(left: ClubUser, right: ClubUser, sort: LeaderboardSort) {
+  const primary =
+    sort === "daily"
+      ? right.dailyProfitToday - left.dailyProfitToday
+      : (right.weeklyProfit ?? 0) - (left.weeklyProfit ?? 0);
+  if (primary !== 0) {
+    return primary;
+  }
+  return right.pointsBalance - left.pointsBalance || left.name.localeCompare(right.name);
 }
 
 export async function rankUser(userId: string) {
@@ -222,21 +343,27 @@ export async function verifyUserToken(userId: string, token: unknown) {
 }
 
 export async function getUserFromSessionCookie(cookieHeader: string | null) {
-  const ownerUserId = verifyUserSessionCookie(cookieHeader);
-  if (!ownerUserId) {
+  const user = await findSessionUser(cookieHeader);
+  if (!user) {
     return undefined;
   }
 
-  return getUser(ownerUserId);
+  const dailyProfits = await dailyProfitStatsForToday([user.id]);
+  const profit = dailyProfits.get(user.id);
+  return publicUser(user, profit?.amount ?? 0, profit?.settlements ?? 0);
 }
 
 export async function getUserFromSessionCookieLite(cookieHeader: string | null) {
-  const ownerUserId = verifyUserSessionCookie(cookieHeader);
-  if (!ownerUserId) {
+  const user = await findSessionUser(cookieHeader);
+  if (!user) {
     return undefined;
   }
 
-  return getUserLite(ownerUserId);
+  return publicUser(user, 0, 0);
+}
+
+export function getSessionUserIdFromCookie(cookieHeader: string | null) {
+  return verifyUserSessionCookie(cookieHeader);
 }
 
 export function createUserSessionSetCookie(ownerUserId: string) {
@@ -451,6 +578,15 @@ function publicUser(
   };
 }
 
+async function findSessionUser(cookieHeader: string | null) {
+  const ownerUserId = verifyUserSessionCookie(cookieHeader);
+  if (!ownerUserId) {
+    return undefined;
+  }
+
+  return prisma.user.findUnique({ where: { id: ownerUserId } });
+}
+
 async function findStoredUser(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
@@ -499,6 +635,20 @@ async function dailyProfitStatsForToday(userIds?: string[]) {
   });
 
   return new Map(rows.map((row) => [row.userId, { amount: row._sum.amount ?? 0, settlements: row._count._all }]));
+}
+
+async function weeklyProfitStats(userIds?: string[]) {
+  const rows = await prisma.pointsLedger.groupBy({
+    _sum: { amount: true },
+    by: ["userId"],
+    where: {
+      dayKey: { in: clubDayKeysForLastDays(7) },
+      type: "SETTLE_PROFIT",
+      ...(userIds ? { userId: { in: userIds } } : {}),
+    },
+  });
+
+  return new Map(rows.map((row) => [row.userId, row._sum.amount ?? 0]));
 }
 
 type RankedSnapshotUser = {

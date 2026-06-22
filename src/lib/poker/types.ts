@@ -64,6 +64,37 @@ export type ActionHistoryItem = {
   createdAt: string;
 };
 
+export type AgentHandSummaryWinner = {
+  amount: number;
+  handLabel?: string;
+  handRank?: HandRank;
+  name: string;
+  playerId: string;
+};
+
+export type AgentHandSummaryPlayer = {
+  endingStack: number;
+  name: string;
+  netChips: number;
+  playerId: string;
+  startingStack: number;
+};
+
+import type { HandHighlightTag } from "./handHighlight";
+
+export type AgentHandSummary = {
+  id: string;
+  tableId: string;
+  handId: number;
+  completedAt: string;
+  communityCards: Card[];
+  totalAwarded: number;
+  winners: AgentHandSummaryWinner[];
+  players: AgentHandSummaryPlayer[];
+  highlight?: boolean;
+  highlightTags?: HandHighlightTag[];
+};
+
 export type GameSnapshot = {
   tableId?: string;
   tableName?: string;
@@ -83,6 +114,15 @@ export type GameSnapshot = {
   logs: ActionLog[];
   stats: AgentStats[];
   modelStats: ModelStats[];
+  handSummaries?: AgentHandSummary[];
+  recentReactions?: TableReaction[];
+  spectatorCount?: number;
+};
+
+export type TableReaction = {
+  id: string;
+  emoji: string;
+  at: string;
 };
 
 export type AgentDecisionPlayerState = Pick<

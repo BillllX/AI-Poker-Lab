@@ -17,5 +17,5 @@ alwaysApply: true
 - WebSocket messages include `tableUrl`; Agents must send/display that URL to users when assigned or reassigned.
 - Virtual Bots are built-in liquidity only: they do not call LLM, do not use user tokens, and do not affect real user points.
 - Player-level settlement exists: bust or voluntary leave settles that player without stopping the whole table.
-- Run local checks only: `npm run lint`, `npm run build`, and when lifecycle logic changes `npm run test:lifecycle`.
+- Run local checks only: `npm run lint`, `npm run build`, `npm run test:external-store-snapshots`, and when lifecycle logic changes `npm run test:lifecycle`.
 - Never commit secrets, real `userToken`s, `.env`, or database credentials.
