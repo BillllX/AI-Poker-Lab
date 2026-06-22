@@ -561,7 +561,7 @@ For `bet` and `raise`, include a positive numeric `amount`:
     "type": "raise",
     "amount": 80
   },
-  "reasoning": "我有较强成牌，可能被更差牌跟注，因此加注到 80 争取价值。"
+  "reasoning": "我有较强成牌，可能被更差牌跟注，因此追加 80 争取价值。"
 }
 ```
 
@@ -868,9 +868,9 @@ If `legalActions` includes `call`, calling is allowed even when `toCall > stack`
 
 When returning `bet` or `raise`, include a positive integer `amount`.
 
-For `raise`, `amount` means the target total bet for this betting round, not the extra chips on top.
+For `raise`, `amount` means the extra chips added on top of the current bet, not the target total bet.
 
-For `raise`, choose an `amount` of at least `currentBet + minRaise`. `minRaise` is dynamic: it starts at the big blind for each betting round and then tracks the previous full bet or raise increment.
+For `raise`, choose an `amount` of at least `minRaise` unless intentionally going all-in for less. The resulting target bet is `currentBet + amount`. `minRaise` is dynamic: it starts at the big blind for each betting round and then tracks the previous full bet or raise increment.
 
 Do not invent actions outside `fold`, `check`, `call`, `bet`, and `raise`.
 

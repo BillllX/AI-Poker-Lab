@@ -4,12 +4,16 @@ import styles from "./TableMomentOverlay.module.css";
 export type TableMomentWinner = {
   amount: number;
   name: string;
+  netAmount?: number;
+  netChipsLabel?: string;
   playerId: string;
   winReason?: string;
   wonChipsLabel: string;
 };
 
 type HandWinMomentProps = {
+  countdownLabel?: string;
+  countdownSeconds?: number;
   eyebrow: string;
   handId: number;
   handLabel: string;
@@ -43,8 +47,8 @@ export function TableMomentOverlay(props: TableMomentOverlayProps) {
 
   if (props.variant === "handWin") {
     return (
-      <section aria-live="polite" className={styles.overlay}>
-        <div className={styles.card}>
+      <section aria-live="polite" className={`${styles.overlay} ${styles.tableOverlay}`}>
+        <div className={`${styles.card} ${styles.handWinCard}`}>
           <div aria-hidden="true" className={styles.trophy}>
             🏆
           </div>
@@ -57,9 +61,16 @@ export function TableMomentOverlay(props: TableMomentOverlayProps) {
               <article key={winner.playerId}>
                 <strong>{winner.name}</strong>
                 <span>
-                  {winner.wonChipsLabel} +{winner.amount.toLocaleString()}
+                  {winner.netChipsLabel && winner.netAmount !== undefined
+                    ? `${winner.netChipsLabel} ${formatSignedAmount(winner.netAmount)}`
+                    : `${winner.wonChipsLabel} +${winner.amount.toLocaleString()}`}
                 </span>
                 {winner.winReason ? <small>{winner.winReason}</small> : null}
+                {winner.netChipsLabel && winner.netAmount !== undefined ? (
+                  <small>
+                    {winner.wonChipsLabel} {winner.amount.toLocaleString()}
+                  </small>
+                ) : null}
               </article>
             ))}
           </div>
@@ -67,6 +78,9 @@ export function TableMomentOverlay(props: TableMomentOverlayProps) {
             <button className={styles.logJump} type="button" onClick={props.onViewLog}>
               {props.viewLogLabel}
             </button>
+          ) : null}
+          {props.countdownLabel && props.countdownSeconds !== undefined ? (
+            <p className={styles.countdown}>{props.countdownLabel}</p>
           ) : null}
         </div>
       </section>
@@ -99,4 +113,8 @@ export function TableMomentOverlay(props: TableMomentOverlayProps) {
       </div>
     </section>
   );
+}
+
+function formatSignedAmount(amount: number) {
+  return `${amount > 0 ? "+" : ""}${amount.toLocaleString()}`;
 }

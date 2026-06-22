@@ -950,14 +950,16 @@ function validateHumanAction(action: PokerAction, pending: PendingDecision, snap
 
   const player = snapshot.players.find((item) => item.id === pending.playerId);
   const maxTargetBet = (player?.currentBet ?? 0) + pending.stack;
-  const minTargetBet = action.type === "bet" ? snapshot.bigBlind : Math.max(snapshot.currentBet + pending.minRaise, snapshot.currentBet * 2 + 1);
-  if (amount > maxTargetBet) {
+  const maxRaiseAmount = Math.max(0, maxTargetBet - snapshot.currentBet);
+  const maxAllowedAmount = action.type === "raise" ? maxRaiseAmount : maxTargetBet;
+  const minAllowedAmount = action.type === "raise" ? pending.minRaise : snapshot.bigBlind;
+  if (amount > maxAllowedAmount) {
     throw new Error("Bet amount exceeds your stack.");
   }
-  if (action.type === "raise" && amount < minTargetBet && amount !== maxTargetBet) {
-    throw new Error("Raise amount must be greater than twice the previous bet.");
+  if (action.type === "raise" && amount < minAllowedAmount && amount !== maxAllowedAmount) {
+    throw new Error("Raise amount must meet the minimum raise.");
   }
-  if (action.type === "bet" && amount < minTargetBet && amount !== maxTargetBet) {
+  if (action.type === "bet" && amount < minAllowedAmount && amount !== maxAllowedAmount) {
     throw new Error("Bet amount is below the minimum action size.");
   }
 

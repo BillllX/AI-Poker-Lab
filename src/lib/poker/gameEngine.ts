@@ -28,6 +28,7 @@ type PlayerConfig = {
   initialStack?: number;
 };
 type GameEngineOptions = {
+  playerDecisionPauseMs?: number;
   tableId?: string;
   tableName?: string;
 };
@@ -41,6 +42,7 @@ type PlayerDecision = {
 export const initialStack = 1_000;
 const maxLogEntries = 200;
 const maxActionHistoryEntries = 500;
+const playerDecisionPauseMs = 3_000;
 
 export class PokerGameEngine {
   private deck: Card[] = [];
@@ -373,7 +375,16 @@ export class PokerGameEngine {
           }
         }
       }
+      await this.pauseAfterPlayerDecision();
     }
+  }
+
+  private async pauseAfterPlayerDecision() {
+    const pauseMs = this.options.playerDecisionPauseMs ?? configuredPlayerDecisionPauseMs();
+    if (pauseMs <= 0) {
+      return;
+    }
+    await sleep(pauseMs);
   }
 
   private async requestPlayerAction(player: PlayerState, pending: Set<string>, requestAction: RequestAction) {
@@ -498,12 +509,21 @@ export class PokerGameEngine {
       this.minRaise = raiseIncrement;
     }
     this.players[index] = { ...updated, lastReasoning: reasoning };
+    const actionAmount = action.type === "raise" ? this.currentBet - beforeBet : updated.currentBet - player.currentBet;
     this.recordAction(player, action.type, {
-      amount: updated.currentBet - player.currentBet,
+      amount: actionAmount,
       isAllIn: updated.stack === 0,
       targetBet: updated.currentBet,
     });
-    this.log(player.id, withReasoning(`${player.name} ${beforeBet === 0 ? "下注" : "加注到"} ${updated.currentBet}。`, reasoning));
+    this.log(
+      player.id,
+      withReasoning(
+        beforeBet === 0
+          ? `${player.name} 下注 ${updated.currentBet}。`
+          : `${player.name} 加注 ${actionAmount} 到 ${updated.currentBet}。`,
+        reasoning,
+      ),
+    );
 
     return this.currentBet > beforeBet && isFullBetOrRaise;
   }
@@ -514,7 +534,7 @@ export class PokerGameEngine {
     }
 
     if (action.type === "raise") {
-      return Math.max(this.currentBet + this.minRaise, safeAmount(action.amount, this.currentBet + this.minRaise));
+      return this.currentBet + Math.max(this.minRaise, safeAmount(action.amount, this.minRaise));
     }
 
     return this.currentBet;
@@ -906,6 +926,15 @@ function sanitizeReasoning(reasoning?: string) {
 
 function withReasoning(message: string, reasoning?: string) {
   return reasoning ? `${message} 理由：${reasoning}` : message;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function configuredPlayerDecisionPauseMs() {
+  const configured = Number(process.env.POKER_PLAYER_DECISION_PAUSE_MS);
+  return Number.isFinite(configured) && configured >= 0 ? configured : playerDecisionPauseMs;
 }
 
 function buildPots(players: PlayerState[]) {

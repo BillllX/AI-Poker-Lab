@@ -16,6 +16,7 @@ import type { GameBuyIn, GameSettlement } from "../src/lib/server/userRegistry";
 import { initialStack, PokerGameEngine } from "../src/lib/poker/gameEngine";
 
 process.env.RESIDENT_AGENTS_ENABLED ??= "false";
+process.env.POKER_PLAYER_DECISION_PAUSE_MS ??= "0";
 
 const agents = [
   {
@@ -346,7 +347,7 @@ async function assertMinimumRaiseTracksPreviousRaiseSize() {
     { id: "raise-smoke-a", name: "Raise Smoke A", modelName: "test-model" },
     { id: "raise-smoke-b", name: "Raise Smoke B", modelName: "test-model" },
     { id: "raise-smoke-c", name: "Raise Smoke C", modelName: "test-model" },
-  ]);
+  ], { playerDecisionPauseMs: 0 });
   const requests: AgentDecisionRequest[] = [];
 
   engine.setRunning(true);
@@ -358,23 +359,23 @@ async function assertMinimumRaiseTracksPreviousRaiseSize() {
         type: "action_response",
         playerId: request.playerId,
         action: { type: "raise", amount: 50 },
-        reasoning: "测试第一次完整加注到 50。",
+        reasoning: "测试第一次完整追加 50。",
       };
     }
 
     if (request.playerId === "raise-smoke-b") {
-      assert.equal(request.minRaise, 40, "minimum raise should equal the previous full raise increment");
+      assert.equal(request.minRaise, 50, "minimum raise should equal the previous full raise increment");
       return {
         type: "action_response",
         playerId: request.playerId,
-        action: { type: "raise", amount: 60 },
+        action: { type: "raise", amount: 40 },
         reasoning: "测试低于最小加注的输入会被校正。",
       };
     }
 
     if (request.playerId === "raise-smoke-c") {
-      assert.equal(request.toCall, 80, "second raise should be coerced to a 90 target bet");
-      assert.equal(request.minRaise, 40, "coerced raise should preserve the 40 raise increment");
+      assert.equal(request.toCall, 105, "second raise should be coerced to a 110 target bet");
+      assert.equal(request.minRaise, 50, "coerced raise should preserve the 50 raise increment");
       return {
         type: "action_response",
         playerId: request.playerId,
@@ -391,12 +392,12 @@ async function assertMinimumRaiseTracksPreviousRaiseSize() {
     };
   });
 
-  const firstRaise = engine.snapshot().logs.find((log) => log.actor === "raise-smoke-a" && log.message.includes("加注到 50"));
-  const coercedRaise = engine.snapshot().logs.find((log) => log.actor === "raise-smoke-b" && log.message.includes("加注到 90"));
+  const firstRaise = engine.snapshot().logs.find((log) => log.actor === "raise-smoke-a" && log.message.includes("加注 50 到 60"));
+  const coercedRaise = engine.snapshot().logs.find((log) => log.actor === "raise-smoke-b" && log.message.includes("加注 50 到 110"));
 
-  assert.ok(firstRaise, "first raise should be applied at the requested 50 target");
-  assert.ok(coercedRaise, "undersized second raise should be coerced to 90");
-  assert.ok(requests.some((request) => request.minRaise === 40), "decision requests should expose the dynamic minRaise");
+  assert.ok(firstRaise, "first raise should add the requested 50 increment");
+  assert.ok(coercedRaise, "undersized second raise should be coerced to a 50 increment");
+  assert.ok(requests.some((request) => request.minRaise === 50), "decision requests should expose the dynamic minRaise");
 }
 
 async function assertShortStackCallCommitsAllIn() {

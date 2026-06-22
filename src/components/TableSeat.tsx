@@ -24,6 +24,7 @@ export type TablePlayerSeatCopy = {
 };
 
 type TablePlayerSeatProps = {
+  actionOverlay?: string;
   copy: TablePlayerSeatCopy;
   isCurrent: boolean;
   isMine?: boolean;
@@ -46,6 +47,7 @@ type TableEmptySeatProps = {
 const suitGlyph = { s: "♠", h: "♥", d: "♦", c: "♣" } as const;
 
 export const TablePlayerSeat = memo(function TablePlayerSeat({
+  actionOverlay,
   copy,
   isCurrent,
   isMine = false,
@@ -88,6 +90,7 @@ export const TablePlayerSeat = memo(function TablePlayerSeat({
         </div>
       </div>
       <div className={styles.streetAction}>{streetAction}</div>
+      {actionOverlay ? <div className={styles.seatActionOverlay}>{actionOverlay}</div> : null}
       {isWinning ? <div className={styles.winBadge}>{copy.winBadge}</div> : null}
       {showReasoning && player.lastReasoning ? <p className={styles.reasoningSnippet}>{player.lastReasoning}</p> : null}
       <div className={styles.seatMeta}>
@@ -142,6 +145,7 @@ function SeatPlayingCardBack() {
 function arePlayerSeatPropsEqual(previous: TablePlayerSeatProps, next: TablePlayerSeatProps) {
   return (
     previous.isCurrent === next.isCurrent &&
+    previous.actionOverlay === next.actionOverlay &&
     previous.isMine === next.isMine &&
     previous.isWinning === next.isWinning &&
     previous.position === next.position &&

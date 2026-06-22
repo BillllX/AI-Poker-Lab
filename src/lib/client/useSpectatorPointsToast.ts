@@ -15,7 +15,7 @@ type PointsToastCopy = {
   handWinPointsToast: (amount: number) => string;
 };
 
-type HandWinner = { amount: number; playerId: string };
+type HandWinner = { amount: number; netAmount?: number; playerId: string };
 
 type UseSpectatorPointsToastOptions = {
   copy: PointsToastCopy;
@@ -56,20 +56,25 @@ export function useSpectatorPointsToast({
     }
 
     const myWin = handWinners.find((winner) => winner.playerId === myPlayerId);
-    if (!myWin || myWin.amount <= 0) {
+    if (!myWin) {
+      return;
+    }
+
+    const displayAmount = myWin.netAmount ?? myWin.amount;
+    if (displayAmount <= 0) {
       return;
     }
 
     lastHandWinToastHandIdRef.current = handId;
     pushEngagementToast({
       kind: "points",
-      message: copy.handWinPointsToast(myWin.amount),
+      message: copy.handWinPointsToast(displayAmount),
       expiresMs: 4_500,
       id: `hand-win-${tableId}-${handId}-${myPlayerId}`,
     });
     trackEngagement({
       at: new Date().toISOString(),
-      delta: myWin.amount,
+      delta: displayAmount,
       handId,
       kind: "hand_win",
       name: "engagement.points_delta_seen",

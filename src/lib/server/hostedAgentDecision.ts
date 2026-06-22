@@ -86,7 +86,7 @@ ${JSON.stringify(runtimeInstructions.instructions)}
 - 如果 legalActions 包含 bet 但不包含 raise，只能用 bet，不能用 raise。
 - 如果 legalActions 包含 raise 但不包含 bet，只能用 raise，不能用 bet。
 - fold/check/call 不能包含 amount。
-- bet/raise 必须包含正数 amount；raise 的 amount 是本轮目标总下注额，通常至少为 currentBet + minRaise。
+- bet/raise 必须包含正数 amount；raise 的 amount 是在当前注码上追加的筹码，不是目标总下注额，通常至少为 minRaise。
 - reasoning 必须是简短中文解释，最多 40 个中文字符。
 
 牌力判断硬约束:
@@ -97,7 +97,7 @@ ${JSON.stringify(runtimeInstructions.instructions)}
 
 合法输出示例，二选一参考格式：
 {"action":{"type":"check"},"reasoning":"当前无需跟注，选择过牌控制底池。"}
-{"action":{"type":"raise","amount":80},"reasoning":"牌力和位置支持加注施压。"}
+{"action":{"type":"raise","amount":80},"reasoning":"牌力和位置支持追加施压。"}
 
 注意：上面只是格式示例。最终 action.type 必须从本次 decisionInput.legalActions 中选择；只有 bet/raise 可以包含 amount。
 

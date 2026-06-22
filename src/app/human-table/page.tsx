@@ -152,7 +152,7 @@ const copy = {
     potFull: "满池",
     profit: "输赢",
     raise: "加注",
-    raiseRule: "加注金额必须大于前位玩家下注数量的 2 倍。",
+    raiseRule: "加注金额表示在当前注码上追加的筹码，至少为最小加注额。",
     rebuyTitle: "筹码已清空",
     rebuyText: "你已经被清台，但仍保留在本桌统计中。选择带入筹码可从下一手继续；不买入则离开真人桌。",
     recentActions: "最近动作",
@@ -244,7 +244,7 @@ const copy = {
     potFull: "Pot",
     profit: "P&L",
     raise: "Raise",
-    raiseRule: "Raise amount must be greater than twice the previous bet.",
+    raiseRule: "Raise amount is added on top of the current bet and must meet the minimum raise.",
     rebuyTitle: "Out of chips",
     rebuyText: "You are out of chips but still kept in this table's stats. Buy in to continue next hand, or leave if you do not want to rebuy.",
     recentActions: "Recent Actions",
@@ -997,19 +997,24 @@ function ActionButtons({
   function amountForRatio(type: "bet" | "raise", ratio: number) {
     const minimum = minimumAmount(type);
     const potAmount = Math.floor(Math.max(0, pot) * ratio);
-    return Math.min(maxAmount, Math.max(minimum, potAmount));
+    return Math.min(maxAllowedAmount(type), Math.max(minimum, potAmount));
   }
 
   function minimumAmount(type: "bet" | "raise") {
-    return type === "raise" ? Math.max(currentBet + minRaise, currentBet * 2 + 1) : bigBlind;
+    return type === "raise" ? minRaise : bigBlind;
+  }
+
+  function maxAllowedAmount(type: "bet" | "raise") {
+    return type === "raise" ? Math.max(0, maxAmount - currentBet) : maxAmount;
   }
 
   function submitAmount(type: "bet" | "raise", amount: number) {
-    if (!Number.isFinite(amount) || amount <= 0 || amount > maxAmount) {
+    const maxAllowed = maxAllowedAmount(type);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > maxAllowed) {
       setStatus(t.amountInvalid);
       return;
     }
-    if (type === "raise" && amount <= currentBet * 2 && amount !== maxAmount) {
+    if (type === "raise" && amount < minRaise && amount !== maxAllowed) {
       setStatus(t.raiseRule);
       return;
     }
@@ -1037,7 +1042,7 @@ function ActionButtons({
     setAmountPicker(undefined);
     setCustomAmount("");
     if (legalActions.includes("raise")) {
-      onSubmit({ type: "raise", amount: maxAmount });
+      onSubmit({ type: "raise", amount: maxAllowedAmount("raise") });
       return;
     }
     if (legalActions.includes("bet")) {
@@ -1190,7 +1195,10 @@ function formatStreetAction(item: GameSnapshot["actionHistory"][number]) {
   if (item.action === "post-blind") {
     return item.amount ? `blind ${item.amount}` : "blind";
   }
-  if (item.amount !== undefined && (item.action === "bet" || item.action === "raise" || item.action === "call")) {
+  if (item.action === "raise") {
+    return item.amount ? `raise +${item.amount}` : "raise";
+  }
+  if (item.amount !== undefined && (item.action === "bet" || item.action === "call")) {
     return `${item.action} ${item.amount}`;
   }
   return item.action;

@@ -623,6 +623,46 @@
   width: fit-content;
 }
 
+.seatActionOverlay {
+  align-items: center;
+  animation: actionOverlayPop 180ms ease-out both;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(245, 200, 75, 0.22), transparent 5rem),
+    rgba(2, 10, 7, 0.58);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(245, 200, 75, 0.34);
+  border-radius: 16px;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: var(--warning);
+  display: flex;
+  font-size: 18px;
+  font-weight: 1000;
+  inset: 42px 12px 46px;
+  justify-content: center;
+  letter-spacing: 0.03em;
+  line-height: 1.1;
+  padding: 10px;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.42);
+  z-index: 4;
+}
+
+@keyframes actionOverlayPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .winBadge {
   background: linear-gradient(135deg, rgba(245, 200, 75, 0.98), rgba(255, 255, 255, 0.86));
   border: 1px solid rgba(245, 200, 75, 0.58);
@@ -1381,6 +1421,28 @@
   font-size: 14px;
   line-height: 1.5;
   margin: 0;
+}
+
+.handInsightList dd.positive {
+  color: var(--accent);
+}
+
+.handInsightList dd.negative {
+  color: var(--danger);
+}
+
+.handInsightList dd.neutral {
+  color: var(--muted);
+}
+
+.previousHandCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.previousHandWinner {
+  display: block;
 }
 
 .mobileStatusMine {
@@ -2386,6 +2448,13 @@
     padding: 3px 6px;
   }
 
+  .seatActionOverlay {
+    border-radius: 12px;
+    font-size: 13px;
+    inset: 34px 6px 38px;
+    padding: 6px;
+  }
+
   .seatMeta {
     justify-content: center;
     margin-top: 5px;
@@ -2777,6 +2846,10 @@
   .seatBadges .thinkingBadge {
     animation: none;
     box-shadow: 0 0 10px rgba(250, 204, 21, 0.38);
+  }
+
+  .seatActionOverlay {
+    animation: none;
   }
 }
 

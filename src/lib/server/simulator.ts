@@ -59,7 +59,7 @@ const virtualBotJoinThreshold = 3;
 const virtualBotTargetPlayers = 4;
 const maxResidentsPerTable = Math.max(2, Number(process.env.RESIDENT_AGENTS_PER_TABLE ?? 4));
 const virtualBotDecisionDelayMs = 3_000;
-const handResultPauseMs = 3_000;
+const handResultPauseMs = 5_000;
 
 const globalForSimulator = globalThis as typeof globalThis & {
   __texasPokerTableManager?: TableManager;

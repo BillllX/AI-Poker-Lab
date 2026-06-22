@@ -40,23 +40,14 @@ import { recordRecentSpectate } from "@/lib/client/recentSpectate";
 import { recordQuestQuickPlayComplete, recordQuestShareComplete } from "@/lib/client/questOptionalProgress";
 import { useSpectatorPointsToast } from "@/lib/client/useSpectatorPointsToast";
 import { useTableSounds } from "@/lib/client/tableSoundEvents";
-import { analyzeDecisionHand } from "@/lib/poker/handAnalysis";
 import type { SlimGameSnapshotForSse } from "@/lib/server/sseSnapshot";
-import type { Card, GameSnapshot } from "@/lib/poker/types";
+import type { AgentHandSummary, Card, GameSnapshot } from "@/lib/poker/types";
 import styles from "../../table/table.module.css";
 
 const CoachDock = dynamic(
   () => import("@/components/CoachDock").then((mod) => ({ default: mod.CoachDock })),
   {
     loading: () => <SkeletonStack label="Loading coach panel" rows={3} />,
-    ssr: false,
-  },
-);
-
-const HandInsightPanel = dynamic(
-  () => import("@/components/HandInsightPanel").then((mod) => ({ default: mod.HandInsightPanel })),
-  {
-    loading: () => <SkeletonStack label="Loading hand insight" rows={3} />,
     ssr: false,
   },
 );
@@ -110,6 +101,7 @@ const copy = {
     preparingHand: "准备发牌",
     handWinners: "本局赢家",
     wonChips: "赢得筹码",
+    netChips: "净赢",
     viewHandLog: "查看本手日志",
     handReview: "最近复盘",
     noHandSummaries: "还没有完成的手牌摘要。",
@@ -120,6 +112,11 @@ const copy = {
     handInsightDraws: "听牌",
     handInsightNone: "无",
     handInsightReasoning: "决策",
+    previousHandInsightTitle: "上一手洞察",
+    previousHandResult: "你的结果",
+    previousHandBoard: "公共牌",
+    previousHandWinners: "赢家",
+    previousHandNoBoard: "未发公共牌",
     lastReasoning: "最近决策",
     coachingTitle: "下一手 Coaching",
     coachingCollapse: "收起",
@@ -225,6 +222,7 @@ const copy = {
     preparingHand: "Preparing cards",
     handWinners: "Hand Winners",
     wonChips: "Won chips",
+    netChips: "Net",
     viewHandLog: "View this hand's log",
     handReview: "Recent Review",
     noHandSummaries: "No completed hand summaries yet.",
@@ -235,6 +233,11 @@ const copy = {
     handInsightDraws: "Draws",
     handInsightNone: "None",
     handInsightReasoning: "Decision",
+    previousHandInsightTitle: "Previous hand insight",
+    previousHandResult: "Your result",
+    previousHandBoard: "Board",
+    previousHandWinners: "Winners",
+    previousHandNoBoard: "No board dealt",
     lastReasoning: "Latest reasoning",
     coachingTitle: "Next-hand coaching",
     coachingCollapse: "Collapse",
@@ -295,10 +298,11 @@ const copy = {
 };
 
 const initialStack = 1_000;
+const actionOverlayVisibleMs = 3_000;
 
 type WinnerReveal = {
   handId: number;
-  winners: Array<{ amount: number; name: string; playerId: string }>;
+  winners: Array<{ amount: number; name: string; netAmount: number; playerId: string }>;
 };
 
 type ClubUser = {
@@ -327,6 +331,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const [controlStatusIsError, setControlStatusIsError] = useState(false);
   const [controlBusy, setControlBusy] = useState<"join" | "leave">();
   const [winnerReveal, setWinnerReveal] = useState<WinnerReveal>();
+  const [winnerRevealSecondsLeft, setWinnerRevealSecondsLeft] = useState(0);
   const [highlightHandId, setHighlightHandId] = useState<number>();
   const [pendingCoachingHandId, setPendingCoachingHandId] = useState<number>();
   const [coachingStreakVersion, setCoachingStreakVersion] = useState(0);
@@ -334,8 +339,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const [shareCopied, setShareCopied] = useState(false);
   const [sessionEndReason, setSessionEndReason] = useState<SessionEndReason | null>(null);
   const [playAgainBusy, setPlayAgainBusy] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const lastWinnerRevealHandIdRef = useRef<number | undefined>(undefined);
   const winnerRevealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const winnerRevealCountdownRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const lastBustToastHandIdRef = useRef<number | undefined>(undefined);
   const lastCoachingToastHandIdRef = useRef<number | undefined>(undefined);
   const sessionStartedAtRef = useRef<number>(0);
@@ -350,6 +357,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const activePlayer = players.find((player) => player.id === state?.currentPlayerId);
   const waitingForFirstDeal = Boolean(state?.running && state.handId === 0 && players.length >= 2 && players.every((player) => (player.holeCards?.length ?? 0) === 0));
   const streetActions = currentStreetActions(state);
+  const actionOverlays = currentActionOverlays(state, nowMs);
   const handWinners = winnerReveal?.winners ?? [];
   const winningPlayerIds = new Set(handWinners.map((winner) => winner.playerId));
 
@@ -381,7 +389,18 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     tableId,
   });
 
-  function revealWinnersForSnapshot(snapshot: GameSnapshot) {
+  const clearWinnerRevealTimers = useCallback(() => {
+    if (winnerRevealTimerRef.current) {
+      clearTimeout(winnerRevealTimerRef.current);
+      winnerRevealTimerRef.current = undefined;
+    }
+    if (winnerRevealCountdownRef.current) {
+      clearInterval(winnerRevealCountdownRef.current);
+      winnerRevealCountdownRef.current = undefined;
+    }
+  }, []);
+
+  const revealWinnersForSnapshot = useCallback((snapshot: GameSnapshot) => {
     if (snapshot.handId === lastWinnerRevealHandIdRef.current) {
       return;
     }
@@ -393,14 +412,23 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
 
     lastWinnerRevealHandIdRef.current = snapshot.handId;
     setWinnerReveal({ handId: snapshot.handId, winners });
-    if (winnerRevealTimerRef.current) {
-      clearTimeout(winnerRevealTimerRef.current);
-    }
+    setWinnerRevealSecondsLeft(5);
+    clearWinnerRevealTimers();
+    winnerRevealCountdownRef.current = setInterval(() => {
+      setWinnerRevealSecondsLeft((seconds) => Math.max(0, seconds - 1));
+    }, 1_000);
     winnerRevealTimerRef.current = setTimeout(() => {
       setWinnerReveal(undefined);
+      setWinnerRevealSecondsLeft(0);
+      clearWinnerRevealTimers();
       winnerRevealTimerRef.current = undefined;
-    }, 3_000);
-  }
+    }, 5_000);
+  }, [clearWinnerRevealTimers]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     return connectReconnectingEventSource({
@@ -422,7 +450,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
         }
       },
     });
-  }, [tableId]);
+  }, [revealWinnersForSnapshot, tableId]);
 
   useEffect(() => {
     const tableName = state?.tableName;
@@ -540,6 +568,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
       if (winnerRevealTimerRef.current) {
         clearTimeout(winnerRevealTimerRef.current);
       }
+      if (winnerRevealCountdownRef.current) {
+        clearInterval(winnerRevealCountdownRef.current);
+      }
     };
   }, []);
 
@@ -634,10 +665,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     window.dispatchEvent(new Event("spectator-side-tab"));
     document.getElementById("hand-action-logs")?.scrollIntoView({ behavior: "smooth", block: "start" });
     setWinnerReveal(undefined);
-    if (winnerRevealTimerRef.current) {
-      clearTimeout(winnerRevealTimerRef.current);
-      winnerRevealTimerRef.current = undefined;
-    }
+    setWinnerRevealSecondsLeft(0);
+    clearWinnerRevealTimers();
   }
 
   async function joinThisTable() {
@@ -662,14 +691,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const showCoachingPending =
     pendingCoachingHandId !== undefined && (state?.handId ?? 0) < pendingCoachingHandId;
 
-  const handInsightAnalysis =
-    myPlayer?.holeCards?.length ? analyzeDecisionHand(myPlayer.holeCards, state?.communityCards ?? []) : undefined;
-
-  const showHandInsight = Boolean(
-    handInsightAnalysis &&
-      myPlayer &&
-      (state?.phase === "showdown" || handWinners.length > 0),
-  );
+  const previousHandInsight = myPlayer
+    ? latestCompletedHandInsight(state?.handSummaries ?? [], myPlayer.id)
+    : undefined;
+  const showHandInsight = Boolean(previousHandInsight);
 
   const spectatorShareText = useMemo(() => {
     if (typeof window === "undefined") {
@@ -807,6 +832,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
 
               return (
                 <TablePlayerSeat
+                  actionOverlay={actionOverlays.get(player.id)}
                   copy={{ profit: t.profit, stack: t.stack, virtualAgent: t.virtualAgent, winBadge: t.winBadge }}
                   isCurrent={player.id === state?.currentPlayerId}
                   isMine={player.ownerUserId === me?.id}
@@ -822,6 +848,29 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                 />
               );
             })}
+            <TableMomentOverlay
+              countdownLabel={
+                winnerRevealSecondsLeft > 0
+                  ? (language === "zh" ? `下一手倒计时 ${winnerRevealSecondsLeft}s` : `Next hand in ${winnerRevealSecondsLeft}s`)
+                  : undefined
+              }
+              countdownSeconds={winnerRevealSecondsLeft}
+              eyebrow={t.handWinners}
+              handId={winnerReveal?.handId ?? state?.handId ?? 0}
+              handLabel={t.hand}
+              open={handWinners.length > 0}
+              variant="handWin"
+              viewLogLabel={t.viewHandLog}
+              winners={handWinners.map((winner) => ({
+                amount: winner.amount,
+                name: winner.name,
+                netAmount: winner.netAmount,
+                netChipsLabel: t.netChips,
+                playerId: winner.playerId,
+                wonChipsLabel: t.wonChips,
+              }))}
+              onViewLog={scrollToHandLogs}
+            />
           </div>
           <div className={styles.tableInfoBar}>
             <span>
@@ -952,27 +1001,19 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
             }
             copy={{ tabCoach: t.tabCoach, tabInsight: t.tabInsight, tabLog: t.tabLog }}
             insightPanel={
-              handInsightAnalysis && myPlayer ? (
-                showHandInsight ? (
-                  <HandInsightPanel
-                    analysis={handInsightAnalysis}
-                    copy={{
-                      board: t.handInsightBoard,
-                      draws: t.handInsightDraws,
-                      hand: t.hand,
-                      handInsightTitle: t.handInsightTitle,
-                      madeHand: t.handInsightMadeHand,
-                      none: t.handInsightNone,
-                      reasoning: t.handInsightReasoning,
-                    }}
-                    handId={winnerReveal?.handId ?? state?.handId ?? 0}
-                    heroName={myPlayer.name}
-                    reasoning={myPlayer.lastReasoning}
-                    visible
-                  />
-                ) : (
-                  <p className={styles.muted}>{t.insightTabWaiting}</p>
-                )
+              previousHandInsight && myPlayer ? (
+                <PreviousHandInsightPanel
+                  copy={{
+                    board: t.previousHandBoard,
+                    hand: t.hand,
+                    noBoard: t.previousHandNoBoard,
+                    result: t.previousHandResult,
+                    title: t.previousHandInsightTitle,
+                    winners: t.previousHandWinners,
+                  }}
+                  insight={previousHandInsight}
+                  language={language}
+                />
               ) : (
                 <p className={styles.muted}>{t.insightTabEmpty}</p>
               )
@@ -1031,21 +1072,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
         </aside>
       </section>
       <TableMomentOverlay
-        eyebrow={t.handWinners}
-        handId={winnerReveal?.handId ?? state?.handId ?? 0}
-        handLabel={t.hand}
-        open={handWinners.length > 0}
-        variant="handWin"
-        viewLogLabel={t.viewHandLog}
-        winners={handWinners.map((winner) => ({
-          amount: winner.amount,
-          name: winner.name,
-          playerId: winner.playerId,
-          wonChipsLabel: t.wonChips,
-        }))}
-        onViewLog={scrollToHandLogs}
-      />
-      <TableMomentOverlay
         description={sessionEndReason === "bust" ? t.sessionEndBustText : t.sessionEndLeaveText}
         eyebrow={sessionEndReason === "bust" ? t.sessionEndBustTitle : t.sessionEndLeaveTitle}
         open={Boolean(sessionEndReason)}
@@ -1102,6 +1128,108 @@ function HeaderActionIcon({ type }: { type: "back" | "check" | "leave" | "share"
   );
 }
 
+type PreviousHandInsight = {
+  hero: AgentHandSummary["players"][number];
+  heroWinner?: AgentHandSummary["winners"][number];
+  summary: AgentHandSummary;
+};
+
+function latestCompletedHandInsight(summaries: AgentHandSummary[], playerId: string): PreviousHandInsight | undefined {
+  for (const summary of summaries) {
+    const hero = summary.players.find((player) => player.playerId === playerId);
+    if (!hero) {
+      continue;
+    }
+    return {
+      hero,
+      heroWinner: summary.winners.find((winner) => winner.playerId === playerId),
+      summary,
+    };
+  }
+  return undefined;
+}
+
+function PreviousHandInsightPanel({
+  copy,
+  insight,
+  language,
+}: {
+  copy: {
+    board: string;
+    hand: string;
+    noBoard: string;
+    result: string;
+    title: string;
+    winners: string;
+  };
+  insight: PreviousHandInsight;
+  language: "en" | "zh";
+}) {
+  const { hero, heroWinner, summary } = insight;
+  const resultText = heroWinner
+    ? `${copy.winners} +${heroWinner.amount.toLocaleString()} · ${formatHandLabel(heroWinner.handLabel, language)}`
+    : formatSeatDelta(hero.netChips);
+
+  return (
+    <section className={`${styles.panel} ${styles.handInsightPanel}`}>
+      <h2>{copy.title}</h2>
+      <p className={styles.muted}>
+        {hero.name} · {copy.hand} #{summary.handId}
+      </p>
+      <dl className={styles.handInsightList}>
+        <div>
+          <dt>{copy.result}</dt>
+          <dd className={seatDeltaClassName(hero.netChips)}>{resultText}</dd>
+        </div>
+        <div>
+          <dt>{copy.board}</dt>
+          <dd>
+            {summary.communityCards.length > 0 ? (
+              <span className={styles.previousHandCards}>
+                {summary.communityCards.map((card, index) => (
+                  <PlayingCard card={card} key={`${summary.handId}-${card.rank}${card.suit}-${index}`} small />
+                ))}
+              </span>
+            ) : (
+              copy.noBoard
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{copy.winners}</dt>
+          <dd>
+            {summary.winners.map((winner) => (
+              <span className={styles.previousHandWinner} key={`${summary.handId}-${winner.playerId}`}>
+                {winner.name} +{winner.amount.toLocaleString()}
+                {winner.handLabel ? ` · ${formatHandLabel(winner.handLabel, language)}` : ""}
+              </span>
+            ))}
+          </dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function formatHandLabel(label: string | undefined, language: "en" | "zh") {
+  if (!label) {
+    return language === "zh" ? "未摊牌获胜" : "won without showdown";
+  }
+  const zh: Record<string, string> = {
+    flush: "同花",
+    "four of a kind": "四条",
+    "full house": "葫芦",
+    "high card": "高牌",
+    pair: "一对",
+    straight: "顺子",
+    "straight flush": "同花顺",
+    "three of a kind": "三条",
+    "two pair": "两对",
+    "all opponents folded": "其他玩家弃牌",
+  };
+  return language === "zh" ? (zh[label] ?? label) : label;
+}
+
 function currentStreetActions(state?: GameSnapshot) {
   const actions = new Map<string, string>();
   if (!state) {
@@ -1118,33 +1246,68 @@ function currentStreetActions(state?: GameSnapshot) {
   return actions;
 }
 
+function currentActionOverlays(state: GameSnapshot | undefined, nowMs: number) {
+  const actions = new Map<string, string>();
+  if (!state) {
+    return actions;
+  }
+
+  for (const item of state.actionHistory) {
+    if (item.handId !== state.handId || item.round !== state.phase || item.action === "deal" || item.action === "win") {
+      continue;
+    }
+    const createdAtMs = new Date(item.createdAt).getTime();
+    if (!Number.isFinite(createdAtMs) || nowMs - createdAtMs > actionOverlayVisibleMs) {
+      continue;
+    }
+    actions.set(item.playerId, formatStreetAction(item));
+  }
+
+  return actions;
+}
+
 function handWinnerSummaries(state?: GameSnapshot) {
   if (!state) {
     return [];
   }
 
-  const winners = new Map<string, { amount: number; name: string; playerId: string }>();
+  const committedByPlayerId = new Map(state.players.map((player) => [player.id, player.totalCommitted]));
+  const winners = new Map<string, { amount: number; name: string; netAmount: number; playerId: string }>();
   for (const item of state.actionHistory) {
     if (item.handId !== state.handId || item.action !== "win") {
       continue;
     }
     const current = winners.get(item.playerId);
+    const amount = (current?.amount ?? 0) + (item.amount ?? 0);
     winners.set(item.playerId, {
-      amount: (current?.amount ?? 0) + (item.amount ?? 0),
+      amount,
       name: item.playerName,
+      netAmount: amount - (committedByPlayerId.get(item.playerId) ?? 0),
       playerId: item.playerId,
     });
   }
 
-  return [...winners.values()].sort((left, right) => right.amount - left.amount);
+  return [...winners.values()].sort((left, right) => right.netAmount - left.netAmount || right.amount - left.amount);
 }
 
 function formatStreetAction(item: GameSnapshot["actionHistory"][number]) {
   if (item.action === "post-blind") {
     return item.amount ? `blind ${item.amount}` : "blind";
   }
-  if (item.amount !== undefined && (item.action === "bet" || item.action === "raise" || item.action === "call")) {
-    return `${item.action} ${item.amount}`;
+  if (item.action === "call") {
+    return item.amount ? `Call ${item.amount}` : "Call";
+  }
+  if (item.action === "raise") {
+    return item.amount ? `Raise +${item.amount}` : "Raise";
+  }
+  if (item.action === "bet") {
+    return item.targetBet ? `Bet ${item.targetBet}` : item.amount ? `Bet ${item.amount}` : "Bet";
+  }
+  if (item.action === "check") {
+    return "Check";
+  }
+  if (item.action === "fold") {
+    return "Fold";
   }
   return item.action;
 }

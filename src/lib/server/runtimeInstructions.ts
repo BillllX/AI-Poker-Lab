@@ -27,8 +27,8 @@ const defaultInstructions = [
   "LLM 输出必须是单个 JSON 对象；reasoning 必须是中文。",
   "fold/check/call 不允许带 amount；bet/raise 必须带正数 JSON number amount。",
   "如果 legalActions 包含 call，即使 toCall 大于当前 stack，也可以选择 {\"type\":\"call\"}；服务端会自动投入剩余全部筹码并标记 all-in。不要因为筹码不足以完整跟注就认为只能 fold。",
-  "raise.amount 表示本轮目标总下注额，不是额外加注量。",
-  "选择 raise 时，amount 至少应为 currentBet + minRaise；minRaise 会跟随上一手完整下注/加注增量变化。",
+  "raise.amount 表示在当前注码上追加的筹码，不是本轮目标总下注额。",
+  "选择 raise 时，amount 至少应为 minRaise，最终目标注额会由服务端按 currentBet + amount 计算；minRaise 会跟随上一手完整下注/加注增量变化。",
 ];
 const maxNotesPerAgent = 50;
 const maxTotalNotes = 1_000;
