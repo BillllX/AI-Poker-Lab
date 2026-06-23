@@ -18,6 +18,11 @@ import { publicApiFetchInit } from "@/lib/client/publicApiFetch";
 import { readRecentSpectate, subscribeRecentSpectate } from "@/lib/client/recentSpectate";
 import { recordQuestQuickPlayComplete } from "@/lib/client/questOptionalProgress";
 import { useLanguage } from "@/lib/client/i18n";
+import { getTableCardAriaLabel } from "@/lib/client/tablesCardAriaLabel";
+import {
+  TABLES_ASSIGNMENT_STATUS_LABELS,
+  getAssignmentStatusLabel,
+} from "@/lib/client/tablesStatusLabels";
 import styles from "./tables.module.css";
 
 const authChangedEvent = "texas-poker-auth-changed";
@@ -66,8 +71,10 @@ const copy = {
     full: "满员",
     seatsLeft: "剩余 {count} 个座位",
     enterSpectate: "实时观战",
-    emptyTableTitle: "还没有正在进行的比赛桌",
-    emptyTableText: "你可以等待在线 AI 自动入座，也可以先创建自己的托管 AI 牌手，让大厅更快开赛。",
+    emptyTable: {
+      title: "还没有正在进行的比赛桌",
+      description: "你可以等待在线 AI 自动入座，也可以先创建自己的托管 AI 牌手，让大厅更快开赛。",
+    },
     emptyTableAction: "创建 AI 牌手",
     lobbyLoading: "正在加载比赛大厅…",
     lobbyLoadFailed: "比赛大厅加载失败，请刷新页面。",
@@ -94,6 +101,7 @@ const copy = {
     enter: "进入",
     rosterDetails: "等待队列与牌手名册",
     rosterDetailsText: "用于查看当前入场顺序和所有在线 AI 牌手。",
+    assignmentStatusLabels: TABLES_ASSIGNMENT_STATUS_LABELS.zh,
   },
   en: {
     home: "Home",
@@ -113,8 +121,10 @@ const copy = {
     full: "Full",
     seatsLeft: "{count} seats left",
     enterSpectate: "Spectate Live",
-    emptyTableTitle: "No active match tables yet",
-    emptyTableText: "Wait for online AI players to auto-seat, or create your own hosted AI player to help the lobby start faster.",
+    emptyTable: {
+      title: "No active match tables yet",
+      description: "Wait for online AI players to auto-seat, or create your own hosted AI player to help the lobby start faster.",
+    },
     emptyTableAction: "Create an AI player",
     lobbyLoading: "Loading match lobby…",
     lobbyLoadFailed: "Couldn't load the match lobby. Refresh the page.",
@@ -141,6 +151,7 @@ const copy = {
     enter: "Enter",
     rosterDetails: "Queue and Player Roster",
     rosterDetailsText: "Check entry order and all online AI players.",
+    assignmentStatusLabels: TABLES_ASSIGNMENT_STATUS_LABELS.en,
   },
 };
 
@@ -352,8 +363,17 @@ export default function TablesPage() {
             </p>
           ) : (
             <>
-          {tables.map((table) => (
+          {tables.map((table) => {
+            const seatTotal = clampNumber(table.maxPlayers, 2, 6);
+            const occupied = clampNumber(table.playerCount, 0, seatTotal);
+            const seatLabel =
+              table.playerCount >= table.maxPlayers
+                ? t.full
+                : t.seatsLeft.replace("{count}", String(table.maxPlayers - table.playerCount));
+
+            return (
             <Link
+              aria-label={getTableCardAriaLabel(table.name, table.playerCount, table.maxPlayers, table.phase, language)}
               className={`${styles.tableCard} ${myAgent?.tableId === table.id ? styles.myTableCard : ""}`}
               href={tableSpectatorPath(table.id)}
               key={table.id}
@@ -367,32 +387,41 @@ export default function TablesPage() {
                 </div>
                 {myAgent?.tableId === table.id ? <strong className={styles.mineBadge}>{t.mineBadge}</strong> : null}
               </div>
-              <div className={styles.feltTable} aria-hidden="true">
-                <span className={styles.tableSeat} />
-                <span className={styles.tableSeat} />
-                <span className={styles.tableSeat} />
+              <div className={styles.feltTable} data-seat-total={seatTotal} aria-hidden="true">
+                {Array.from({ length: seatTotal }, (_, index) => (
+                  <span
+                    className={`${styles.tableSeat} ${index < occupied ? styles.tableSeatActive : ""}`}
+                    key={index}
+                  />
+                ))}
                 <div>
                   <strong>{table.playerCount}/{table.maxPlayers}</strong>
                   <small>{formatPhase(table.phase, language)}</small>
                 </div>
               </div>
               <div className={styles.tableCardFooter}>
-                <div>
+                <div className={styles.tableFooterPrimary}>
                   <strong>{table.name}</strong>
-                  <small>{table.playerCount >= table.maxPlayers ? t.full : t.seatsLeft.replace("{count}", String(table.maxPlayers - table.playerCount))}</small>
+                  <small className={styles.tableFooterSeats}>{seatLabel}</small>
                 </div>
-                <div className={styles.tableMeta}>
-                  <span>{formatPhase(table.phase, language)}</span>
-                  <b>{t.enter}</b>
+                <div className={styles.tableFooterActions}>
+                  <small className={styles.tableFooterCompactMeta}>
+                    {formatPhase(table.phase, language)} · {seatLabel}
+                  </small>
+                  <div className={styles.tableMeta}>
+                    <span>{formatPhase(table.phase, language)}</span>
+                    <b>{t.enter}</b>
+                  </div>
                 </div>
               </div>
             </Link>
-          ))}
+            );
+          })}
           {tables.length === 0 && (
             <EmptyState
               className={styles.emptyStateSlot}
-              description={t.emptyTableText}
-              title={t.emptyTableTitle}
+              description={t.emptyTable.description}
+              title={t.emptyTable.title}
               action={
                 <Link className={styles.emptyStateAction} href="/#quick-play">
                   {t.emptyTableAction}
@@ -428,11 +457,15 @@ export default function TablesPage() {
                   <span>#{index + 1}</span>
                   <div>
                     <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
-                      {agent.name}
+                      <span className={styles.profileName}>{agent.name}</span>
                     </Link>
                     <small>{agent.id}</small>
                   </div>
-                  <em>{agent.kind === "virtual" ? t.virtualAgent : agent.assignmentStatus}</em>
+                  <em>
+                    {agent.kind === "virtual"
+                      ? t.virtualAgent
+                      : getAssignmentStatusLabel(agent.assignmentStatus, t.assignmentStatusLabels)}
+                  </em>
                 </div>
               ))}
               {queuedAgents.length === 0 && (
@@ -455,12 +488,12 @@ export default function TablesPage() {
                   <span>{agent.tableId ? t.tableLabel : "-"}</span>
                   <div>
                     <Link className={styles.profileLink} href={`/agents/${encodeURIComponent(agent.id)}`}>
-                      {agent.name}
+                      <span className={styles.profileName}>{agent.name}</span>
                       {agent.kind === "virtual" && <b>{t.virtualAgent}</b>}
                     </Link>
                     <small>{agent.kind === "virtual" ? agent.strategy ?? "virtual" : agent.tableId ?? t.unseated}</small>
                   </div>
-                  <em>{agent.assignmentStatus}</em>
+                  <em>{getAssignmentStatusLabel(agent.assignmentStatus, t.assignmentStatusLabels)}</em>
                 </div>
               ))}
               {agents.length === 0 && <EmptyState description={t.noAgents} variant="inline" />}
@@ -470,6 +503,11 @@ export default function TablesPage() {
       </section>
     </main>
   );
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  const normalized = Number.isFinite(value) ? value : min;
+  return Math.min(max, Math.max(min, normalized));
 }
 
 function formatPhase(phase: string, language: "zh" | "en") {
