@@ -20,7 +20,7 @@ async function main() {
   });
 
   assert.equal(metadata.title, "Table Not Found");
-  assert.equal(metadata.robots?.index, false);
+  assert.equal(metadata.robots && typeof metadata.robots === "object" ? metadata.robots.index : undefined, false);
 
   console.log("Tables invalid table smoke test passed.");
 }

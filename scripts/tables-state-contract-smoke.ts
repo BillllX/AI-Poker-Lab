@@ -31,12 +31,14 @@ async function main() {
   assert.equal(typeof body.tableName, "string");
   assert.ok(body.tableName && body.tableName.length > 0);
   assert.equal(typeof body.handId, "number");
-  assert.ok(body.handId >= 0);
+  const handId = body.handId;
+  assert.ok(typeof handId === "number" && handId >= 0);
   assert.equal(typeof body.running, "boolean");
   assert.ok(Array.isArray(body.players));
   assert.ok(Array.isArray(body.communityCards));
   assert.equal(typeof body.spectatorCount, "number");
-  assert.ok(body.spectatorCount >= 0);
+  const spectatorCount = body.spectatorCount;
+  assert.ok(typeof spectatorCount === "number" && spectatorCount >= 0);
 
   console.log("Tables state contract smoke test passed.");
 }

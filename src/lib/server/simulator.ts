@@ -657,14 +657,22 @@ export class TableManager {
       if (!isResidentAgentsEnabled()) {
         this.fillTableWithVirtualAgents(table.id);
       }
-      await table.runner.maybeAutoStart();
+      await this.safeMaybeAutoStart(table);
     }
 
     for (const table of this.activeTables()) {
       if (!isResidentAgentsEnabled()) {
         this.fillTableWithVirtualAgents(table.id);
       }
+      await this.safeMaybeAutoStart(table);
+    }
+  }
+
+  private async safeMaybeAutoStart(table: TableRecord) {
+    try {
       await table.runner.maybeAutoStart();
+    } catch (error) {
+      logger.error("table.auto_start_failed", { tableId: table.id, error });
     }
   }
 

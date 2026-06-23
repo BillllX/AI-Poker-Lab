@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { initialStack } from "../poker/gameEngine";
 import { listAgents, queueAgent, upsertResidentAgent, type RegisteredAgent } from "./agentRegistry";
+import { logger } from "./logger";
 import { prisma } from "./prisma";
 
 type ResidentAgentTemplate = {
@@ -103,6 +104,7 @@ export async function ensureResidentAgentPool() {
 
 export async function queueResidentAgents(targetQueued = residentTargetQueued) {
   const pool = await ensureResidentAgentPool();
+  await replenishResidentBankrolls(pool);
   const queuedOrActive = listAgents().filter(
     (agent) => agent.kind === "resident" && (agent.assignmentStatus === "queued" || agent.assignmentStatus === "seated" || agent.assignmentStatus === "playing"),
   ).length;
@@ -160,6 +162,36 @@ async function ensureResidentUser(template: ResidentAgentTemplate, ownerUserId: 
     await prisma.user.update({
       data: { pointsBalance: residentBankroll },
       where: { id: ownerUserId },
+    });
+  }
+}
+
+async function replenishResidentBankrolls(agents: RegisteredAgent[]) {
+  const ownerUserIds = agents
+    .filter((agent): agent is RegisteredAgent & { ownerUserId: string } => agent.kind === "resident" && Boolean(agent.ownerUserId))
+    .map((agent) => agent.ownerUserId);
+  if (ownerUserIds.length === 0) {
+    return;
+  }
+
+  const users = await prisma.user.findMany({
+    select: { id: true, name: true, pointsBalance: true },
+    where: {
+      id: { in: ownerUserIds },
+      pointsBalance: { lt: initialStack },
+    },
+  });
+
+  for (const user of users) {
+    await prisma.user.update({
+      data: { pointsBalance: residentBankroll },
+      where: { id: user.id },
+    });
+    logger.warn("resident.bankroll_replenished", {
+      ownerUserId: user.id,
+      name: user.name,
+      previousPointsBalance: user.pointsBalance,
+      replenishedPointsBalance: residentBankroll,
     });
   }
 }
