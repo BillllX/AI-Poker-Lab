@@ -12,7 +12,8 @@ type ResidentAgentTemplate = {
 
 const residentBankroll = 10_000;
 const residentModelName = process.env.RESIDENT_AGENT_MODEL ?? process.env.HOSTED_AGENT_MODEL ?? "MiniMax M2.7 Highspeed";
-const residentTargetQueued = Math.max(4, Number(process.env.RESIDENT_AGENT_TARGET_QUEUED ?? 8));
+const maxResidentAgentsInGame = 3;
+const residentTargetQueued = Math.min(maxResidentAgentsInGame, Math.max(0, Number(process.env.RESIDENT_AGENT_TARGET_QUEUED ?? maxResidentAgentsInGame)));
 
 const defaultResidentAgents: ResidentAgentTemplate[] = [
   {
