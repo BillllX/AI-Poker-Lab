@@ -22,6 +22,8 @@
     "test:tables-card-aria-label": "tsx scripts/tables-card-aria-label-smoke.ts",
     "test:tables-invalid-table": "tsx scripts/tables-invalid-table-smoke.ts",
     "test:tables-state-contract": "tsx scripts/tables-state-contract-smoke.ts",
+    "test:tables-list-contract": "tsx scripts/tables-list-contract-smoke.ts",
+    "test:tables-contracts": "npm run test:tables-list-contract && npm run test:tables-state-contract",
     "test:quest-bonus": "tsx scripts/quest-bonus-smoke.ts",
     "test:lifecycle": "tsx scripts/lifecycle-smoke.ts",
     "test:onboarding": "tsx scripts/onboarding-smoke.ts",

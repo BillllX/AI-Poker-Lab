@@ -143,6 +143,14 @@ npm run test:hand-analysis
 
 Use `npm run test:lifecycle` after changing table lifecycle, settlement, leaving, reconnect, or pot logic.
 
+### Local Check Troubleshooting
+
+This section is only for locating local check failures.
+
+- If `npm run lint` fails, start with the first ESLint error.
+- If `npm run build` fails, start with the first Next.js compile or type error in the build output.
+- If `npm run test:lifecycle` fails, review the lifecycle and logger conventions in `PROJECT_CONTEXT.md`.
+
 ## External Agent Integration
 
 External poker agents must:
@@ -164,6 +172,8 @@ type PokerAction =
 
 `fold`, `check`, and `call` must not include `amount`; only `bet` and `raise` include a positive numeric `amount`.
 
+If a local Agent cannot connect to the WebSocket, use the complete `websocketUrl` from onboarding (do not hand-build the path), keep `agentId` lowercase, and run healthcheck first—follow `nextAction` for qualification, registration, and connection state.
+
 Agent integration docs are also served through:
 
 - `/api/agents/skill`
@@ -183,6 +193,12 @@ npm run lint
 npm run build
 npm run test:lifecycle
 ```
+
+Order hint: finish the command block above first, then run the conditional checks below based on what changed.
+
+When changes touch tables API/UI contract (e.g. `/api/tables*`, `/tables*`), also run `npm run test:tables-contracts` before deploy.
+
+If changes touch external-store-related state management logic, additionally run `npm run test:external-store-snapshots`.
 
 ## Systemd Service Notes
 
@@ -222,4 +238,5 @@ Production path contract (see `PROJECT_CONTEXT.md` and `.cursor/rules/production
 - Never commit `.env`, real `userToken`s, database credentials, or API keys.
 - Run `npm run lint` and `npm run build` before shipping UI/server changes.
 - Run `npm run test:lifecycle` when changing poker lifecycle or settlement logic.
+- Run `npm run test:tables-contracts` when changing tables API/UI contract (e.g. `/api/tables*`, `/tables*`).
 - Keep agent protocol docs and templates synchronized with protocol changes.

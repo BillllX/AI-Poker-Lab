@@ -3,8 +3,16 @@ import { withBasePath } from "@/lib/client/basePath";
 import { pushEngagementToast } from "@/lib/client/engagementToast";
 import { trackEngagement } from "@/lib/client/engagementAnalytics";
 import type { Language } from "@/lib/client/i18n";
+import {
+  getCurrentStorageUserId,
+  getUserScopedStorageKey,
+} from "@/lib/client/userScopedStorage";
 
 const AUTO_REWARD_KEY = "texas-poker:quest-active-reward-auto";
+
+function autoRewardStorageKey() {
+  return getUserScopedStorageKey(AUTO_REWARD_KEY);
+}
 
 type QuestBonusReason = "quest_star" | "quest_master";
 
@@ -18,7 +26,7 @@ function readAutoFlag() {
     return null;
   }
   try {
-    const raw = sessionStorage.getItem(AUTO_REWARD_KEY);
+    const raw = sessionStorage.getItem(autoRewardStorageKey());
     if (!raw) {
       return null;
     }
@@ -33,7 +41,7 @@ function writeAutoFlag() {
   if (typeof sessionStorage === "undefined") {
     return;
   }
-  sessionStorage.setItem(AUTO_REWARD_KEY, JSON.stringify({ dayKey: todayDayKey() }));
+  sessionStorage.setItem(autoRewardStorageKey(), JSON.stringify({ dayKey: todayDayKey() }));
 }
 
 async function claimQuestMasterBadge() {
@@ -74,18 +82,27 @@ export async function tryQuestActiveRewards(
   if (typeof window === "undefined" || stars < 3) {
     return { kind: "skipped" };
   }
+  if (getCurrentStorageUserId() === null) {
+    return { kind: "login_required" };
+  }
+  const requestUserId = getCurrentStorageUserId();
   if (readAutoFlag()) {
     return { kind: "skipped" };
   }
-  writeAutoFlag();
 
   const masterResult = await claimQuestMasterBadge();
+  if (getCurrentStorageUserId() !== requestUserId) {
+    return { kind: "skipped" };
+  }
   if (masterResult === "login_required") {
     return { kind: "login_required" };
   }
 
   let grantedPoints = 0;
   const starBonus = await claimQuestBonus("quest_star");
+  if (getCurrentStorageUserId() !== requestUserId) {
+    return { kind: "skipped" };
+  }
   if (starBonus.kind === "login_required") {
     return { kind: "login_required" };
   }
@@ -99,8 +116,15 @@ export async function tryQuestActiveRewards(
     });
   }
 
-  if (masterResult === "earned") {
+  const masterBadge = masterResult === "earned";
+  if (masterBadge) {
     const masterBonus = await claimQuestBonus("quest_master");
+    if (getCurrentStorageUserId() !== requestUserId) {
+      return { kind: "skipped" };
+    }
+    if (masterBonus.kind === "login_required") {
+      return { kind: "login_required" };
+    }
     if (masterBonus.kind === "granted") {
       grantedPoints += masterBonus.granted;
       trackEngagement({
@@ -110,6 +134,13 @@ export async function tryQuestActiveRewards(
         reason: "quest_master",
       });
     }
+  }
+
+  if (getCurrentStorageUserId() !== requestUserId) {
+    return { kind: "skipped" };
+  }
+
+  if (masterBadge) {
     pushEngagementToast({
       expiresMs: 5200,
       kind: "rank",
@@ -128,9 +159,11 @@ export async function tryQuestActiveRewards(
     });
   }
 
+  writeAutoFlag();
+
   return {
     kind: "done",
     grantedPoints,
-    masterBadge: masterResult === "earned",
+    masterBadge,
   };
 }

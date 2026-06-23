@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { EMPTY_CHECK_IN_STATE, readCheckInState } from "@/lib/client/dailyCheckIn";
+import { EMPTY_CHECK_IN_STATE, readCheckInState, subscribeCheckIn } from "@/lib/client/dailyCheckIn";
 import {
   getDailyTasksSnapshot,
   getServerDailyTasksSnapshot,
@@ -15,19 +15,16 @@ import {
 } from "@/lib/client/questOptionalProgress";
 import { buildQuestBoard, countQuestStars, questRewardHint } from "@/lib/client/questCatalog";
 import { readQuestHistory, getServerQuestHistorySnapshot, subscribeQuestHistory } from "@/lib/client/questHistory";
-import { fetchQuestBonusSummary } from "@/lib/client/questBonusClient";
+import {
+  fetchScopedQuestBonusSummary,
+  resolveScopedQuestBonusDisplay,
+  type QuestBonusBreakdownEntry,
+} from "@/lib/client/questBonusClient";
+import {
+  getCurrentStorageUserId,
+  USER_STORAGE_SCOPE_CHANGE_EVENT,
+} from "@/lib/client/userScopedStorage";
 import styles from "../app/me.module.css";
-
-const CHECK_IN_EVENT = "daily-check-in-change";
-
-function subscribeCheckIn(onStoreChange: () => void) {
-  window.addEventListener(CHECK_IN_EVENT, onStoreChange);
-  window.addEventListener("storage", onStoreChange);
-  return () => {
-    window.removeEventListener(CHECK_IN_EVENT, onStoreChange);
-    window.removeEventListener("storage", onStoreChange);
-  };
-}
 
 const copy = {
   zh: {
@@ -93,18 +90,41 @@ export function MeQuestProgressPanel() {
   const stars = countQuestStars(board);
   const doneCount = board.filter((entry) => entry.complete).length;
   const [bonusToday, setBonusToday] = useState<number | null>(null);
-  const [bonusBreakdown, setBonusBreakdown] = useState<Array<{ amount: number; reason: string }>>([]);
+  const [bonusBreakdown, setBonusBreakdown] = useState<QuestBonusBreakdownEntry[]>([]);
+
+  const clearBonusState = () => {
+    setBonusToday(null);
+    setBonusBreakdown([]);
+  };
+
+  useEffect(() => {
+    const onScopeChange = () => {
+      clearBonusState();
+    };
+    window.addEventListener(USER_STORAGE_SCOPE_CHANGE_EVENT, onScopeChange);
+    return () => {
+      window.removeEventListener(USER_STORAGE_SCOPE_CHANGE_EVENT, onScopeChange);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    void fetchQuestBonusSummary().then((summary) => {
-      if (cancelled || !summary) {
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setBonusToday(null);
+        setBonusBreakdown([]);
+      }
+    });
+    void fetchScopedQuestBonusSummary().then((result) => {
+      if (cancelled) {
         return;
       }
-      if (summary.grantedToday > 0) {
-        setBonusToday(summary.grantedToday);
+      const displayState = resolveScopedQuestBonusDisplay(result, getCurrentStorageUserId());
+      if (!displayState) {
+        return;
       }
-      setBonusBreakdown(summary.breakdown ?? []);
+      setBonusToday(displayState.bonusToday);
+      setBonusBreakdown(displayState.bonusBreakdown);
     });
     return () => {
       cancelled = true;

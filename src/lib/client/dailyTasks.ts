@@ -1,6 +1,10 @@
 import { todayDayKey } from "@/lib/client/dailyCheckIn";
+import {
+  getUserScopedStorageKey,
+  USER_STORAGE_SCOPE_CHANGE_EVENT,
+} from "@/lib/client/userScopedStorage";
 
-const STORAGE_KEY = "texas-poker:daily-tasks";
+const STORAGE_KEY_BASE = "texas-poker:daily-tasks";
 export const DAILY_TASKS_CHANGE_EVENT = "texas-poker-daily-tasks-change";
 export const DAILY_SPECTATE_HANDS_TARGET = 5;
 export const DAILY_COACHING_TARGET = 1;
@@ -22,16 +26,22 @@ export const EMPTY_DAILY_TASKS: DailyTasksState = {
   coachingCount: 0,
 };
 
+let cachedStorageKey: string | null | undefined;
 let cachedRaw: string | null | undefined;
 let cachedState: DailyTasksState = EMPTY_DAILY_TASKS;
 
-function handKey(tableId: string, handId: number) {
-  return `${tableId}:${handId}`;
+function resolveStorageKey(): string {
+  return getUserScopedStorageKey(STORAGE_KEY_BASE);
 }
 
-function commitCache(raw: string | null, state: DailyTasksState) {
+function commitCache(storageKey: string | null, raw: string | null, state: DailyTasksState) {
+  cachedStorageKey = storageKey;
   cachedRaw = raw;
   cachedState = state;
+}
+
+function handKey(tableId: string, handId: number) {
+  return `${tableId}:${handId}`;
 }
 
 function parseStoredState(raw: string): DailyTasksState {
@@ -63,11 +73,12 @@ function ensureTodayState(state: DailyTasksState): DailyTasksState {
 
   const reset = createTodayResetState();
   if (typeof localStorage !== "undefined") {
+    const storageKey = resolveStorageKey();
     const nextRaw = JSON.stringify(reset);
-    localStorage.setItem(STORAGE_KEY, nextRaw);
-    commitCache(nextRaw, reset);
+    localStorage.setItem(storageKey, nextRaw);
+    commitCache(storageKey, nextRaw, reset);
   } else {
-    commitCache(null, reset);
+    commitCache(null, null, reset);
   }
   return reset;
 }
@@ -83,9 +94,10 @@ function persistState(state: DailyTasksState) {
     return state;
   }
 
+  const storageKey = resolveStorageKey();
   const raw = JSON.stringify(state);
-  localStorage.setItem(STORAGE_KEY, raw);
-  commitCache(raw, state);
+  localStorage.setItem(storageKey, raw);
+  commitCache(storageKey, raw, state);
   emitChange();
   return state;
 }
@@ -96,22 +108,23 @@ export function readDailyTasks(): DailyTasksState {
   }
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === cachedRaw) {
+    const storageKey = resolveStorageKey();
+    const raw = localStorage.getItem(storageKey);
+    if (storageKey === cachedStorageKey && raw === cachedRaw) {
       return ensureTodayState(cachedState);
     }
 
     if (!raw) {
       const next = ensureTodayState(EMPTY_DAILY_TASKS);
-      commitCache(typeof localStorage !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null, next);
+      commitCache(storageKey, localStorage.getItem(storageKey), next);
       return next;
     }
 
     const parsed = ensureTodayState(parseStoredState(raw));
-    commitCache(typeof localStorage !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null, parsed);
+    commitCache(storageKey, localStorage.getItem(storageKey), parsed);
     return parsed;
   } catch {
-    commitCache(null, EMPTY_DAILY_TASKS);
+    commitCache(null, null, EMPTY_DAILY_TASKS);
     return EMPTY_DAILY_TASKS;
   }
 }
@@ -157,9 +170,11 @@ export function recordDailyCoachingSubmission(): DailyTasksState {
 
 export function subscribeDailyTasks(onStoreChange: () => void) {
   window.addEventListener(DAILY_TASKS_CHANGE_EVENT, onStoreChange);
+  window.addEventListener(USER_STORAGE_SCOPE_CHANGE_EVENT, onStoreChange);
   window.addEventListener("storage", onStoreChange);
   return () => {
     window.removeEventListener(DAILY_TASKS_CHANGE_EVENT, onStoreChange);
+    window.removeEventListener(USER_STORAGE_SCOPE_CHANGE_EVENT, onStoreChange);
     window.removeEventListener("storage", onStoreChange);
   };
 }

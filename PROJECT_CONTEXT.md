@@ -98,6 +98,8 @@ npm run build
 npm run test:lifecycle
 ```
 
+When changes touch tables API/UI contract (e.g. `/api/tables*`, `/tables*`), also run `npm run test:tables-contracts`.
+
 Production deployment is documented in `deploy/DEPLOY.md` for one-shot Agent runs when the project owner requests it. Never commit secrets; use systemd drop-ins on the server for credentials.
 
 ## Important Cautions

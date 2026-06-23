@@ -1,7 +1,15 @@
 import { todayDayKey } from "@/lib/client/dailyCheckIn";
 import { withBasePath } from "@/lib/client/basePath";
+import {
+  getCurrentStorageUserId,
+  getUserScopedStorageKey,
+} from "@/lib/client/userScopedStorage";
 
 const AUTO_CLAIM_KEY = "texas-poker:quest-grinder-auto";
+
+function autoClaimStorageKey() {
+  return getUserScopedStorageKey(AUTO_CLAIM_KEY);
+}
 
 export type GrinderClaimResult = "earned" | "login_required" | "unavailable" | "error";
 
@@ -12,7 +20,7 @@ function readAutoClaimFlag(): DayFlag | null {
     return null;
   }
   try {
-    const raw = sessionStorage.getItem(AUTO_CLAIM_KEY);
+    const raw = sessionStorage.getItem(autoClaimStorageKey());
     if (!raw) {
       return null;
     }
@@ -27,7 +35,10 @@ function writeAutoClaimFlag() {
   if (typeof sessionStorage === "undefined") {
     return;
   }
-  sessionStorage.setItem(AUTO_CLAIM_KEY, JSON.stringify({ dayKey: todayDayKey() } satisfies DayFlag));
+  sessionStorage.setItem(
+    autoClaimStorageKey(),
+    JSON.stringify({ dayKey: todayDayKey() } satisfies DayFlag),
+  );
 }
 
 export function hasAttemptedGrinderAutoClaimToday() {
@@ -35,6 +46,9 @@ export function hasAttemptedGrinderAutoClaimToday() {
 }
 
 export async function fetchTodayBadgeKinds(): Promise<string[] | "login_required"> {
+  if (getCurrentStorageUserId() === null) {
+    return "login_required";
+  }
   const response = await fetch(withBasePath("/api/users/me/daily-badges"), { cache: "no-store" });
   if (response.status === 401) {
     return "login_required";
@@ -47,6 +61,9 @@ export async function fetchTodayBadgeKinds(): Promise<string[] | "login_required
 }
 
 export async function claimGrinderBadgeFromQuestCore(): Promise<GrinderClaimResult> {
+  if (getCurrentStorageUserId() === null) {
+    return "login_required";
+  }
   const response = await fetch(withBasePath("/api/users/me/daily-badges"), {
     body: JSON.stringify({ badge: "grinder", context: "quest_core" }),
     headers: { "content-type": "application/json" },
@@ -65,16 +82,27 @@ export async function claimGrinderBadgeFromQuestCore(): Promise<GrinderClaimResu
 }
 
 export async function tryAutoClaimGrinderFromQuestCore(): Promise<GrinderClaimResult | "skipped"> {
+  if (getCurrentStorageUserId() === null) {
+    return "login_required";
+  }
+  const requestUserId = getCurrentStorageUserId();
   if (hasAttemptedGrinderAutoClaimToday()) {
     return "skipped";
   }
-  writeAutoClaimFlag();
-  return claimGrinderBadgeFromQuestCore();
+  const result = await claimGrinderBadgeFromQuestCore();
+  if (getCurrentStorageUserId() !== requestUserId) {
+    return "skipped";
+  }
+  if (result === "earned" || result === "unavailable") {
+    writeAutoClaimFlag();
+  }
+  return result;
 }
 
 /** Test-only reset. */
 export function resetGrinderAutoClaimForTests() {
   if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem(autoClaimStorageKey());
     sessionStorage.removeItem(AUTO_CLAIM_KEY);
   }
 }

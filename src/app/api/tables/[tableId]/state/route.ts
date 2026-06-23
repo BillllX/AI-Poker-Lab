@@ -11,5 +11,7 @@ export async function GET(request: Request, context: { params: Promise<{ tableId
   }
 
   const cached = table.runner.cachedSnapshot();
-  return Response.json(withSpectatorSnapshot(tableId, cached.snapshot, cached.version).snapshot);
+  return Response.json(withSpectatorSnapshot(tableId, cached.snapshot, cached.version).snapshot, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }

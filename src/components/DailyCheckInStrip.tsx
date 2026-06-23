@@ -7,21 +7,11 @@ import {
   getStreakBadgeTier,
   isCheckedInToday,
   readCheckInState,
+  subscribeCheckIn,
 } from "@/lib/client/dailyCheckIn";
 import { trackEngagement } from "@/lib/client/engagementAnalytics";
 import { useLanguage } from "@/lib/client/i18n";
 import styles from "./DailyCheckInStrip.module.css";
-
-const CHANGE_EVENT = "daily-check-in-change";
-
-function subscribe(onStoreChange: () => void) {
-  window.addEventListener(CHANGE_EVENT, onStoreChange);
-  window.addEventListener("storage", onStoreChange);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, onStoreChange);
-    window.removeEventListener("storage", onStoreChange);
-  };
-}
 
 function getSnapshot() {
   return readCheckInState();
@@ -59,7 +49,7 @@ type DailyCheckInStripProps = {
 export function DailyCheckInStrip({ className }: DailyCheckInStripProps) {
   const { language } = useLanguage();
   const t = copy[language];
-  const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const state = useSyncExternalStore(subscribeCheckIn, getSnapshot, getServerSnapshot);
   const checkedIn = isCheckedInToday(state);
   const badgeTier = getStreakBadgeTier(state.streak);
 
@@ -70,7 +60,6 @@ export function DailyCheckInStrip({ className }: DailyCheckInStripProps) {
       name: "engagement.checkin.complete",
       streak: next.streak,
     });
-    window.dispatchEvent(new Event(CHANGE_EVENT));
   }, []);
 
   return (

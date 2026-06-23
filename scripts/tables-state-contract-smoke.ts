@@ -16,6 +16,17 @@ async function main() {
 
   assert.equal(response.status, 200);
 
+  const contentType = response.headers.get("content-type");
+  assert.ok(contentType, "expected Content-Type header on 200 response");
+  assert.ok(
+    contentType.toLowerCase().includes("application/json"),
+    "expected Content-Type to include application/json",
+  );
+
+  const cacheControl = response.headers.get("cache-control");
+  assert.ok(cacheControl, "expected Cache-Control header on 200 response");
+  assert.ok(cacheControl.trim().length > 0, "expected Cache-Control header to be non-empty");
+
   const body = (await response.json()) as {
     tableId?: string;
     tableName?: string;

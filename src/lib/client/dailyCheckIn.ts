@@ -1,4 +1,10 @@
-const STORAGE_KEY = "texas-poker:daily-check-in";
+import {
+  getUserScopedStorageKey,
+  USER_STORAGE_SCOPE_CHANGE_EVENT,
+} from "@/lib/client/userScopedStorage";
+
+const STORAGE_KEY_BASE = "texas-poker:daily-check-in";
+export const DAILY_CHECK_IN_CHANGE_EVENT = "texas-poker-daily-check-in-change";
 
 export type DailyCheckInState = {
   lastDayKey: string;
@@ -15,8 +21,19 @@ export const EMPTY_CHECK_IN_STATE: DailyCheckInState = {
 };
 
 /** Cached snapshot so useSyncExternalStore getSnapshot stays referentially stable. */
+let cachedStorageKey: string | null | undefined;
 let cachedRaw: string | null | undefined;
 let cachedState: DailyCheckInState = EMPTY_CHECK_IN_STATE;
+
+function resolveStorageKey(): string {
+  return getUserScopedStorageKey(STORAGE_KEY_BASE);
+}
+
+function commitCache(storageKey: string | null, raw: string | null, state: DailyCheckInState) {
+  cachedStorageKey = storageKey;
+  cachedRaw = raw;
+  cachedState = state;
+}
 
 function parseStoredState(raw: string): DailyCheckInState {
   const parsed = JSON.parse(raw) as Partial<DailyCheckInState>;
@@ -28,9 +45,10 @@ function parseStoredState(raw: string): DailyCheckInState {
   };
 }
 
-function commitCachedState(raw: string | null, state: DailyCheckInState) {
-  cachedRaw = raw;
-  cachedState = state;
+function emitChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(DAILY_CHECK_IN_CHANGE_EVENT));
+  }
 }
 
 export function formatDayKey(date: Date): string {
@@ -61,21 +79,22 @@ export function readCheckInState(): DailyCheckInState {
   }
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === cachedRaw) {
+    const storageKey = resolveStorageKey();
+    const raw = localStorage.getItem(storageKey);
+    if (storageKey === cachedStorageKey && raw === cachedRaw) {
       return cachedState;
     }
 
     if (!raw) {
-      commitCachedState(null, EMPTY_CHECK_IN_STATE);
+      commitCache(storageKey, null, EMPTY_CHECK_IN_STATE);
       return EMPTY_CHECK_IN_STATE;
     }
 
     const next = parseStoredState(raw);
-    commitCachedState(raw, next);
+    commitCache(storageKey, raw, next);
     return next;
   } catch {
-    commitCachedState(null, EMPTY_CHECK_IN_STATE);
+    commitCache(null, null, EMPTY_CHECK_IN_STATE);
     return EMPTY_CHECK_IN_STATE;
   }
 }
@@ -112,10 +131,23 @@ export function checkInToday(): DailyCheckInState {
   };
 
   if (typeof localStorage !== "undefined") {
+    const storageKey = resolveStorageKey();
     const raw = JSON.stringify(next);
-    localStorage.setItem(STORAGE_KEY, raw);
-    commitCachedState(raw, next);
+    localStorage.setItem(storageKey, raw);
+    commitCache(storageKey, raw, next);
+    emitChange();
   }
 
   return next;
+}
+
+export function subscribeCheckIn(onStoreChange: () => void) {
+  window.addEventListener(DAILY_CHECK_IN_CHANGE_EVENT, onStoreChange);
+  window.addEventListener(USER_STORAGE_SCOPE_CHANGE_EVENT, onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener(DAILY_CHECK_IN_CHANGE_EVENT, onStoreChange);
+    window.removeEventListener(USER_STORAGE_SCOPE_CHANGE_EVENT, onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
 }

@@ -8,6 +8,7 @@ import {
   checkInToday,
   isCheckedInToday,
   readCheckInState,
+  subscribeCheckIn,
 } from "@/lib/client/dailyCheckIn";
 import {
   getDailyTasksSnapshot,
@@ -48,22 +49,19 @@ import {
 import { syncQuestCompletionTelemetry } from "@/lib/client/questCompletionTelemetry";
 import { maybeCelebrateQuestActiveToday } from "@/lib/client/questActiveCelebration";
 import { tryQuestActiveRewards } from "@/lib/client/questActiveRewardClaim";
-import { claimQuestCoreBonus, fetchQuestBonusSummary } from "@/lib/client/questBonusClient";
+import {
+  claimQuestCoreBonus,
+  fetchScopedQuestBonusSummary,
+  resolveScopedQuestBonusDisplay,
+} from "@/lib/client/questBonusClient";
 import { prefersReducedMotion } from "@/lib/client/motionPreference";
 import { upsertTodayQuestHistory } from "@/lib/client/questHistory";
 import { withBasePath } from "@/lib/client/basePath";
+import {
+  getCurrentStorageUserId,
+  USER_STORAGE_SCOPE_CHANGE_EVENT,
+} from "@/lib/client/userScopedStorage";
 import styles from "./MobileQuestHub.module.css";
-
-const CHECK_IN_EVENT = "daily-check-in-change";
-
-function subscribeCheckIn(onStoreChange: () => void) {
-  window.addEventListener(CHECK_IN_EVENT, onStoreChange);
-  window.addEventListener("storage", onStoreChange);
-  return () => {
-    window.removeEventListener(CHECK_IN_EVENT, onStoreChange);
-    window.removeEventListener("storage", onStoreChange);
-  };
-}
 
 const HIDDEN_PREFIXES = ["/login"];
 
@@ -142,6 +140,21 @@ const INITIAL_GRINDER_SYNC: GrinderSyncState = {
   earned: false,
 };
 
+function applyScopedBonusToday(
+  result: Awaited<ReturnType<typeof fetchScopedQuestBonusSummary>>,
+  cancelled: boolean,
+  setBonusToday: (value: number) => void,
+) {
+  if (cancelled) {
+    return;
+  }
+  const displayState = resolveScopedQuestBonusDisplay(result, getCurrentStorageUserId());
+  if (!displayState) {
+    return;
+  }
+  setBonusToday(displayState.bonusToday ?? 0);
+}
+
 function resolveGrinderUi(coreComplete: boolean, sync: GrinderSyncState): GrinderUiState {
   if (!coreComplete) {
     return "hidden";
@@ -213,9 +226,22 @@ export function MobileQuestHub() {
   const grinderUi = resolveGrinderUi(coreComplete, grinderSync);
 
   useEffect(() => {
+    if (getCurrentStorageUserId() === null) {
+      return;
+    }
     syncQuestCompletionTelemetry(quests);
     upsertTodayQuestHistory(quests);
   }, [quests]);
+
+  useEffect(() => {
+    const onScopeChange = () => {
+      setBonusToday(0);
+    };
+    window.addEventListener(USER_STORAGE_SCOPE_CHANGE_EVENT, onScopeChange);
+    return () => {
+      window.removeEventListener(USER_STORAGE_SCOPE_CHANGE_EVENT, onScopeChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (stars < 3) {
@@ -245,10 +271,8 @@ export function MobileQuestHub() {
         name: "engagement.quest.active_rewards",
         stars,
       });
-      const summary = await fetchQuestBonusSummary();
-      if (!cancelled && summary) {
-        setBonusToday(summary.grantedToday);
-      }
+      const summary = await fetchScopedQuestBonusSummary();
+      applyScopedBonusToday(summary, cancelled, setBonusToday);
     }
 
     void runActiveRewards();
@@ -285,10 +309,8 @@ export function MobileQuestHub() {
       return;
     }
     let cancelled = false;
-    void fetchQuestBonusSummary().then((summary) => {
-      if (!cancelled && summary) {
-        setBonusToday(summary.grantedToday);
-      }
+    void fetchScopedQuestBonusSummary().then((result) => {
+      applyScopedBonusToday(result, cancelled, setBonusToday);
     });
     return () => {
       cancelled = true;
@@ -362,7 +384,6 @@ export function MobileQuestHub() {
       name: "engagement.checkin.complete",
       streak: next.streak,
     });
-    window.dispatchEvent(new Event(CHECK_IN_EVENT));
   }, []);
 
   if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
