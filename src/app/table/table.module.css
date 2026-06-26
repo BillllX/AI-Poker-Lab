@@ -466,6 +466,10 @@
   letter-spacing: 0.04em;
 }
 
+.phaseLocalized {
+  text-transform: none;
+}
+
 .pot {
   font-size: 34px;
   font-weight: 900;
@@ -759,6 +763,15 @@
   gap: 18px;
 }
 
+.desktopSidePanels {
+  display: grid;
+  gap: 18px;
+}
+
+.mobileSideTabs {
+  display: none;
+}
+
 @media (min-width: 1181px) {
   .sidePanel {
     max-height: calc(100vh - 32px);
@@ -905,6 +918,10 @@
   text-transform: uppercase;
 }
 
+.handSummaryTagNatural {
+  text-transform: none;
+}
+
 .handSummaryHeader,
 .handSummaryPlayers span,
 .handSummaryWinners span {
@@ -918,6 +935,14 @@
 .handSummaryPlayers em {
   font-style: normal;
   font-weight: 900;
+}
+
+.handSummaryHeader time {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
 }
 
 .handSummaryCards {
@@ -1284,7 +1309,8 @@
 }
 
 .coachingForm button:focus-visible,
-.coachingForm textarea:focus-visible {
+.coachingForm textarea:focus-visible,
+.textInput:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 2px;
 }
@@ -1481,6 +1507,19 @@
   text-align: center;
 }
 
+.actionTimeoutHint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+  text-align: center;
+}
+
+.actionInlineError {
+  margin: 0;
+  text-align: center;
+}
+
 .actionPanel label {
   color: var(--muted);
   display: grid;
@@ -1496,7 +1535,9 @@
 
 .actionGrid button {
   flex: 1 0 auto;
+  line-height: 1.2;
   min-width: 82px;
+  white-space: normal;
 }
 
 .allInAction {
@@ -1709,6 +1750,12 @@
   opacity: 0.56;
 }
 
+.buyInDialogActions {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .statsOverlay {
   align-items: center;
   background: rgba(2, 8, 6, 0.68);
@@ -1770,6 +1817,14 @@
 .statsList {
   display: grid;
   gap: 10px;
+}
+
+.statsFinalFooter {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
 }
 
 .scoreSummary {
@@ -2141,6 +2196,10 @@
     padding: 6px 8px;
   }
 
+  .headerActions .streamStatusPill {
+    display: none;
+  }
+
   .mobileTableStatus span {
     background: var(--surface-2);
     border: 1px solid var(--border);
@@ -2153,6 +2212,24 @@
     padding: 6px 8px;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .mobileTableStatus .streamStatusPill {
+    display: inline-flex;
+  }
+
+  .mobileTableStatus .streamStatus_live {
+    border-color: rgba(118, 228, 170, 0.32);
+    color: var(--accent);
+  }
+
+  .mobileTableStatus .streamStatus_recovering {
+    border-color: rgba(245, 200, 75, 0.32);
+    color: var(--warning);
+  }
+
+  .mobileTableStatus .streamStatus_connecting {
+    color: var(--muted);
   }
 
   .controls {
@@ -2521,6 +2598,14 @@
     padding-bottom: 8px;
   }
 
+  .desktopSidePanels {
+    display: none;
+  }
+
+  .mobileSideTabs {
+    display: grid;
+  }
+
   .tableInfoBar {
     gap: 6px;
     margin-top: 10px;
@@ -2676,14 +2761,17 @@
   }
 
   .statsCard {
-    align-items: center;
-    gap: 10px;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: start;
+    column-gap: 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(96px, auto);
+    row-gap: 8px;
     min-height: 44px;
     padding: 9px 10px;
   }
 
   .statsPlayer {
+    grid-column: 1;
+    grid-row: 1;
     min-width: 0;
   }
 
@@ -2693,12 +2781,41 @@
     white-space: nowrap;
   }
 
-  .statsPlayer span,
-  .statsCommitted,
+  .statsPlayer span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .statsEffective,
-  .statsStack small,
   .statsHeader .muted {
     display: none;
+  }
+
+  .statsStack,
+  .statsCommitted {
+    align-self: stretch;
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .statsStack {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .statsCommitted {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .statsStack small,
+  .statsCommitted small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .statsStack b {
@@ -2707,6 +2824,9 @@
   }
 
   .statsCard em {
+    align-self: center;
+    grid-column: 2;
+    grid-row: 1;
     padding: 6px 8px;
     white-space: nowrap;
   }
@@ -2803,6 +2923,21 @@
 .panel,
 .joinPanel {
   padding: var(--space-card);
+}
+
+.joinPanelInviteMode {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 200, 75, 0.14), transparent 15rem),
+    radial-gradient(circle at 0% 100%, rgba(118, 228, 170, 0.08), transparent 16rem),
+    var(--surface-1);
+  border-color: rgba(245, 200, 75, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(245, 200, 75, 0.08),
+    var(--shadow-soft);
+}
+
+.joinPanelInviteMode h2 {
+  margin-bottom: 8px;
 }
 
 .controls a,

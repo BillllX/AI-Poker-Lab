@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import styles from "./AnimatedPotValue.module.css";
 
 type AnimatedPotValueProps = {
+  announce?: boolean;
   className?: string;
   value: number;
 };
@@ -22,7 +23,7 @@ function getReducedMotionServerSnapshot() {
   return false;
 }
 
-export const AnimatedPotValue = memo(function AnimatedPotValue({ className, value }: AnimatedPotValueProps) {
+export const AnimatedPotValue = memo(function AnimatedPotValue({ announce = true, className, value }: AnimatedPotValueProps) {
   const reducedMotion = useSyncExternalStore(
     subscribeReducedMotion,
     getReducedMotionSnapshot,
@@ -68,7 +69,7 @@ export const AnimatedPotValue = memo(function AnimatedPotValue({ className, valu
 
   return (
     <span
-      aria-live="polite"
+      aria-live={announce ? "polite" : undefined}
       className={[styles.potValue, !reducedMotion && pulse ? styles.potPulse : "", className].filter(Boolean).join(" ")}
     >
       {shown.toLocaleString()}

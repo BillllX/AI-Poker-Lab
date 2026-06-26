@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { memo, type CSSProperties } from "react";
+import { formatChipAmount, formatSignedChipAmount } from "@/lib/client/formatChipAmount";
 import type { Card } from "@/lib/poker/types";
 import styles from "@/app/table/table.module.css";
 
@@ -96,7 +97,7 @@ export const TablePlayerSeat = memo(function TablePlayerSeat({
       <div className={styles.seatMeta}>
         <span>
           <small>{copy.stack}</small>
-          <strong>{player.stack}</strong>
+          <strong>{formatChipAmount(player.stack)}</strong>
         </span>
       </div>
       <div className={`${styles.chipDelta} ${seatDeltaClassName(profitDelta)}`}>
@@ -194,7 +195,7 @@ function areSeatPlayersEqual(previous: TableSeatPlayer, next: TableSeatPlayer) {
 }
 
 export function formatSeatDelta(delta: number) {
-  return delta > 0 ? `+${delta}` : String(delta);
+  return formatSignedChipAmount(delta);
 }
 
 export function seatDeltaClassName(delta: number) {

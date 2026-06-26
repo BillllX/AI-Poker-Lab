@@ -43,6 +43,22 @@ const copy = {
   },
 };
 
+function safeNextPath(value: string | null) {
+  if (!value) {
+    return "/me";
+  }
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return "/me";
+  }
+  try {
+    const url = new URL(trimmed, "https://ai-poker.local");
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/me";
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { language } = useLanguage();
@@ -68,7 +84,8 @@ export default function LoginPage() {
         return;
       }
       window.dispatchEvent(new Event(authChangedEvent));
-      router.replace("/me");
+      const nextPath = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+      router.replace(nextPath);
       router.refresh();
     } finally {
       setBusy(false);

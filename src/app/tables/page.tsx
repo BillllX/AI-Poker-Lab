@@ -18,6 +18,7 @@ import { publicApiFetchInit } from "@/lib/client/publicApiFetch";
 import { readRecentSpectate, subscribeRecentSpectate } from "@/lib/client/recentSpectate";
 import { recordQuestQuickPlayComplete } from "@/lib/client/questOptionalProgress";
 import { useLanguage } from "@/lib/client/i18n";
+import { formatTablePhase } from "@/lib/client/formatTablePhase";
 import { getTableCardAriaLabel } from "@/lib/client/tablesCardAriaLabel";
 import {
   TABLES_ASSIGNMENT_STATUS_LABELS,
@@ -396,7 +397,7 @@ export default function TablesPage() {
                 ))}
                 <div>
                   <strong>{table.playerCount}/{table.maxPlayers}</strong>
-                  <small>{formatPhase(table.phase, language)}</small>
+                  <small>{formatTablePhase(table.phase, language)}</small>
                 </div>
               </div>
               <div className={styles.tableCardFooter}>
@@ -406,10 +407,10 @@ export default function TablesPage() {
                 </div>
                 <div className={styles.tableFooterActions}>
                   <small className={styles.tableFooterCompactMeta}>
-                    {formatPhase(table.phase, language)} · {seatLabel}
+                    {formatTablePhase(table.phase, language)} · {seatLabel}
                   </small>
                   <div className={styles.tableMeta}>
-                    <span>{formatPhase(table.phase, language)}</span>
+                    <span>{formatTablePhase(table.phase, language)}</span>
                     <b>{t.enter}</b>
                   </div>
                 </div>
@@ -510,16 +511,3 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, normalized));
 }
 
-function formatPhase(phase: string, language: "zh" | "en") {
-  const normalized = phase.toLowerCase();
-  if (language === "en") {
-    return normalized;
-  }
-  return {
-    preflop: "翻前",
-    flop: "翻牌",
-    turn: "转牌",
-    river: "河牌",
-    showdown: "摊牌",
-  }[normalized] ?? phase;
-}

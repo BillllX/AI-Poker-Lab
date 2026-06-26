@@ -14,6 +14,7 @@ type SpectatorActionLogListCopy = {
 type SpectatorActionLogListProps = {
   copy: SpectatorActionLogListCopy;
   highlightHandId?: number;
+  idPrefix?: string;
   logs: ActionLog[];
   myPlayerName?: string;
 };
@@ -21,6 +22,7 @@ type SpectatorActionLogListProps = {
 export const SpectatorActionLogList = memo(function SpectatorActionLogList({
   copy,
   highlightHandId,
+  idPrefix = "hand-action",
   logs,
   myPlayerName,
 }: SpectatorActionLogListProps) {
@@ -30,11 +32,11 @@ export const SpectatorActionLogList = memo(function SpectatorActionLogList({
   );
 
   return (
-    <section className={styles.panel} id="hand-action-logs">
+    <section className={styles.panel} id={`${idPrefix}-logs`}>
       <h2>{copy.recentActions}</h2>
       <div
         className={styles.logList}
-        id="hand-action-log-list"
+        id={`${idPrefix}-log-list`}
         tabIndex={highlightHandId !== undefined ? -1 : undefined}
       >
         {visibleLogs.map((log) => (

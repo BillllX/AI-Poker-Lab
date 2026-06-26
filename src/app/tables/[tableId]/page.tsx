@@ -26,6 +26,8 @@ import {
   visualSeatIndex,
 } from "@/components/TableSeat";
 import { withBasePath } from "@/lib/client/basePath";
+import { formatChipAmount } from "@/lib/client/formatChipAmount";
+import { formatStreetActionLabel } from "@/lib/client/formatStreetActionLabel";
 import { connectReconnectingEventSource } from "@/lib/client/reconnectingEventSource";
 import { pushEngagementToast } from "@/lib/client/engagementToast";
 import { useLanguage } from "@/lib/client/i18n";
@@ -356,8 +358,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const myPlayerSeatIndex = myPlayer ? players.findIndex((player) => player.id === myPlayer.id) : -1;
   const activePlayer = players.find((player) => player.id === state?.currentPlayerId);
   const waitingForFirstDeal = Boolean(state?.running && state.handId === 0 && players.length >= 2 && players.every((player) => (player.holeCards?.length ?? 0) === 0));
-  const streetActions = currentStreetActions(state);
-  const actionOverlays = currentActionOverlays(state, nowMs);
+  const streetActions = currentStreetActions(state, language);
+  const actionOverlays = currentActionOverlays(state, nowMs, language);
   const handWinners = winnerReveal?.winners ?? [];
   const winningPlayerIds = new Set(handWinners.map((winner) => winner.playerId));
 
@@ -877,7 +879,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
               {t.pot} <AnimatedPotValue value={state?.pot ?? 0} />
             </span>
             <span>{t.hand} #{state?.handId ?? 0}</span>
-            <span>{t.currentBet} {state?.currentBet ?? 0}</span>
+            <span>{t.currentBet} {formatChipAmount(state?.currentBet ?? 0)}</span>
             <span>{waitingForFirstDeal ? t.preparingHand : activePlayer ? `${activePlayer.name} ${t.thinking}` : t.spectatorMode}</span>
           </div>
           <LazyReactionBar
@@ -923,8 +925,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                   </span>
                 ) : null}
                 <div className={styles.myPlayerStats}>
-                  <span>{t.stack} {myPlayer.stack}</span>
-                  <span>{t.bet} {myPlayer.currentBet}</span>
+                  <span>{t.stack} {formatChipAmount(myPlayer.stack)}</span>
+                  <span>{t.bet} {formatChipAmount(myPlayer.currentBet)}</span>
                   <span>{t.action} {myPlayer.lastAction ?? t.waiting}</span>
                   <span>{myPlayer.id === state?.currentPlayerId ? t.thinking : myPlayer.status}</span>
                 </div>
@@ -1057,7 +1059,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                             </Link>
                             <small>{player.kind === "virtual" ? t.virtualAgent : player.status}</small>
                           </div>
-                          <span>{player.stack}</span>
+                          <span>{formatChipAmount(player.stack)}</span>
                           <em className={seatDeltaClassName(delta)}>{formatSeatDelta(delta)}</em>
                         </article>
                       );
@@ -1230,7 +1232,7 @@ function formatHandLabel(label: string | undefined, language: "en" | "zh") {
   return language === "zh" ? (zh[label] ?? label) : label;
 }
 
-function currentStreetActions(state?: GameSnapshot) {
+function currentStreetActions(state: GameSnapshot | undefined, language: "zh" | "en") {
   const actions = new Map<string, string>();
   if (!state) {
     return actions;
@@ -1240,13 +1242,13 @@ function currentStreetActions(state?: GameSnapshot) {
     if (item.handId !== state.handId || item.round !== state.phase || item.action === "deal" || item.action === "win") {
       continue;
     }
-    actions.set(item.playerId, formatStreetAction(item));
+    actions.set(item.playerId, formatStreetActionLabel(item, language));
   }
 
   return actions;
 }
 
-function currentActionOverlays(state: GameSnapshot | undefined, nowMs: number) {
+function currentActionOverlays(state: GameSnapshot | undefined, nowMs: number, language: "zh" | "en") {
   const actions = new Map<string, string>();
   if (!state) {
     return actions;
@@ -1260,7 +1262,7 @@ function currentActionOverlays(state: GameSnapshot | undefined, nowMs: number) {
     if (!Number.isFinite(createdAtMs) || nowMs - createdAtMs > actionOverlayVisibleMs) {
       continue;
     }
-    actions.set(item.playerId, formatStreetAction(item));
+    actions.set(item.playerId, formatStreetActionLabel(item, language));
   }
 
   return actions;
@@ -1288,28 +1290,6 @@ function handWinnerSummaries(state?: GameSnapshot) {
   }
 
   return [...winners.values()].sort((left, right) => right.netAmount - left.netAmount || right.amount - left.amount);
-}
-
-function formatStreetAction(item: GameSnapshot["actionHistory"][number]) {
-  if (item.action === "post-blind") {
-    return item.amount ? `blind ${item.amount}` : "blind";
-  }
-  if (item.action === "call") {
-    return item.amount ? `Call ${item.amount}` : "Call";
-  }
-  if (item.action === "raise") {
-    return item.amount ? `Raise +${item.amount}` : "Raise";
-  }
-  if (item.action === "bet") {
-    return item.targetBet ? `Bet ${item.targetBet}` : item.amount ? `Bet ${item.amount}` : "Bet";
-  }
-  if (item.action === "check") {
-    return "Check";
-  }
-  if (item.action === "fold") {
-    return "Fold";
-  }
-  return item.action;
 }
 
 const PlayingCard = memo(function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {

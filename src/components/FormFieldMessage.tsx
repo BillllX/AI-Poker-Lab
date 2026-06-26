@@ -3,11 +3,12 @@ import styles from "./FormFieldMessage.module.css";
 
 type FormFieldErrorProps = {
   className?: string;
+  id?: string;
   message?: string | null;
   variant?: "box" | "inline";
 };
 
-export function FormFieldError({ message, className, variant = "box" }: FormFieldErrorProps) {
+export function FormFieldError({ message, className, id, variant = "box" }: FormFieldErrorProps) {
   if (!message) {
     return null;
   }
@@ -15,7 +16,7 @@ export function FormFieldError({ message, className, variant = "box" }: FormFiel
   const variantClass = variant === "inline" ? styles.errorInline : styles.error;
 
   return (
-    <p className={[variantClass, className].filter(Boolean).join(" ")} {...liveRegionProps("alert")}>
+    <p className={[variantClass, className].filter(Boolean).join(" ")} id={id} {...liveRegionProps("alert")}>
       {message}
     </p>
   );

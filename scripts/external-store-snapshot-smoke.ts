@@ -536,7 +536,9 @@ async function main() {
     assert.equal(fetchCallCount, 1, "user-h claim after guest should fetch");
     assert.equal(userHClaimAfterGuest, 33, "user-h claim after guest granted");
 
-    let resolveDelayedClaim: ((response: Response) => void) | null = null;
+    let resolveDelayedClaim: (response: Response) => void = () => {
+      throw new Error("delayed claim resolver was called before fetch started");
+    };
     globalThis.fetch = (async () => {
       fetchCallCount += 1;
       return await new Promise<Response>((resolve) => {
@@ -551,7 +553,7 @@ async function main() {
     const pendingGuestClaim = claimQuestCoreBonus("zh");
     assert.equal(fetchCallCount, 1, "pending user-h claim before guest should fetch once");
     setCurrentStorageUserId(null);
-    resolveDelayedClaim?.(
+    resolveDelayedClaim(
       new Response(JSON.stringify({ granted: 44 }), {
         headers: { "content-type": "application/json" },
         status: 200,
@@ -569,7 +571,7 @@ async function main() {
     const pendingUserIClaim = claimQuestCoreBonus("zh");
     assert.equal(fetchCallCount, 1, "pending user-h claim before user-i should fetch once");
     setCurrentStorageUserId("user-i");
-    resolveDelayedClaim?.(
+    resolveDelayedClaim(
       new Response(JSON.stringify({ granted: 55 }), {
         headers: { "content-type": "application/json" },
         status: 200,
@@ -850,7 +852,9 @@ async function main() {
     sessionStorage.clear();
     resetGrinderAutoClaimForTests();
 
-    let resolveDelayedAutoFetch: ((response: Response) => void) | null = null;
+    let resolveDelayedAutoFetch: (response: Response) => void = () => {
+      throw new Error("delayed auto fetch resolver was called before fetch started");
+    };
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCallCount += 1;
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -870,7 +874,7 @@ async function main() {
     const pendingActiveGuest = tryQuestActiveRewards(3, "zh");
     assert.equal(fetchCallCount, 1, "pending active reward before guest should fetch once");
     setCurrentStorageUserId(null);
-    resolveDelayedAutoFetch?.(
+    resolveDelayedAutoFetch(
       new Response(JSON.stringify({ earned: true }), {
         headers: { "content-type": "application/json" },
         status: 200,
@@ -895,7 +899,7 @@ async function main() {
     fetchCallCount = 0;
     const activeRetryAfterGuest = tryQuestActiveRewards(3, "zh");
     assert.equal(fetchCallCount, 1, "user-h active reward retry after guest stale skip should fetch");
-    resolveDelayedAutoFetch?.(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
+    resolveDelayedAutoFetch(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
     const activeRetryAfterGuestResult = await activeRetryAfterGuest;
     assert.equal(
       activeRetryAfterGuestResult.kind,
@@ -910,7 +914,7 @@ async function main() {
     const pendingActiveUserI = tryQuestActiveRewards(3, "zh");
     assert.equal(fetchCallCount, 1, "pending active reward before user-i should fetch once");
     setCurrentStorageUserId("user-i");
-    resolveDelayedAutoFetch?.(
+    resolveDelayedAutoFetch(
       new Response(JSON.stringify({ earned: true }), {
         headers: { "content-type": "application/json" },
         status: 200,
@@ -935,7 +939,7 @@ async function main() {
     fetchCallCount = 0;
     const activeRetryAfterUserI = tryQuestActiveRewards(3, "zh");
     assert.equal(fetchCallCount, 1, "user-h active reward retry after user-i stale skip should fetch");
-    resolveDelayedAutoFetch?.(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
+    resolveDelayedAutoFetch(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
     const activeRetryAfterUserIResult = await activeRetryAfterUserI;
     assert.equal(
       activeRetryAfterUserIResult.kind,
@@ -943,7 +947,9 @@ async function main() {
       "user-h active reward retry after user-i stale skip must not be skipped",
     );
 
-    let resolveDelayedActiveBonus: ((response: Response) => void) | null = null;
+    let resolveDelayedActiveBonus: (response: Response) => void = () => {
+      throw new Error("delayed active bonus resolver was called before fetch started");
+    };
     let resolveActiveBonusStarted: (() => void) | null = null;
     let activeBonusStarted: Promise<void> = Promise.resolve();
     const resetActiveBonusStarted = () => {
@@ -980,7 +986,7 @@ async function main() {
     await activeBonusStarted;
     assert.equal(fetchCallCount, 2, "pending active bonus before guest should reach second fetch");
     setCurrentStorageUserId(null);
-    resolveDelayedActiveBonus?.(
+    resolveDelayedActiveBonus(
       new Response(JSON.stringify({ granted: 8 }), {
         headers: { "content-type": "application/json" },
         status: 200,
@@ -1007,7 +1013,7 @@ async function main() {
     const activeBonusRetryAfterGuest = tryQuestActiveRewards(3, "zh");
     await activeBonusStarted;
     assert.equal(fetchCallCount, 2, "user-h active bonus retry after guest stale skip should reach second fetch");
-    resolveDelayedActiveBonus?.(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
+    resolveDelayedActiveBonus(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
     const activeBonusRetryAfterGuestResult = await activeBonusRetryAfterGuest;
     assert.equal(
       activeBonusRetryAfterGuestResult.kind,
@@ -1024,7 +1030,7 @@ async function main() {
     await activeBonusStarted;
     assert.equal(fetchCallCount, 2, "pending active bonus before user-i should reach second fetch");
     setCurrentStorageUserId("user-i");
-    resolveDelayedActiveBonus?.(
+    resolveDelayedActiveBonus(
       new Response(JSON.stringify({ granted: 9 }), {
         headers: { "content-type": "application/json" },
         status: 200,
@@ -1051,7 +1057,7 @@ async function main() {
     const activeBonusRetryAfterUserI = tryQuestActiveRewards(3, "zh");
     await activeBonusStarted;
     assert.equal(fetchCallCount, 2, "user-h active bonus retry after user-i stale skip should reach second fetch");
-    resolveDelayedActiveBonus?.(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
+    resolveDelayedActiveBonus(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
     const activeBonusRetryAfterUserIResult = await activeBonusRetryAfterUserI;
     assert.equal(
       activeBonusRetryAfterUserIResult.kind,
@@ -1267,7 +1273,7 @@ async function main() {
     const pendingGrinderGuest = tryAutoClaimGrinderFromQuestCore();
     assert.equal(fetchCallCount, 1, "pending grinder before guest should fetch once");
     setCurrentStorageUserId(null);
-    resolveDelayedAutoFetch?.(new Response(JSON.stringify({ earned: true }), { status: 200 }));
+    resolveDelayedAutoFetch(new Response(JSON.stringify({ earned: true }), { status: 200 }));
     const staleGrinderGuest = await pendingGrinderGuest;
     assert.equal(staleGrinderGuest, "skipped", "pending grinder switched to guest skips");
     assert.equal(
@@ -1285,7 +1291,7 @@ async function main() {
     fetchCallCount = 0;
     const grinderRetryAfterGuest = tryAutoClaimGrinderFromQuestCore();
     assert.equal(fetchCallCount, 1, "user-h grinder retry after guest stale skip should fetch");
-    resolveDelayedAutoFetch?.(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
+    resolveDelayedAutoFetch(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
     const grinderRetryAfterGuestResult = await grinderRetryAfterGuest;
     assert.equal(
       grinderRetryAfterGuestResult,
@@ -1298,7 +1304,7 @@ async function main() {
     const pendingGrinderUserI = tryAutoClaimGrinderFromQuestCore();
     assert.equal(fetchCallCount, 1, "pending grinder before user-i should fetch once");
     setCurrentStorageUserId("user-i");
-    resolveDelayedAutoFetch?.(new Response(JSON.stringify({ earned: true }), { status: 200 }));
+    resolveDelayedAutoFetch(new Response(JSON.stringify({ earned: true }), { status: 200 }));
     const staleGrinderUserI = await pendingGrinderUserI;
     assert.equal(staleGrinderUserI, "skipped", "pending grinder switched to user-i skips");
     assert.equal(
@@ -1315,7 +1321,7 @@ async function main() {
     fetchCallCount = 0;
     const grinderRetryAfterUserI = tryAutoClaimGrinderFromQuestCore();
     assert.equal(fetchCallCount, 1, "user-h grinder retry after user-i stale skip should fetch");
-    resolveDelayedAutoFetch?.(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
+    resolveDelayedAutoFetch(new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }));
     const grinderRetryAfterUserIResult = await grinderRetryAfterUserI;
     assert.equal(
       grinderRetryAfterUserIResult,
