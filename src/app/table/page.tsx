@@ -156,7 +156,11 @@ export default function TablePage() {
   const [instructionMessage, setInstructionMessage] = useState("");
   const [error, setError] = useState<string>();
 
-  const players = useMemo(() => state?.players ?? [], [state]);
+  const players = useMemo(() => (Array.isArray(state?.players) ? state.players : []), [state]);
+  const communityCards = Array.isArray(state?.communityCards) ? state.communityCards : [];
+  const logs = Array.isArray(state?.logs) ? state.logs : [];
+  const stats = Array.isArray(state?.stats) ? state.stats : [];
+  const modelStats = Array.isArray(state?.modelStats) ? state.modelStats : [];
   const currentPlayerId = state?.currentPlayerId;
 
   async function refreshState() {
@@ -258,8 +262,12 @@ export default function TablePage() {
     const stopEvents = connectReconnectingEventSource({
       url: withBasePath("/api/game/events"),
       onSnapshot: (data) => {
-        const incoming = JSON.parse(data) as SlimGameSnapshotForSse;
-        setState((previous) => mergeGameSnapshotForSse(previous, incoming));
+        try {
+          const incoming = JSON.parse(data) as SlimGameSnapshotForSse;
+          setState((previous) => mergeGameSnapshotForSse(previous, incoming));
+        } catch (error) {
+          console.error("legacy_table_sse_snapshot_parse_failed", error);
+        }
       },
       onRecover: () => {
         void refreshState();
@@ -309,8 +317,8 @@ export default function TablePage() {
                 {t.pot} {state?.pot ?? 0}
               </div>
               <div className={styles.cards}>
-                {state?.communityCards.length ? (
-                  state.communityCards.map((card, index) => <PlayingCard card={card} key={`${card.rank}${card.suit}${index}`} />)
+                {communityCards.length ? (
+                  communityCards.map((card, index) => <PlayingCard card={card} key={`${card.rank}${card.suit}${index}`} />)
                 ) : (
                   <span className={styles.emptyCards}>{t.waitingCommunity}</span>
                 )}
@@ -339,8 +347,8 @@ export default function TablePage() {
           <section className={styles.panel}>
             <h2>{t.actionLog}</h2>
             <div className={styles.logList}>
-              {state?.logs.length ? (
-                state.logs.map((log) => (
+              {logs.length ? (
+                logs.map((log) => (
                   <article className={styles.logItem} key={log.id}>
                     <time>{new Date(log.createdAt).toLocaleTimeString()}</time>
                     <span>{log.message}</span>
@@ -355,8 +363,8 @@ export default function TablePage() {
           <section className={styles.panel}>
             <h2>{t.stats}</h2>
             <div className={styles.stats}>
-              {state?.stats.map((stat) => {
-                const player = state.players.find((item) => item.id === stat.playerId);
+              {stats.map((stat) => {
+                const player = players.find((item) => item.id === stat.playerId);
                 return (
                   <div className={styles.statRow} key={stat.playerId}>
                     <strong>{player?.name ?? stat.playerId}</strong>
@@ -375,7 +383,7 @@ export default function TablePage() {
           <section className={styles.panel}>
             <h2>{t.modelStats}</h2>
             <div className={styles.stats}>
-              {state?.modelStats.map((stat) => (
+              {modelStats.map((stat) => (
                 <div className={styles.statRow} key={stat.modelName}>
                   <strong>{stat.modelName}</strong>
                   <span>
@@ -386,7 +394,7 @@ export default function TablePage() {
                   </span>
                 </div>
               ))}
-              {!state?.modelStats.length && <p className={styles.muted}>{t.noAgents}</p>}
+              {!modelStats.length && <p className={styles.muted}>{t.noAgents}</p>}
             </div>
           </section>
         </aside>

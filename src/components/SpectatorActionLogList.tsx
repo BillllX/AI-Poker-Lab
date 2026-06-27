@@ -27,7 +27,7 @@ export const SpectatorActionLogList = memo(function SpectatorActionLogList({
   myPlayerName,
 }: SpectatorActionLogListProps) {
   const { logs: visibleLogs, hiddenCount } = useMemo(
-    () => capSpectatorLogs(logs, { highlightHandId }),
+    () => capSpectatorLogs(Array.isArray(logs) ? logs : [], { highlightHandId }),
     [highlightHandId, logs],
   );
 

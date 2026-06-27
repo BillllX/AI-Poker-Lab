@@ -61,7 +61,10 @@ export const TablePlayerSeat = memo(function TablePlayerSeat({
   showReasoning = false,
   streetAction,
 }: TablePlayerSeatProps) {
-  const statusClass = styles[`status_${player.status.replace("-", "_")}` as keyof typeof styles] ?? "";
+  const status = typeof player.status === "string" ? player.status : "active";
+  const stack = typeof player.stack === "number" && Number.isFinite(player.stack) ? player.stack : 0;
+  const holeCards = Array.isArray(player.holeCards) ? player.holeCards : [];
+  const statusClass = styles[`status_${status.replace("-", "_")}` as keyof typeof styles] ?? "";
 
   return (
     <article
@@ -87,7 +90,7 @@ export const TablePlayerSeat = memo(function TablePlayerSeat({
         )}
         <div className={styles.seatBadges}>
           <span>{position}</span>
-          <span>{player.status}</span>
+          <span>{status}</span>
         </div>
       </div>
       <div className={styles.streetAction}>{streetAction}</div>
@@ -97,17 +100,17 @@ export const TablePlayerSeat = memo(function TablePlayerSeat({
       <div className={styles.seatMeta}>
         <span>
           <small>{copy.stack}</small>
-          <strong>{formatChipAmount(player.stack)}</strong>
+          <strong>{formatChipAmount(stack)}</strong>
         </span>
       </div>
       <div className={`${styles.chipDelta} ${seatDeltaClassName(profitDelta)}`}>
         {copy.profit} {formatSeatDelta(profitDelta)}
       </div>
       <div className={styles.holeCards}>
-        {player.holeCards?.map((card, cardIndex) => (
+        {holeCards.map((card, cardIndex) => (
           <SeatPlayingCard card={card} key={`${player.id}-${card.rank}${card.suit}-${cardIndex}`} small />
         ))}
-        {(player.holeCards?.length ?? 0) === 0 && player.stack > 0 ? (
+        {holeCards.length === 0 && stack > 0 ? (
           <>
             <SeatPlayingCardBack />
             <SeatPlayingCardBack />

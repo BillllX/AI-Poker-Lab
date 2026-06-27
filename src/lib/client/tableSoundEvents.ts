@@ -26,10 +26,13 @@ export function useTableSounds(state: GameSnapshot | undefined, options: TableSo
       return;
     }
 
-    const currentActionIds = new Set(state.actionHistory.map((item) => item.id));
+    const actionHistory = Array.isArray(state.actionHistory) ? state.actionHistory : [];
+    const communityCards = Array.isArray(state.communityCards) ? state.communityCards : [];
+    const players = Array.isArray(state.players) ? state.players : [];
+    const currentActionIds = new Set(actionHistory.map((item) => item.id));
     const nextBaseline: Baseline = {
       actionIds: currentActionIds,
-      communityCardCount: state.communityCards.length,
+      communityCardCount: communityCards.length,
       currentPlayerId: state.currentPlayerId,
       handId: state.handId,
     };
@@ -42,11 +45,11 @@ export function useTableSounds(state: GameSnapshot | undefined, options: TableSo
 
     if (state.handId !== previous.handId) {
       audioManager.play("deal", { minIntervalMs: 260, volume: 0.62 });
-    } else if (state.communityCards.length > previous.communityCardCount) {
+    } else if (communityCards.length > previous.communityCardCount) {
       audioManager.play("deal", { minIntervalMs: 260, volume: 0.58 });
     }
 
-    for (const item of state.actionHistory) {
+    for (const item of actionHistory) {
       if (previous.actionIds.has(item.id)) {
         continue;
       }
@@ -72,7 +75,7 @@ export function useTableSounds(state: GameSnapshot | undefined, options: TableSo
       state.currentPlayerId &&
       previous.currentPlayerId !== state.currentPlayerId
     ) {
-      const decidingPlayer = state.players.find((player) => player.id === state.currentPlayerId);
+      const decidingPlayer = players.find((player) => player.id === state.currentPlayerId);
       if (decidingPlayer?.ownerUserId === options.myAgentOwnerUserId && decidingPlayer.kind !== "virtual") {
         audioManager.play("myAgentDeciding", { minIntervalMs: 1_500, volume: 0.72 });
       }

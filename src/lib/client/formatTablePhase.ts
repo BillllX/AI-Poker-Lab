@@ -8,7 +8,11 @@ const TABLE_PHASE_LABELS_ZH: Record<string, string> = {
   turn: "转牌",
 };
 
-export function formatTablePhase(phase: string, language: TablePhaseLanguage) {
+export function formatTablePhase(phase: string | null | undefined, language: TablePhaseLanguage) {
+  const fallback = language === "zh" ? "翻前" : "preflop";
+  if (typeof phase !== "string" || !phase) {
+    return fallback;
+  }
   const normalized = phase.toLowerCase();
   if (language === "en") {
     return normalized;

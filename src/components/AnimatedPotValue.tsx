@@ -10,12 +10,18 @@ type AnimatedPotValueProps = {
 };
 
 function subscribeReducedMotion(onStoreChange: () => void) {
+  if (typeof window.matchMedia !== "function") {
+    return () => undefined;
+  }
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
   media.addEventListener("change", onStoreChange);
   return () => media.removeEventListener("change", onStoreChange);
 }
 
 function getReducedMotionSnapshot() {
+  if (typeof window.matchMedia !== "function") {
+    return false;
+  }
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
@@ -24,23 +30,24 @@ function getReducedMotionServerSnapshot() {
 }
 
 export const AnimatedPotValue = memo(function AnimatedPotValue({ announce = true, className, value }: AnimatedPotValueProps) {
+  const safeValue = Number.isFinite(value) ? value : 0;
   const reducedMotion = useSyncExternalStore(
     subscribeReducedMotion,
     getReducedMotionSnapshot,
     getReducedMotionServerSnapshot,
   );
-  const [display, setDisplay] = useState(value);
+  const [display, setDisplay] = useState(safeValue);
   const [pulse, setPulse] = useState(false);
-  const previousRef = useRef(value);
+  const previousRef = useRef(safeValue);
 
   useEffect(() => {
-    if (reducedMotion || value === previousRef.current) {
+    if (reducedMotion || safeValue === previousRef.current) {
       return;
     }
 
     const from = previousRef.current;
-    const to = value;
-    previousRef.current = value;
+    const to = safeValue;
+    previousRef.current = safeValue;
     setPulse(true);
 
     const start = performance.now();
@@ -63,9 +70,9 @@ export const AnimatedPotValue = memo(function AnimatedPotValue({ announce = true
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [reducedMotion, value]);
+  }, [reducedMotion, safeValue]);
 
-  const shown = reducedMotion ? value : display;
+  const shown = reducedMotion ? safeValue : display;
 
   return (
     <span

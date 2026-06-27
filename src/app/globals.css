@@ -160,6 +160,68 @@ button:disabled {
   color: #dc2626;
 }
 
+.routeErrorPage {
+  display: grid;
+  min-height: min(720px, 100vh);
+  padding: 96px 24px 32px;
+  place-items: center;
+}
+
+.routeErrorCard {
+  background:
+    linear-gradient(180deg, rgba(18, 54, 38, 0.92), rgba(11, 33, 24, 0.86)),
+    var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  max-width: 520px;
+  padding: 28px;
+  text-align: center;
+  width: 100%;
+}
+
+.routeErrorEyebrow {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.routeErrorCard h1 {
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  letter-spacing: -0.04em;
+  margin: 0 0 12px;
+}
+
+.routeErrorCard p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.routeErrorActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.routeErrorActions a {
+  align-items: center;
+  background: rgba(118, 228, 170, 0.12);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-flex;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+}
+
 @media (max-width: 640px) {
   :root {
     --radius-xl: 22px;

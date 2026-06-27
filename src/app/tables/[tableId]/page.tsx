@@ -350,7 +350,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
   const sessionStartedAtRef = useRef<number>(0);
   const sessionStartHandIdRef = useRef<number>(0);
   const lastSeenHandIdRef = useRef<number>(0);
-  const players = state?.players ?? [];
+  const players = safeArray(state?.players);
+  const communityCards = safeArray(state?.communityCards);
   const myPlayer = me ? players.find((player) => player.ownerUserId === me.id) : undefined;
   const myAgentRemoteTable = me && !myPlayer ? remoteAgentTable : null;
   const tableIsFull = players.length >= 6;
@@ -436,12 +437,16 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
     return connectReconnectingEventSource({
       url: withBasePath(`/api/tables/${tableId}/events`),
       onSnapshot: (data) => {
-        const incoming = JSON.parse(data) as SlimGameSnapshotForSse;
-        setState((previous) => {
-          const merged = mergeGameSnapshotForSse(previous, incoming);
-          revealWinnersForSnapshot(merged);
-          return merged;
-        });
+        try {
+          const incoming = JSON.parse(data) as SlimGameSnapshotForSse;
+          setState((previous) => {
+            const merged = mergeGameSnapshotForSse(previous, incoming);
+            revealWinnersForSnapshot(merged);
+            return merged;
+          });
+        } catch (error) {
+          console.error("table_sse_snapshot_parse_failed", error);
+        }
       },
       onRecover: async () => {
         const response = await fetch(withBasePath(`/api/tables/${tableId}/state`), { cache: "no-store" });
@@ -810,8 +815,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ tableId:
                 </span>
               </div>
               <div className={styles.cards}>
-                {state?.communityCards.length ? (
-                  state.communityCards.map((card, index) => <PlayingCard card={card} key={`${card.rank}${card.suit}${index}`} />)
+                {communityCards.length ? (
+                  communityCards.map((card, index) => <PlayingCard card={card} key={`${card.rank}${card.suit}${index}`} />)
                 ) : (
                   <span className={styles.emptyCards}>{waitingForFirstDeal ? t.preparingHand : t.waitingCommunity}</span>
                 )}
@@ -1238,7 +1243,7 @@ function currentStreetActions(state: GameSnapshot | undefined, language: "zh" | 
     return actions;
   }
 
-  for (const item of state.actionHistory) {
+  for (const item of safeArray(state.actionHistory)) {
     if (item.handId !== state.handId || item.round !== state.phase || item.action === "deal" || item.action === "win") {
       continue;
     }
@@ -1254,7 +1259,7 @@ function currentActionOverlays(state: GameSnapshot | undefined, nowMs: number, l
     return actions;
   }
 
-  for (const item of state.actionHistory) {
+  for (const item of safeArray(state.actionHistory)) {
     if (item.handId !== state.handId || item.round !== state.phase || item.action === "deal" || item.action === "win") {
       continue;
     }
@@ -1273,9 +1278,9 @@ function handWinnerSummaries(state?: GameSnapshot) {
     return [];
   }
 
-  const committedByPlayerId = new Map(state.players.map((player) => [player.id, player.totalCommitted]));
+  const committedByPlayerId = new Map(safeArray(state.players).map((player) => [player.id, player.totalCommitted]));
   const winners = new Map<string, { amount: number; name: string; netAmount: number; playerId: string }>();
-  for (const item of state.actionHistory) {
+  for (const item of safeArray(state.actionHistory)) {
     if (item.handId !== state.handId || item.action !== "win") {
       continue;
     }
@@ -1290,6 +1295,10 @@ function handWinnerSummaries(state?: GameSnapshot) {
   }
 
   return [...winners.values()].sort((left, right) => right.netAmount - left.netAmount || right.amount - left.amount);
+}
+
+function safeArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
 }
 
 const PlayingCard = memo(function PlayingCard({ card, small = false }: { card: Card; small?: boolean }) {

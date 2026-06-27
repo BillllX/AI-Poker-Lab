@@ -451,7 +451,7 @@ export default function HumanTablePage() {
   const joinPasswordInputRef = useRef<HTMLInputElement | null>(null);
   const joinPanelFocusedRef = useRef(false);
 
-  const state = snapshot?.game;
+  const state = snapshot?.game ? normalizeGameSnapshot(snapshot.game) : undefined;
   const players = state?.players ?? [];
   const phaseLabel = state ? formatTablePhase(state.phase, language) : undefined;
   const myPlayer = snapshot?.myPlayerId ? players.find((player) => player.id === snapshot.myPlayerId) : undefined;
@@ -464,21 +464,26 @@ export default function HumanTablePage() {
   const isMyTurn = Boolean(pendingDecision && pendingDecision.playerId === snapshot?.myPlayerId);
   const actionDecisionKey = pendingDecision ? `${pendingDecision.handId}:${pendingDecision.playerId}` : undefined;
   const visibleActionError = isMyTurn && actionError && actionDecisionKey === actionError.decisionKey ? actionError.message : undefined;
-  const timeLeftMs = pendingDecision ? Math.max(0, new Date(pendingDecision.expiresAt).getTime() - now) : 0;
+  const expiresAtMs = pendingDecision ? new Date(pendingDecision.expiresAt).getTime() : 0;
+  const timeLeftMs = pendingDecision && Number.isFinite(expiresAtMs) ? Math.max(0, expiresAtMs - now) : 0;
   const handWinners = winnerReveal?.winners ?? [];
   const winningPlayerIds = new Set(handWinners.map((winner) => winner.playerId));
-  const handSummaries = snapshot?.handSummaries ?? [];
-  const playerStats = finalPlayerStats ?? snapshot?.playerStats ?? [];
+  const handSummaries = safeArray(snapshot?.handSummaries);
+  const playerStats = safeArray(finalPlayerStats ?? snapshot?.playerStats);
   const myPlayerStat = snapshot?.myPlayerId ? playerStats.find((stat) => stat.playerId === snapshot.myPlayerId) : undefined;
   const isWaitingNextHand = myPlayerStat?.status === "waiting-next-hand";
   const needsRebuy = myPlayerStat?.status === "needs-rebuy";
   const buyInByPlayerId = new Map(playerStats.map((stat) => [stat.playerId, stat.buyIn]));
   const seatedStatsCount = playerStats.filter((stat) => stat.inSeat).length;
   const totalProfit = playerStats.reduce((sum, stat) => sum + stat.profit, 0);
-  const isWaitingForPlayers = snapshot?.mySeatStatus === "seated" && Boolean(snapshot.tableStatus.hasTable) && !snapshot.tableStatus.running && (state?.players.length ?? 0) < 2;
-  const canShareInvite = Boolean(snapshot?.tableStatus.hasTable);
-  const showInviteLoginMode = joinMode && snapshot?.mySeatStatus === "not-logged-in" && Boolean(snapshot.tableStatus.hasTable);
-  const showInviteJoinMode = joinMode && snapshot?.mySeatStatus === "spectator" && Boolean(snapshot.tableStatus.needsJoin);
+  const isWaitingForPlayers =
+    snapshot?.mySeatStatus === "seated" &&
+    Boolean(snapshot.tableStatus?.hasTable) &&
+    !snapshot.tableStatus?.running &&
+    (state?.players?.length ?? 0) < 2;
+  const canShareInvite = Boolean(snapshot?.tableStatus?.hasTable);
+  const showInviteLoginMode = joinMode && snapshot?.mySeatStatus === "not-logged-in" && Boolean(snapshot.tableStatus?.hasTable);
+  const showInviteJoinMode = joinMode && snapshot?.mySeatStatus === "spectator" && Boolean(snapshot.tableStatus?.needsJoin);
   const loginHref = showInviteLoginMode ? `/login?next=${encodeURIComponent("/human-table?join=1")}` : "/login";
   const streamStatusLabel =
     streamStatus === "live" ? t.streamLive : streamStatus === "recovering" ? t.streamRecovering : t.streamConnecting;
@@ -486,9 +491,9 @@ export default function HumanTablePage() {
   const finalStatsPrimaryLabel =
     snapshot?.mySeatStatus === "not-logged-in"
       ? t.finalStatsLoginContinue
-      : snapshot?.tableStatus.needsCreate
+      : snapshot?.tableStatus?.needsCreate
         ? t.finalStatsCreateNext
-        : snapshot?.tableStatus.needsJoin
+        : snapshot?.tableStatus?.needsJoin
           ? t.finalStatsJoinNext
           : t.finalStatsClose;
 
@@ -503,9 +508,9 @@ export default function HumanTablePage() {
     if (!inviteUrl) {
       return "";
     }
-    const tableName = snapshot?.tableStatus.tableName ?? copy[language].humanTable;
+    const tableName = snapshot?.tableStatus?.tableName ?? copy[language].humanTable;
     return copy[language].inviteShareText(tableName, inviteUrl);
-  }, [inviteUrl, language, snapshot?.tableStatus.tableName]);
+  }, [inviteUrl, language, snapshot?.tableStatus?.tableName]);
 
   useTableSounds(state, { enableYourTurn: true, myPlayerId: snapshot?.myPlayerId });
 
@@ -514,21 +519,21 @@ export default function HumanTablePage() {
       return;
     }
     joinPanelFocusedRef.current = true;
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducedMotion = prefersReducedMotion();
     joinPanelRef.current?.scrollIntoView({
-      behavior: prefersReducedMotion ? "auto" : "smooth",
+      behavior: reducedMotion ? "auto" : "smooth",
       block: "start",
     });
-    window.setTimeout(() => joinPasswordInputRef.current?.focus({ preventScroll: true }), prefersReducedMotion ? 0 : 220);
+    window.setTimeout(() => joinPasswordInputRef.current?.focus({ preventScroll: true }), reducedMotion ? 0 : 220);
   }, []);
 
   const focusCreatePasswordPanel = useCallback(() => {
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducedMotion = prefersReducedMotion();
     createPanelRef.current?.scrollIntoView({
-      behavior: prefersReducedMotion ? "auto" : "smooth",
+      behavior: reducedMotion ? "auto" : "smooth",
       block: "start",
     });
-    window.setTimeout(() => createPasswordInputRef.current?.focus({ preventScroll: true }), prefersReducedMotion ? 0 : 220);
+    window.setTimeout(() => createPasswordInputRef.current?.focus({ preventScroll: true }), reducedMotion ? 0 : 220);
   }, []);
 
   function setCurrentActionError(message: string | undefined) {
@@ -538,16 +543,16 @@ export default function HumanTablePage() {
   function handleFinalStatsPrimary() {
     setStatsOpen(false);
     window.setTimeout(() => {
-      if (snapshot?.tableStatus.needsCreate) {
+      if (snapshot?.tableStatus?.needsCreate) {
         focusCreatePasswordPanel();
         return;
       }
-      if (snapshot?.tableStatus.needsJoin) {
+      if (snapshot?.tableStatus?.needsJoin) {
         focusJoinPasswordPanel({ allowRepeat: true });
         return;
       }
       if (snapshot?.mySeatStatus === "not-logged-in") {
-        window.scrollTo({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", top: 0 });
+        window.scrollTo({ behavior: prefersReducedMotion() ? "auto" : "smooth", top: 0 });
       }
     }, 0);
   }
@@ -574,12 +579,12 @@ export default function HumanTablePage() {
     setMobileSideTab("log");
 
     window.setTimeout(() => {
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const isMobileSidePanel = window.matchMedia("(max-width: 1180px)").matches;
+      const reducedMotion = prefersReducedMotion();
+      const isMobileSidePanel = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 1180px)").matches;
       const idPrefix = isMobileSidePanel ? "human-table-mobile-action" : "human-table-desktop-action";
       const logsSection = document.getElementById(`${idPrefix}-logs`);
       logsSection?.scrollIntoView({
-        behavior: prefersReducedMotion ? "auto" : "smooth",
+        behavior: reducedMotion ? "auto" : "smooth",
         block: "start",
       });
       document.getElementById(`${idPrefix}-log-list`)?.focus({ preventScroll: true });
@@ -616,13 +621,42 @@ export default function HumanTablePage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    async function loadInitialSnapshot() {
+      try {
+        const response = await fetch(withBasePath("/api/human-table/state"), { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+        const nextSnapshot = (await response.json()) as HumanTableSnapshot;
+        if (cancelled) {
+          return;
+        }
+        setSnapshot(nextSnapshot);
+        revealWinnersForSnapshot(nextSnapshot.game);
+      } catch (error) {
+        console.error("human_table_initial_snapshot_failed", error);
+      }
+    }
+
+    void loadInitialSnapshot();
+    return () => {
+      cancelled = true;
+    };
+  }, [revealWinnersForSnapshot]);
+
+  useEffect(() => {
     return connectReconnectingEventSource({
       url: withBasePath("/api/human-table/events"),
       onStatusChange: setStreamStatus,
       onSnapshot: (data) => {
-        const incoming = JSON.parse(data) as HumanTableSnapshot;
-        setSnapshot((previous) => mergeHumanTableSnapshotForSse(previous, incoming));
-        revealWinnersForSnapshot(incoming.game);
+        try {
+          const incoming = JSON.parse(data) as HumanTableSnapshot;
+          setSnapshot((previous) => mergeHumanTableSnapshotForSse(previous, incoming));
+          revealWinnersForSnapshot(incoming.game);
+        } catch (error) {
+          console.error("human_table_sse_snapshot_parse_failed", error);
+        }
       },
       onRecover: async () => {
         const response = await fetch(withBasePath("/api/human-table/state"), { cache: "no-store" });
@@ -790,11 +824,11 @@ export default function HumanTablePage() {
     trackEngagement({
       at: new Date().toISOString(),
       name: "engagement.human_table.invite_copy",
-      tableId: snapshot?.tableStatus.tableId,
+      tableId: snapshot?.tableStatus?.tableId,
     });
     pushEngagementToast({
       expiresMs: 4500,
-      id: `human-invite-copy-${snapshot?.tableStatus.tableId ?? "table"}`,
+      id: `human-invite-copy-${snapshot?.tableStatus?.tableId ?? "table"}`,
       kind: "settled",
       message: copy[language].inviteCopyToast,
     });
@@ -809,12 +843,12 @@ export default function HumanTablePage() {
       {snapshot?.mySeatStatus === "seated" && !needsRebuy ? (
         <button type="button" onClick={() => setBuyInDialogOpen(true)}>{t.buyIn}</button>
       ) : null}
-      {snapshot?.mySeatStatus === "seated" && !snapshot.tableStatus.canEndGame ? (
+      {snapshot?.mySeatStatus === "seated" && !snapshot.tableStatus?.canEndGame ? (
         <button className={styles.danger} disabled={busy === "leave"} type="button" onClick={() => void leaveTable()}>
           {t.leave}
         </button>
       ) : null}
-      {snapshot?.tableStatus.canEndGame ? (
+      {snapshot?.tableStatus?.canEndGame ? (
         <button className={styles.danger} disabled={busy === "end"} type="button" onClick={() => void endGame()}>
           {t.endGame}
         </button>
@@ -897,6 +931,9 @@ export default function HumanTablePage() {
         <div className={styles.handSummaryList}>
           {handSummaries.slice(0, 5).map((summary) => {
             const isSyncedHand = highlightHandId !== undefined && summary.handId === highlightHandId;
+            const communityCards = safeArray(summary.communityCards);
+            const winners = safeArray(summary.winners);
+            const summaryPlayers = safeArray(summary.players);
             return (
               <article
                 aria-current={isSyncedHand ? "true" : undefined}
@@ -910,26 +947,26 @@ export default function HumanTablePage() {
                   </strong>
                   <span>
                     <time dateTime={summary.completedAt}>{new Date(summary.completedAt).toLocaleTimeString()}</time>
-                    {summary.totalAwarded.toLocaleString()}
+                    {formatChipAmount(summary.totalAwarded)}
                   </span>
                 </div>
                 <div className={styles.handSummaryCards}>
-                  {summary.communityCards.length > 0 ? (
-                    summary.communityCards.map((card, index) => <PlayingCard card={card} key={`${summary.handId}-${card.rank}${card.suit}-${index}`} small />)
+                  {communityCards.length > 0 ? (
+                    communityCards.map((card, index) => <PlayingCard card={card} key={`${summary.handId}-${card.rank}${card.suit}-${index}`} small />)
                   ) : (
                     <small>{t.noCommunity}</small>
                   )}
                 </div>
                 <div className={styles.handSummaryWinners}>
-                  {summary.winners.map((winner) => (
+                  {winners.map((winner) => (
                     <span key={`${summary.handId}-${winner.playerId}`}>
-                      {winner.name} +{winner.amount.toLocaleString()}
+                      {winner.name} +{formatChipAmount(winner.amount)}
                       {winner.handLabel ? <small>{formatWinReason(winner.handLabel, language)}</small> : null}
                     </span>
                   ))}
                 </div>
                 <div className={styles.handSummaryPlayers}>
-                  {summary.players.map((player) => (
+                  {summaryPlayers.map((player) => (
                     <span key={`${summary.handId}-${player.playerId}`}>
                       {player.name}
                       <em className={seatDeltaClassName(player.netChips)}>{formatSeatDelta(player.netChips)}</em>
@@ -951,9 +988,9 @@ export default function HumanTablePage() {
       <section className={styles.header}>
         <div className={styles.mobileHeaderMain}>
           <p className={styles.eyebrow}>{t.tableEyebrow}</p>
-          <h1>{snapshot?.tableStatus.tableName ?? t.humanTable}</h1>
+          <h1>{snapshot?.tableStatus?.tableName ?? t.humanTable}</h1>
           <p className={styles.subtitle}>
-            {state?.running ? t.running : t.waitingStart} · {snapshot?.tableStatus.playerCount ?? 0}/6 {t.seats} · {t.hand} #{state?.handId ?? 0}
+            {state?.running ? t.running : t.waitingStart} · {snapshot?.tableStatus?.playerCount ?? 0}/6 {t.seats} · {t.hand} #{state?.handId ?? 0}
           </p>
           <div className={styles.mobileTableStatus}>
             <span className={streamStatusClassName} role="status" aria-live="polite">{streamStatusLabel}</span>
@@ -982,7 +1019,7 @@ export default function HumanTablePage() {
           <p className={styles.muted}>{showInviteLoginMode ? t.joinModeLoginHint : t.loginHint}</p>
           <Link className={styles.primaryAction} href={loginHref}>{t.login}</Link>
         </section>
-      ) : snapshot?.tableStatus.needsCreate ? (
+      ) : snapshot?.tableStatus?.needsCreate ? (
         <PasswordPanel
           busy={busy === "create"}
           buttonText={t.create}
@@ -1007,7 +1044,7 @@ export default function HumanTablePage() {
           }}
           title={t.createTable}
         />
-      ) : snapshot?.tableStatus.needsJoin ? (
+      ) : snapshot?.tableStatus?.needsJoin ? (
         <PasswordPanel
           autoFocusPassword={showInviteJoinMode}
           busy={busy === "join"}
@@ -1176,9 +1213,9 @@ export default function HumanTablePage() {
                     <strong>{stat.name}</strong>
                     <span>{stat.status === "needs-rebuy" ? t.rebuyTitle : stat.status === "waiting-next-hand" ? t.waitingNextHand : stat.inSeat ? t.inSeat : t.leftSeat}</span>
                   </div>
-                  <span className={styles.statsStack}><small>{t.currentStack}</small><b>{stat.currentStack.toLocaleString()}</b></span>
-                  <span className={styles.statsCommitted}><small>{t.committed}</small><b>{stat.committedChips.toLocaleString()}</b></span>
-                  <span className={styles.statsEffective}><small>{t.effectiveStack}</small><b>{stat.effectiveStack.toLocaleString()}</b></span>
+                  <span className={styles.statsStack}><small>{t.currentStack}</small><b>{formatChipAmount(stat.currentStack)}</b></span>
+                  <span className={styles.statsCommitted}><small>{t.committed}</small><b>{formatChipAmount(stat.committedChips)}</b></span>
+                  <span className={styles.statsEffective}><small>{t.effectiveStack}</small><b>{formatChipAmount(stat.effectiveStack)}</b></span>
                   <em className={seatDeltaClassName(stat.profit)}>{formatSeatDelta(stat.profit)}</em>
                 </article>
               ))}
@@ -1235,14 +1272,14 @@ export default function HumanTablePage() {
                   disabled={Boolean(busy)}
                   type="button"
                   onClick={() => {
-                    if (snapshot?.tableStatus.canEndGame) {
+                    if (snapshot?.tableStatus?.canEndGame) {
                       void endGame();
                       return;
                     }
                     void leaveTable();
                   }}
                 >
-                  {snapshot?.tableStatus.canEndGame ? t.endGame : t.leave}
+                  {snapshot?.tableStatus?.canEndGame ? t.endGame : t.leave}
                 </button>
               </div>
             ) : null}
@@ -1539,7 +1576,7 @@ function currentStreetActions(state: GameSnapshot | undefined, language: "zh" | 
     return actions;
   }
 
-  for (const item of state.actionHistory) {
+  for (const item of safeArray(state.actionHistory)) {
     if (item.handId !== state.handId || item.round !== state.phase || item.action === "deal" || item.action === "win") {
       continue;
     }
@@ -1555,7 +1592,7 @@ function currentActionOverlays(state: GameSnapshot | undefined, nowMs: number, l
     return actions;
   }
 
-  for (const item of state.actionHistory) {
+  for (const item of safeArray(state.actionHistory)) {
     if (item.handId !== state.handId || item.round !== state.phase || item.action === "deal" || item.action === "win") {
       continue;
     }
@@ -1574,9 +1611,9 @@ function handWinnerSummaries(state?: GameSnapshot) {
     return [];
   }
 
-  const committedByPlayerId = new Map(state.players.map((player) => [player.id, player.totalCommitted]));
+  const committedByPlayerId = new Map(safeArray(state.players).map((player) => [player.id, player.totalCommitted]));
   const winners = new Map<string, { amount: number; handLabel?: string; name: string; netAmount: number; playerId: string }>();
-  for (const item of state.actionHistory) {
+  for (const item of safeArray(state.actionHistory)) {
     if (item.handId !== state.handId || item.action !== "win") {
       continue;
     }
@@ -1592,6 +1629,39 @@ function handWinnerSummaries(state?: GameSnapshot) {
   }
 
   return [...winners.values()].sort((left, right) => right.netAmount - left.netAmount || right.amount - left.amount);
+}
+
+function normalizeGameSnapshot(state: GameSnapshot): GameSnapshot {
+  return {
+    ...state,
+    actionHistory: safeArray(state.actionHistory),
+    communityCards: safeArray(state.communityCards),
+    currentBet: safeNumber(state.currentBet),
+    handId: safeNumber(state.handId),
+    logs: safeArray(state.logs),
+    modelStats: safeArray(state.modelStats),
+    players: safeArray(state.players).map((player) => ({
+      ...player,
+      currentBet: safeNumber(player.currentBet),
+      holeCards: safeArray(player.holeCards),
+      stack: safeNumber(player.stack),
+      totalCommitted: safeNumber(player.totalCommitted),
+    })),
+    pot: safeNumber(state.pot),
+    stats: safeArray(state.stats),
+  };
+}
+
+function safeArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function safeNumber(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function prefersReducedMotion() {
+  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function formatWinReason(reason: string | undefined, language: "en" | "zh") {
